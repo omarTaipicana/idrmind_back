@@ -443,7 +443,7 @@ const create = catchError(async (req, res) => {
           <p style="font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
             Si tienes preguntas o necesitas ayuda, estamos disponibles para brindarte soporte inmediato.
           </p>
-          <a href="https://wa.me/593980773229" target="_blank"
+          <a href="https://wa.me/593979002223" target="_blank"
             style="
               background-color: #25D366;
               color: #ffffff;

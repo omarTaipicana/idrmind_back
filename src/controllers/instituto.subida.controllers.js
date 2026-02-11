@@ -232,7 +232,7 @@ const subirCertificadosFirmados = catchError(async (req, res) => {
 
         <!-- WhatsApp -->
         <p style="margin-top: 20px;">
-          <a href="https://wa.me/593980773229" target="_blank"
+          <a href="https://wa.me/593979002223" target="_blank"
             style="
               background-color: #25D366;
               color: #ffffff;

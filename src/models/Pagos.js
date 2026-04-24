@@ -17,7 +17,7 @@ const Pagos = sequelize.define("pagos", {
     allowNull: false,
   },
   valorDepositado: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
   },
   entidad: {

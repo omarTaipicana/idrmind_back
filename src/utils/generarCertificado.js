@@ -3,7 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
-
+const QRCode = require("qrcode");
 const Pagos = require("../models/Pagos");
 const Inscripcion = require("../models/Inscripcion");
 const User = require("../models/User");
@@ -132,17 +132,44 @@ module.exports = async function generarCertificado(pagoId) {
   // 5) Pintar nombres/apellidos (ajusta coords según tu template)
   const nombres = user.firstName || "";
   const apellidos = user.lastName || "";
+  const cedula = user.cI || "";
   const nombreCompleto = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  const fechaEmision = new Date().toLocaleDateString("es-EC", {
+    timeZone: "America/Guayaquil",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const fecha = `Emitido el ${fechaEmision}`;
 
 
-  const fontSizeNombre = 40;
-  const fontSizeApellido = 40;
-  const fontSizeNombreCompleto = 33;
+  const relativeUrl = `/uploads/certificados/${cursoSigla}/${dataCertificado.cedula}_${cursoSigla}-signed.pdf`;
+  const baseUrl = process.env.BASE_URL || "http://localhost:8081";
+  const absoluteUrl = `${baseUrl}${relativeUrl}`;
+  const qrBase64 = await QRCode.toDataURL(absoluteUrl);
+  const qrImage = await pdfDoc.embedPng(qrBase64);
+
+  const qrSize = 120;
+
+  const fontSizeNombre = 23;
+  const fontSizeApellido = 30;
+  const fontSizeCedula = 20;
+  const fontSizeFecha = 13;
+
+  let fontSizeNombreCompleto = 23;
+
+
+
   const minFontSize = 24;
   const maxWidth = width - 100;
 
   const nombreWidth = font.widthOfTextAtSize(nombres, fontSizeNombre);
   const apellidoWidth = font.widthOfTextAtSize(apellidos, fontSizeApellido);
+  const cedulaWidth = font.widthOfTextAtSize(cedula, fontSizeCedula);
+  const fechaWidth = font.widthOfTextAtSize(fecha, fontSizeFecha);
+
+
   let nombreCompletoWidth = font.widthOfTextAtSize(nombreCompleto, fontSizeNombreCompleto);
 
   while (nombreCompletoWidth > maxWidth && fontSizeNombreCompleto > minFontSize) {
@@ -153,39 +180,70 @@ module.exports = async function generarCertificado(pagoId) {
     );
   }
 
-  const yNombre = 250;
-  const yApellido = 200;
+  const yNombre = 615;
+  const yApellido = 580;
+  const yCedula = 523;
+  const yFecha = 30;
+
   const yNombreCompleto = 260;
 
 
-  const xNombre = (width - nombreWidth) / 2;
-  const xApellido = (width - apellidoWidth) / 2;
+  const xNombre = (width - nombreWidth) / 1.6;
+  const xApellido = (width - apellidoWidth) / 1.6;
+  const xCedula = (width - cedulaWidth) / 1.45;
+  const xFecha = (width - fechaWidth) / 20;
+
+
   const xNombreCompleto = (width - nombreCompletoWidth) / 2;
 
 
-  // firstPage.drawText(nombres, {
-  //   x: xNombre,
-  //   y: yNombre,
-  //   size: fontSizeNombre,
-  //   font: fontBold,
-  //   color: rgb(0, 0, 0),
-  // });
-
-  // firstPage.drawText(apellidos, {
-  //   x: xApellido,
-  //   y: yApellido,
-  //   size: fontSizeApellido,
-  //   font: fontBold,
-  //   color: rgb(0, 0, 0),
-  // });
-
-  firstPage.drawText(nombreCompleto, {
-    x: xNombreCompleto,
-    y: yNombreCompleto,
-    size: fontSizeNombreCompleto,
-    font: fontRegular,
+  firstPage.drawText(nombres, {
+    x: xNombre,
+    y: yNombre,
+    size: fontSizeNombre,
+    font: fontBold,
     color: rgb(0, 0, 0),
   });
+
+  firstPage.drawText(apellidos, {
+    x: xApellido,
+    y: yApellido,
+    size: fontSizeApellido,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+
+  firstPage.drawText(cedula, {
+    x: xCedula,
+    y: yCedula,
+    size: fontSizeCedula,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+  firstPage.drawText(fecha, {
+    x: xFecha,
+    y: yFecha,
+    size: fontSizeFecha,
+    font: fontBold,
+    color: rgb(0, 0, 0),
+  });
+
+  firstPage.drawImage(qrImage, {
+    x: 53,
+    y: 140,
+    width: qrSize,
+    height: qrSize,
+  });
+
+  // firstPage.drawText(nombreCompleto, {
+  //   x: xNombreCompleto,
+  //   y: yNombreCompleto,
+  //   size: fontSizeNombreCompleto,
+  //   font: fontRegular,
+  //   color: rgb(0, 0, 0),
+  // });
 
   // 6) Guardar bytes
   const pdfBytes = await pdfDoc.save();
@@ -195,7 +253,7 @@ module.exports = async function generarCertificado(pagoId) {
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
   const grupoSuffix = grupo ? `_g${grupo}` : "";
-  const fileName = `${dataCertificado.cedula}_${cursoSigla}${grupoSuffix}.pdf`;
+  const fileName = `${dataCertificado.cedula}_${cursoSigla}.pdf`;
   const outputPath = path.join(outputDir, fileName);
 
   fs.writeFileSync(outputPath, pdfBytes);

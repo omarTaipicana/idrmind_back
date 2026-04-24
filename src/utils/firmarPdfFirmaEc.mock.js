@@ -15,7 +15,7 @@ module.exports = async function firmarPdfFirmaEc(pdfPath, dataCertificado) {
 
   // Crear ruta para PDF firmado simulado
   const ext = path.extname(pdfPath);
-  const signedPath = pdfPath.replace(ext, `_firmado${ext}`);
+  const signedPath = pdfPath.replace(ext, `-signed${ext}`);
 
   // Guardar el mismo PDF como "firmado"
   fs.writeFileSync(signedPath, buffer);

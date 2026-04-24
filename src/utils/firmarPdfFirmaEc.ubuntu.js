@@ -23,7 +23,7 @@ module.exports = async function firmarPdfFirmaEcUbuntu(pdfPath, opts = {}) {
   if (!fs.existsSync(p12Path)) throw new Error("Certificado no existe");
 
   const ext = path.extname(pdfPath);
-  const signedPath = pdfPath.replace(ext, `_firmado${ext}`);
+  const signedPath = pdfPath.replace(ext, `-signed${ext}`);
 
   const page = opts.page ?? 1;
   const rect = opts.rect ?? [10, 240, 12, 242];

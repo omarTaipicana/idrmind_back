@@ -37,7 +37,7 @@ const subirCertificadosFirmados = catchError(async (req, res) => {
     "..",
     "..",
     "uploads",
-    "certificados_firmados",
+    "certificados-signeds",
     sigla
   );
 
@@ -150,7 +150,7 @@ const subirCertificadosFirmados = catchError(async (req, res) => {
     // 8) Borrar certificados simples de iDr.Mind si existen
     const posibleSimple1 = path.join(
       carpetaIdrMind,
-      `${cedula}_${sigla}_g${grupo}_firmado.pdf`
+      `${cedula}_${sigla}_g${grupo}-signed.pdf`
     );
     const posibleSimple2 = path.join(carpetaIdrMind, `${cedula}_${sigla}.pdf`);
     const posibleSimple3 = path.join(
@@ -165,7 +165,7 @@ const subirCertificadosFirmados = catchError(async (req, res) => {
     });
 
     // 9) URL pública
-    const relativeUrl = `/uploads/certificados_firmados/${sigla}/${finalFileName}`;
+    const relativeUrl = `/uploads/certificados-signeds/${sigla}/${finalFileName}`;
     const host = `${req.protocol}://${req.get("host")}`;
     const absoluteUrl = `${host}${relativeUrl}`;
 

@@ -20,6 +20,10 @@ const Course = sequelize.define("course", {
     type: DataTypes.TEXT,
     allowNull: false,
   },
+  precio: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
   vigente: {
     type: DataTypes.BOOLEAN,
     allowNull: false,

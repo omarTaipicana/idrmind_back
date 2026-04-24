@@ -1,4 +1,4 @@
-const { getAll, getDashboardPagos, validatePago, create, getOne, remove, update } = require('../controllers/pagos.controllers');
+const { getAll, getDashboardPagos, validatePago, create, getOne, remove, update, certificado } = require('../controllers/pagos.controllers');
 const express = require('express');
 const upload = require("../utils/multer")
 const verifyJWT = require("../utils/verifyJWT")
@@ -21,5 +21,9 @@ pagosRouter.route('/pagos/:id')
     .get(getOne)
     .delete(remove)
     .put(verifyJWT, update);
+
+pagosRouter.route('/pagos/:id/certificado')
+    .post(verifyJWT, certificado);
+
 
 module.exports = pagosRouter;

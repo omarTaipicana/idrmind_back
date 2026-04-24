@@ -54,13 +54,13 @@ const getAll = catchError(async (req, res) => {
   // filtros de User
   const userWhere = busqueda
     ? {
-        [Op.or]: [
-          { grado: { [Op.iLike]: `%${busqueda}%` } },
-          { firstName: { [Op.iLike]: `%${busqueda}%` } },
-          { lastName: { [Op.iLike]: `%${busqueda}%` } },
-          { cI: { [Op.iLike]: `%${busqueda}%` } },
-        ],
-      }
+      [Op.or]: [
+        { grado: { [Op.iLike]: `%${busqueda}%` } },
+        { firstName: { [Op.iLike]: `%${busqueda}%` } },
+        { lastName: { [Op.iLike]: `%${busqueda}%` } },
+        { cI: { [Op.iLike]: `%${busqueda}%` } },
+      ],
+    }
     : undefined;
 
   // traer pagos con inscripción y usuario
@@ -474,8 +474,6 @@ const update = catchError(async (req, res) => {
     return res.status(404).json({ message: "Pago no encontrado" });
   }
 
-  const verificadoAntes = pagoOriginal.verificado; // puede ser true/false/null
-
   // =========================
   // ✅ VALIDACIÓN NUEVA (entidad + idDeposito únicos)
   // sin romper tu funcionalidad actual
@@ -484,6 +482,7 @@ const update = catchError(async (req, res) => {
   // Tomamos valores "finales" que quedarían tras el update:
   const entidadFinal =
     req.body.entidad !== undefined ? req.body.entidad : pagoOriginal.entidad;
+
   const idDepositoFinal =
     req.body.idDeposito !== undefined
       ? req.body.idDeposito
@@ -502,7 +501,7 @@ const update = catchError(async (req, res) => {
       where: {
         entidad: entidadFinal,
         idDeposito: idDepositoFinal,
-        id: { [Op.ne]: id }, // 👈 excluye el mismo pago
+        id: { [Op.ne]: id }, // excluye el mismo pago
       },
     });
 
@@ -516,6 +515,7 @@ const update = catchError(async (req, res) => {
 
   // 2. Actualizar el pago con los datos del body
   let pagosActualizados;
+
   try {
     const [rowsUpdated, updated] = await Pagos.update(req.body, {
       where: { id },
@@ -539,23 +539,191 @@ const update = catchError(async (req, res) => {
   }
 
   const pagoActualizado = pagosActualizados[0];
-  const verificadoDespues = pagoActualizado.verificado;
 
-  // 3. Emitir evento de pago actualizado (lo que ya tenías)
+  // 3. Emitir evento de pago actualizado
   const io = req.app.get("io");
   if (io) io.emit("pagoActualizado", pagoActualizado);
 
-  // 4. Detectar cambio de verificado: false -> true
-  if (!verificadoAntes && verificadoDespues) {
-    try {
-      await generarCertificado(pagoActualizado.id);
-    } catch (error) {
-      console.error("Error generando certificado:", error);
-      // no rompemos la respuesta al cliente
-    }
-  }
+
+  const verificadoAntes = pagoOriginal.verificado;
+  const verificadoDespues = pagoActualizado.verificado;
+
+  // if (!verificadoAntes && verificadoDespues) {
+  //   try {
+  //     await generarCertificado(pagoActualizado.id);
+  //   } catch (error) {
+  //     console.error("Error generando certificado:", error);
+  //   }
+  // }
+
+
 
   return res.json(pagoActualizado);
+});
+
+
+
+const certificado = catchError(async (req, res) => {
+  const { id } = req.params;
+
+  const pago = await Pagos.findByPk(id);
+  if (!pago) {
+    return res.status(404).json({ message: "Pago no encontrado" });
+  }
+
+  if (!pago.verificado) {
+    return res.status(400).json({
+      message: "El pago debe estar verificado para generar el certificado.",
+    });
+  }
+
+  const inscripcion = await Inscripcion.findByPk(pago.inscripcionId);
+  if (!inscripcion) {
+    return res.status(400).json({
+      message: "No se encontró la inscripción asociada al pago.",
+    });
+  }
+
+  const user = await User.findByPk(inscripcion.userId);
+  if (!user) {
+    return res.status(400).json({
+      message: "No se encontró el usuario asociado a la inscripción.",
+    });
+  }
+
+
+  const curso = inscripcion.courseId
+    ? await Course.findByPk(inscripcion.courseId)
+    : null;
+
+  const siglaCurso = String(
+    curso?.sigla || inscripcion.curso || pago.curso
+  ).trim().toLowerCase();
+
+  const tipoCertificado = String(
+    req.body.tipo || "emp"
+  ).trim().toLowerCase();
+
+  const certYaExiste = await Certificado.findOne({
+    where: {
+      inscripcionId: inscripcion.id,
+      curso: siglaCurso,
+      tipo: tipoCertificado,
+    },
+  });
+
+  if (certYaExiste) {
+    return res.status(400).json({
+      message: `El certificado ya fue emitido para este curso.`,
+      certificado: certYaExiste,
+      url: certYaExiste.url,
+    });
+  }
+
+
+  try {
+    const resultado = await generarCertificado(id);
+
+    const { fileName, dataCertificado } = resultado;
+    const { inscripcionId, cursoSigla, grupo } = dataCertificado;
+
+    const siglaUrl = String(cursoSigla).trim().toLowerCase();
+    const relativeUrl = `/uploads/certificados/${siglaUrl}/${fileName}`;
+    const host = `${req.protocol}://${req.get("host")}`;
+    const absoluteUrl = `${host}${relativeUrl}`;
+
+    let certExistente = await Certificado.findOne({
+      where: {
+        inscripcionId,
+        curso: cursoSigla,
+      },
+    });
+
+    if (certExistente) {
+      certExistente.url = absoluteUrl;
+      certExistente.entregado = true;
+      certExistente.grupo = grupo || null;
+      await certExistente.save();
+    } else {
+      certExistente = await Certificado.create({
+        inscripcionId,
+        curso: cursoSigla,
+        grupo: grupo || null,
+        url: absoluteUrl,
+        entregado: true,
+        tipo: "emp"
+      });
+    }
+
+    await sendEmail({
+      to: user.email,
+      subject: "🎓 Tu certificado está listo - iDr.Mind",
+      html: `
+      <div style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 20px; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); overflow: hidden;">
+          
+          <div style="text-align: center; background: linear-gradient(135deg, #0a2540, #174a8c); padding: 25px;">
+            <img src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png" alt="iDr.Mind" style="width: 160px;" />
+          </div>
+          
+          <div style="padding: 35px; text-align: center;">
+            <h1 style="color: #1B326B; margin-bottom: 10px;">¡Felicitaciones ${user.firstName} ${user.lastName}!</h1>
+            <h2 style="font-weight: normal; margin-bottom: 25px;">Tu certificado del curso:</h2>
+            <h2 style="color: #1B326B; margin-bottom: 25px;">"${String(
+        curso?.nombre || pago.curso || ""
+      ).toUpperCase()}"</h2>
+            
+            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
+              Nos complace informarte que tu certificado ha sido emitido exitosamente y ya se encuentra disponible para su descarga.
+            </p>
+
+            <p style="text-align: center; margin-bottom: 35px;">
+              <a href="${absoluteUrl}" target="_blank"
+                style="
+                  background-color: #4D4D4D;
+                  color: #ffffff;
+                  padding: 14px 30px;
+                  text-decoration: none;
+                  border-radius: 6px;
+                  font-size: 16px;
+                  font-weight: 600;
+                  display: inline-block;
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+                ">
+                📄 Descargar certificado
+              </a>
+            </p>
+
+            <p style="font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
+              Si tienes dudas o necesitas asistencia adicional, estamos aquí para ayudarte.
+            </p>
+          </div>
+          
+          <div style="background-color: #f0f0f0; padding: 25px; text-align: center; font-size: 13px; color: #666;">
+            <p>Este es un correo automático, por favor no respondas a este mensaje.</p>
+            <p style="margin-top: 20px;">© ${new Date().getFullYear()} iDr.Mind. Todos los derechos reservados.</p>
+          </div>
+          
+        </div>
+      </div>
+      `,
+    });
+
+    const io = req.app.get("io");
+    if (io) io.emit("pagoActualizado", pago);
+
+    return res.status(200).json({
+      message: "Certificado generado, guardado en BD y enviado al usuario correctamente.",
+      certificado: certExistente,
+      url: absoluteUrl,
+    });
+  } catch (error) {
+    console.error("Error en endpoint certificado:", error);
+    return res.status(500).json({
+      message: "Ocurrió un error al generar el certificado.",
+      error: error.message,
+    });
+  }
 });
 
 
@@ -573,4 +741,5 @@ module.exports = {
   getOne,
   remove,
   update,
+  certificado,
 };

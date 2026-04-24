@@ -16,6 +16,10 @@ const Certificado = sequelize.define("certificado", {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  tipo: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   url: {
     type: DataTypes.STRING,
     allowNull: false,

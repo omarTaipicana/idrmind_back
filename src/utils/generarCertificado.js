@@ -143,9 +143,9 @@ module.exports = async function generarCertificado(pagoId) {
 
   const fecha = `Emitido el ${fechaEmision}`;
 
-
+  const baseUrl = process.env.PUBLIC_API_URL || "http://localhost:8081";
   const relativeUrl = `/uploads/certificados/${cursoSigla}/${dataCertificado.cedula}_${cursoSigla}-signed.pdf`;
-  const absoluteUrl = `${path}${relativeUrl}`;
+  const absoluteUrl = `${baseUrl}${relativeUrl}`;
   const qrBase64 = await QRCode.toDataURL(absoluteUrl);
   const qrImage = await pdfDoc.embedPng(qrBase64);
 

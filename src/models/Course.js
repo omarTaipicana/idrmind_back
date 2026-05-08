@@ -20,7 +20,15 @@ const Course = sequelize.define("course", {
     type: DataTypes.TEXT,
     allowNull: false,
   },
-  precio: {
+  precio_emp: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  precio_mdt: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+  },
+  precio_int: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
   },

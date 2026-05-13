@@ -21,6 +21,9 @@ const { Op, Sequelize } = require("sequelize");
 const getAll = catchError(async (req, res) => {
   const {
     curso,
+    cert_emp,
+    cert_mdt,
+    cert_int,
     verificado,
     moneda,
     distintivo,
@@ -69,6 +72,9 @@ const getAll = catchError(async (req, res) => {
     attributes: [
       "id",
       "curso",
+      "cert_emp",
+      "cert_mdt",
+      "cert_int",
       "distintivo",
       "moneda",
       "valorDepositado",
@@ -322,6 +328,9 @@ const create = catchError(async (req, res) => {
   const {
     inscripcionId,
     curso,
+    cert_emp,
+    cert_mdt,
+    cert_int,
     valorDepositado,
     confirmacion,
     verificado,
@@ -339,6 +348,9 @@ const create = catchError(async (req, res) => {
   const result = await Pagos.create({
     inscripcionId,
     curso,
+    cert_emp,
+    cert_mdt,
+    cert_int,
     valorDepositado,
     confirmacion,
     verificado,
@@ -357,6 +369,25 @@ const create = catchError(async (req, res) => {
     distintivo === "true" ||
     distintivo === 1 ||
     distintivo === "1";
+
+  const certificados = [];
+
+  if (cert_emp === true || cert_emp === "true") {
+    certificados.push("Certificado Empresarial iDr.Mind.");
+  }
+
+  if (cert_mdt === true || cert_mdt === "true") {
+    certificados.push("Certificado por el Ministerio de Trabajo");
+  }
+
+  if (cert_int === true || cert_int === "true") {
+    certificados.push("Certificado Internacional");
+  }
+
+  const detalleCertificados =
+    certificados.length > 0
+      ? `Pago por: ${certificados.join(", ")}`
+      : "Pago registrado";
 
   await sendEmail({
     to: user.email,
@@ -379,6 +410,7 @@ const create = catchError(async (req, res) => {
       }"</strong>.
         </p>
         <p style="font-size: 16px; line-height: 1.6;">
+        <p><strong>${detalleCertificados}</strong></p>
           <strong>Valor depositado:</strong> $${valorDepositado}
         </p>
         ${incluyeMoneda || incluyeDistintivo

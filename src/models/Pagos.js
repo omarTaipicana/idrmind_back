@@ -16,6 +16,18 @@ const Pagos = sequelize.define("pagos", {
     type: DataTypes.STRING,
     allowNull: false,
   },
+  cert_emp: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  cert_mdt: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  cert_int: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
   valorDepositado: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
@@ -40,10 +52,12 @@ const Pagos = sequelize.define("pagos", {
   distintivo: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
+    defaultValue: false,
   },
   moneda: {
     type: DataTypes.BOOLEAN,
     allowNull: false,
+    defaultValue: false,
   },
   entregado: {
     type: DataTypes.BOOLEAN,

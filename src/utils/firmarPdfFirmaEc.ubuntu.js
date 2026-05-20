@@ -2,8 +2,8 @@ const fs = require("fs");
 const path = require("path");
 const { execFile } = require("child_process");
 
-const PYTHON_BIN = "/var/www/idrmind_back/.venv/bin/python3";
-const SCRIPT = "/var/www/idrmind_back/scripts/firmar_pdf.py";
+const PYTHON_BIN = "/var/www/idrmind/idrmind_back/.venv/bin/python3";
+const SCRIPT = "/var/www/idrmind/idrmind_back/scripts/firmar_pdf.py";
 
 function run(cmd, args) {
   return new Promise((resolve, reject) => {

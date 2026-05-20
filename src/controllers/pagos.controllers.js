@@ -10,13 +10,7 @@ const User = require("../models/User");
 const Certificado = require("../models/Certificado");
 const generarCertificado = require("../utils/generarCertificado");
 
-
 const { Op, Sequelize } = require("sequelize");
-
-
-
-
-
 
 const getAll = catchError(async (req, res) => {
   const {
@@ -57,13 +51,13 @@ const getAll = catchError(async (req, res) => {
   // filtros de User
   const userWhere = busqueda
     ? {
-      [Op.or]: [
-        { grado: { [Op.iLike]: `%${busqueda}%` } },
-        { firstName: { [Op.iLike]: `%${busqueda}%` } },
-        { lastName: { [Op.iLike]: `%${busqueda}%` } },
-        { cI: { [Op.iLike]: `%${busqueda}%` } },
-      ],
-    }
+        [Op.or]: [
+          { grado: { [Op.iLike]: `%${busqueda}%` } },
+          { firstName: { [Op.iLike]: `%${busqueda}%` } },
+          { lastName: { [Op.iLike]: `%${busqueda}%` } },
+          { cI: { [Op.iLike]: `%${busqueda}%` } },
+        ],
+      }
     : undefined;
 
   // traer pagos con inscripción y usuario
@@ -98,7 +92,14 @@ const getAll = catchError(async (req, res) => {
           {
             model: User,
             required: true,
-            attributes: ["grado", "firstName", "lastName", "cI", "cellular", "email"],
+            attributes: [
+              "grado",
+              "firstName",
+              "lastName",
+              "cI",
+              "cellular",
+              "email",
+            ],
             where: userWhere || undefined,
           },
         ],
@@ -109,7 +110,7 @@ const getAll = catchError(async (req, res) => {
 
   // 🔁 AHORA certificados se relacionan por inscripcionId
   const certificados = await Certificado.findAll({
-    attributes: ["id", "inscripcionId", "url"], // ya no usamos cedula/curso
+    attributes: ["id", "inscripcionId", "url", "tipo"], // ya no usamos cedula/curso
     raw: true,
   });
 
@@ -118,15 +119,37 @@ const getAll = catchError(async (req, res) => {
     const inscripcion = pago.inscripcion;
     const user = inscripcion.user;
 
-    const cert =
-      certificados.find(
-        (c) => c.inscripcionId === inscripcion.id // clave: relacionar por inscripcion.id
-      ) || null;
+    const certEmp =
+      pago.cert_emp === true || pago.cert_emp === "true"
+        ? certificados.find(
+            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_emp",
+          ) || null
+        : null;
+
+    const certMdt =
+      pago.cert_mdt === true || pago.cert_mdt === "true"
+        ? certificados.find(
+            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_mdt",
+          ) || null
+        : null;
+
+    const certInt =
+      pago.cert_int === true || pago.cert_int === "true"
+        ? certificados.find(
+            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_int",
+          ) || null
+        : null;
 
     return {
       ...pago.toJSON(),
-      certificado: !!cert,
-      urlCertificado: cert ? cert.url : null,
+
+      certificadoEmp: !!certEmp,
+      certificadoMdt: !!certMdt,
+      certificadoInt: !!certInt,
+
+      urlCertificadoEmp: certEmp ? certEmp.url : null,
+      urlCertificadoMdt: certMdt ? certMdt.url : null,
+      urlCertificadoInt: certInt ? certInt.url : null,
     };
   });
 
@@ -136,13 +159,6 @@ const getAll = catchError(async (req, res) => {
 
   return res.json(results);
 });
-
-
-
-
-
-
-
 
 const getDashboardPagos = catchError(async (req, res) => {
   const { desde, hasta, curso, verificado } = req.query;
@@ -193,11 +209,11 @@ const getDashboardPagos = catchError(async (req, res) => {
 
   const totalPagos = pagos.reduce(
     (acc, p) => acc + (p.valorDepositado || 0),
-    0
+    0,
   );
   const totalPagosNum = pagos.length;
   const pagosUnicosPorCurso = new Set(
-    pagos.map((p) => `${p.inscripcionId}-${p.curso}`)
+    pagos.map((p) => `${p.inscripcionId}-${p.curso}`),
   );
 
   // Conteo de pagos únicos (uno por curso por inscrito)
@@ -237,7 +253,7 @@ const getDashboardPagos = catchError(async (req, res) => {
     pagosPorCursoCount[c] = (pagosPorCursoCount[c] || 0) + 1;
   });
   const pagosPorCurso = Object.entries(pagosPorCursoCount).map(
-    ([curso, cantidad]) => ({ curso, cantidad })
+    ([curso, cantidad]) => ({ curso, cantidad }),
   );
 
   // Pagos por grado (desde la relación con inscripcion.user.grado)
@@ -247,7 +263,7 @@ const getDashboardPagos = catchError(async (req, res) => {
     pagosPorGradoCount[grado] = (pagosPorGradoCount[grado] || 0) + 1;
   });
   const pagosPorGrado = Object.entries(pagosPorGradoCount).map(
-    ([grado, cantidad]) => ({ grado, cantidad })
+    ([grado, cantidad]) => ({ grado, cantidad }),
   );
 
   return res.json({
@@ -403,25 +419,28 @@ const create = catchError(async (req, res) => {
 
       <!-- Cuerpo del mensaje -->
       <div style="padding: 30px; text-align: center;">
-        <h2 style="color: #1B326B;">¡Hola ${user.firstName} ${user.lastName
-      }!</h2>
+        <h2 style="color: #1B326B;">¡Hola ${user.firstName} ${
+          user.lastName
+        }!</h2>
         <p style="font-size: 16px; line-height: 1.6;">
-          Hemos recibido tu comprobante de pago por el curso <strong>"${cursoData.nombre
-      }"</strong>.
+          Hemos recibido tu comprobante de pago por el curso <strong>"${
+            cursoData.nombre
+          }"</strong>.
         </p>
         <p style="font-size: 16px; line-height: 1.6;">
         <p><strong>${detalleCertificados}</strong></p>
           <strong>Valor depositado:</strong> $${valorDepositado}
         </p>
-        ${incluyeMoneda || incluyeDistintivo
-        ? `<p style="font-size: 16px; line-height: 1.6;">Incluye: ${[
-          incluyeMoneda ? "🪙 Moneda conmemorativa" : "",
-          incluyeDistintivo ? "🎖️ Distintivo" : "",
-        ]
-          .filter(Boolean)
-          .join(" y ")}</p>`
-        : ""
-      }
+        ${
+          incluyeMoneda || incluyeDistintivo
+            ? `<p style="font-size: 16px; line-height: 1.6;">Incluye: ${[
+                incluyeMoneda ? "🪙 Moneda conmemorativa" : "",
+                incluyeDistintivo ? "🎖️ Distintivo" : "",
+              ]
+                .filter(Boolean)
+                .join(" y ")}</p>`
+            : ""
+        }
         <p style="font-size: 16px; line-height: 1.6;">
           Una vez validado el pago, se emitirá tu certificado. En caso de haber solicitado reconocimientos físicos, recibirás otro correo cuando estén disponibles para su retiro.
         </p>
@@ -454,9 +473,6 @@ const create = catchError(async (req, res) => {
   return res.status(201).json(result);
 });
 
-
-
-
 const getOne = catchError(async (req, res) => {
   const { id } = req.params;
   const result = await Pagos.findByPk(id);
@@ -476,7 +492,7 @@ const remove = catchError(async (req, res) => {
       "..",
       "uploads",
       "pagos",
-      path.basename(Pago.pagoUrl)
+      path.basename(Pago.pagoUrl),
     );
 
     fs.unlink(imagePath, (err) => {
@@ -492,9 +508,6 @@ const remove = catchError(async (req, res) => {
 
   return res.sendStatus(204);
 });
-
-
-
 
 const update = catchError(async (req, res) => {
   const { id } = req.params;
@@ -576,7 +589,6 @@ const update = catchError(async (req, res) => {
   const io = req.app.get("io");
   if (io) io.emit("pagoActualizado", pagoActualizado);
 
-
   const verificadoAntes = pagoOriginal.verificado;
   const verificadoDespues = pagoActualizado.verificado;
 
@@ -588,12 +600,8 @@ const update = catchError(async (req, res) => {
   //   }
   // }
 
-
-
   return res.json(pagoActualizado);
 });
-
-
 
 const certificado = catchError(async (req, res) => {
   const { id } = req.params;
@@ -623,18 +631,17 @@ const certificado = catchError(async (req, res) => {
     });
   }
 
-
   const curso = inscripcion.courseId
     ? await Course.findByPk(inscripcion.courseId)
     : null;
 
-  const siglaCurso = String(
-    curso?.sigla || inscripcion.curso || pago.curso
-  ).trim().toLowerCase();
+  const siglaCurso = String(curso?.sigla || inscripcion.curso || pago.curso)
+    .trim()
+    .toLowerCase();
 
-  const tipoCertificado = String(
-    req.body.tipo || "emp"
-  ).trim().toLowerCase();
+  const tipoCertificado = String(req.body.tipo || "cert_emp")
+    .trim()
+    .toLowerCase();
 
   const certYaExiste = await Certificado.findOne({
     where: {
@@ -651,7 +658,6 @@ const certificado = catchError(async (req, res) => {
       url: certYaExiste.url,
     });
   }
-
 
   try {
     const resultado = await generarCertificado(id);
@@ -683,7 +689,7 @@ const certificado = catchError(async (req, res) => {
         grupo: grupo || null,
         url: absoluteUrl,
         entregado: true,
-        tipo: "emp"
+        tipo: "cert_emp",
       });
     }
 
@@ -702,8 +708,8 @@ const certificado = catchError(async (req, res) => {
             <h1 style="color: #1B326B; margin-bottom: 10px;">¡Felicitaciones ${user.firstName} ${user.lastName}!</h1>
             <h2 style="font-weight: normal; margin-bottom: 25px;">Tu certificado del curso:</h2>
             <h2 style="color: #1B326B; margin-bottom: 25px;">"${String(
-        curso?.nombre || pago.curso || ""
-      ).toUpperCase()}"</h2>
+              curso?.nombre || pago.curso || "",
+            ).toUpperCase()}"</h2>
             
             <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
               Nos complace informarte que tu certificado ha sido emitido exitosamente y ya se encuentra disponible para su descarga.
@@ -745,7 +751,8 @@ const certificado = catchError(async (req, res) => {
     if (io) io.emit("pagoActualizado", pago);
 
     return res.status(200).json({
-      message: "Certificado generado, guardado en BD y enviado al usuario correctamente.",
+      message:
+        "Certificado generado, guardado en BD y enviado al usuario correctamente.",
       certificado: certExistente,
       url: absoluteUrl,
     });
@@ -757,13 +764,6 @@ const certificado = catchError(async (req, res) => {
     });
   }
 });
-
-
-
-
-
-
-
 
 module.exports = {
   getAll,

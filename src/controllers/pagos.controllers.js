@@ -1,5 +1,6 @@
 const catchError = require("../utils/catchError");
 const sendEmail = require("../utils/sendEmail");
+const sequelizeM = require("../utils/connectionM");
 
 const path = require("path");
 const fs = require("fs");
@@ -25,12 +26,15 @@ const getAll = catchError(async (req, res) => {
     busqueda,
     fechaInicio,
     fechaFin,
-    certificado, // nuevo query
+    certificado,
   } = req.query;
 
-  // filtros de Pagos
   const pagosWhere = {};
+
   if (curso) pagosWhere.curso = curso;
+  if (cert_emp) pagosWhere.cert_emp = cert_emp === "true";
+  if (cert_mdt) pagosWhere.cert_mdt = cert_mdt === "true";
+  if (cert_int) pagosWhere.cert_int = cert_int === "true";
   if (verificado) pagosWhere.verificado = verificado === "true";
   if (moneda) pagosWhere.moneda = moneda === "true";
   if (distintivo) pagosWhere.distintivo = distintivo === "true";
@@ -38,29 +42,29 @@ const getAll = catchError(async (req, res) => {
 
   if (fechaInicio || fechaFin) {
     pagosWhere.createdAt = {};
+
     if (fechaInicio) {
       pagosWhere.createdAt[Op.gte] = new Date(fechaInicio);
     }
+
     if (fechaFin) {
       const fin = new Date(fechaFin);
-      fin.setDate(fin.getDate() + 2); // sumamos 1 día
-      pagosWhere.createdAt[Op.lt] = fin; // usamos menor estricto
+      fin.setDate(fin.getDate() + 2);
+      pagosWhere.createdAt[Op.lt] = fin;
     }
   }
 
-  // filtros de User
   const userWhere = busqueda
     ? {
-        [Op.or]: [
-          { grado: { [Op.iLike]: `%${busqueda}%` } },
-          { firstName: { [Op.iLike]: `%${busqueda}%` } },
-          { lastName: { [Op.iLike]: `%${busqueda}%` } },
-          { cI: { [Op.iLike]: `%${busqueda}%` } },
-        ],
-      }
+      [Op.or]: [
+        { grado: { [Op.iLike]: `%${busqueda}%` } },
+        { firstName: { [Op.iLike]: `%${busqueda}%` } },
+        { lastName: { [Op.iLike]: `%${busqueda}%` } },
+        { cI: { [Op.iLike]: `%${busqueda}%` } },
+      ],
+    }
     : undefined;
 
-  // traer pagos con inscripción y usuario
   let results = await Pagos.findAll({
     where: pagosWhere,
     attributes: [
@@ -108,40 +112,164 @@ const getAll = catchError(async (req, res) => {
     order: [["createdAt", "DESC"]],
   });
 
-  // 🔁 AHORA certificados se relacionan por inscripcionId
+  // =========================
+  // USUARIOS MOODLE
+  // =========================
+
+  const emails = [
+    ...new Set(
+      results
+        .map((pago) => pago.inscripcion?.user?.email?.toLowerCase())
+        .filter(Boolean)
+    ),
+  ];
+
+  let moodleUserMap = {};
+  let moodleUserIds = [];
+
+  if (emails.length) {
+    const [moodleUsersRes] = await sequelizeM.query(
+      `
+      SELECT id, LOWER(email) AS email
+      FROM mdl_user
+      WHERE deleted = 0
+        AND suspended = 0
+        AND LOWER(email) IN (?)
+      `,
+      { replacements: [emails] }
+    );
+
+    moodleUsersRes.forEach((m) => {
+      moodleUserMap[m.email] = m;
+    });
+
+    moodleUserIds = moodleUsersRes.map((u) => u.id);
+  }
+
+  // =========================
+  // CURSOS MATRICULADOS MOODLE
+  // =========================
+
+  let enrolMap = {};
+
+  if (moodleUserIds.length) {
+    const [enrolRes] = await sequelizeM.query(
+      `
+      SELECT ue.userid, c.id AS courseid, c.shortname AS curso
+      FROM mdl_user_enrolments ue
+      JOIN mdl_enrol e ON ue.enrolid = e.id
+      JOIN mdl_course c ON e.courseid = c.id
+      WHERE ue.userid IN (?)
+      `,
+      { replacements: [moodleUserIds] }
+    );
+
+    enrolRes.forEach((e) => {
+      const uid = String(e.userid);
+      const cursoKey = String(e.curso || "").toLowerCase();
+
+      if (!enrolMap[uid]) enrolMap[uid] = {};
+      enrolMap[uid][cursoKey] = { courseid: e.courseid };
+    });
+  }
+
+  // =========================
+  // NOTAS FINALES MOODLE
+  // =========================
+
+  let userCourseGradesMap = {};
+
+  if (moodleUserIds.length) {
+    const [finalGradesRes] = await sequelizeM.query(
+      `
+      SELECT gg.userid, gi.courseid, gg.finalgrade
+      FROM mdl_grade_grades gg
+      JOIN mdl_grade_items gi ON gg.itemid = gi.id
+      WHERE gg.userid IN (?)
+        AND gi.itemtype = 'course'
+      `,
+      { replacements: [moodleUserIds] }
+    );
+
+    finalGradesRes.forEach(({ userid, courseid, finalgrade }) => {
+      const uid = String(userid);
+      const cid = String(courseid);
+
+      if (!userCourseGradesMap[uid]) userCourseGradesMap[uid] = {};
+      if (!userCourseGradesMap[uid][cid]) userCourseGradesMap[uid][cid] = {};
+
+      userCourseGradesMap[uid][cid]["Nota Final"] =
+        finalgrade !== null && finalgrade !== undefined
+          ? Number(finalgrade).toFixed(2)
+          : null;
+    });
+  }
+
+  // =========================
+  // CERTIFICADOS
+  // =========================
+
   const certificados = await Certificado.findAll({
-    attributes: ["id", "inscripcionId", "url", "tipo"], // ya no usamos cedula/curso
+    attributes: ["id", "inscripcionId", "url", "tipo"],
     raw: true,
   });
 
-  // mapear resultados y hacer match por inscripcionId
+  // =========================
+  // MAPEAR RESULTADOS
+  // =========================
+
   results = results.map((pago) => {
     const inscripcion = pago.inscripcion;
     const user = inscripcion.user;
 
+    const emailKey = String(user.email || "").toLowerCase();
+    const moodleUser = moodleUserMap[emailKey];
+
+    const cursoKey = String(inscripcion.curso || pago.curso || "").toLowerCase();
+
+    const enrolData =
+      moodleUser && enrolMap[String(moodleUser.id)]?.[cursoKey]
+        ? enrolMap[String(moodleUser.id)][cursoKey]
+        : null;
+
+    const gradesObj =
+      enrolData && userCourseGradesMap[String(moodleUser?.id)]
+        ? userCourseGradesMap[String(moodleUser.id)][String(enrolData.courseid)] || {}
+        : {};
+
+    const notaFinal = gradesObj["Nota Final"] || null;
+
     const certEmp =
       pago.cert_emp === true || pago.cert_emp === "true"
         ? certificados.find(
-            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_emp",
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_emp"
+        ) || null
         : null;
 
     const certMdt =
       pago.cert_mdt === true || pago.cert_mdt === "true"
         ? certificados.find(
-            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_mdt",
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_mdt"
+        ) || null
         : null;
 
     const certInt =
       pago.cert_int === true || pago.cert_int === "true"
         ? certificados.find(
-            (c) => c.inscripcionId === inscripcion.id && c.tipo === "cert_int",
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_int"
+        ) || null
         : null;
 
     return {
       ...pago.toJSON(),
+
+      notaFinal,
 
       certificadoEmp: !!certEmp,
       certificadoMdt: !!certMdt,
@@ -153,12 +281,26 @@ const getAll = catchError(async (req, res) => {
     };
   });
 
-  // filtrar por certificado si se pasó query
-  if (certificado === "true") results = results.filter((p) => p.certificado);
-  if (certificado === "false") results = results.filter((p) => !p.certificado);
+  if (certificado === "true") {
+    results = results.filter(
+      (p) => p.certificadoEmp || p.certificadoMdt || p.certificadoInt
+    );
+  }
+
+  if (certificado === "false") {
+    results = results.filter(
+      (p) => !p.certificadoEmp && !p.certificadoMdt && !p.certificadoInt
+    );
+  }
 
   return res.json(results);
 });
+
+
+
+
+
+
 
 const getDashboardPagos = catchError(async (req, res) => {
   const { desde, hasta, curso, verificado } = req.query;
@@ -419,28 +561,25 @@ const create = catchError(async (req, res) => {
 
       <!-- Cuerpo del mensaje -->
       <div style="padding: 30px; text-align: center;">
-        <h2 style="color: #1B326B;">¡Hola ${user.firstName} ${
-          user.lastName
-        }!</h2>
+        <h2 style="color: #1B326B;">¡Hola ${user.firstName} ${user.lastName
+      }!</h2>
         <p style="font-size: 16px; line-height: 1.6;">
-          Hemos recibido tu comprobante de pago por el curso <strong>"${
-            cursoData.nombre
-          }"</strong>.
+          Hemos recibido tu comprobante de pago por el curso <strong>"${cursoData.nombre
+      }"</strong>.
         </p>
         <p style="font-size: 16px; line-height: 1.6;">
         <p><strong>${detalleCertificados}</strong></p>
           <strong>Valor depositado:</strong> $${valorDepositado}
         </p>
-        ${
-          incluyeMoneda || incluyeDistintivo
-            ? `<p style="font-size: 16px; line-height: 1.6;">Incluye: ${[
-                incluyeMoneda ? "🪙 Moneda conmemorativa" : "",
-                incluyeDistintivo ? "🎖️ Distintivo" : "",
-              ]
-                .filter(Boolean)
-                .join(" y ")}</p>`
-            : ""
-        }
+        ${incluyeMoneda || incluyeDistintivo
+        ? `<p style="font-size: 16px; line-height: 1.6;">Incluye: ${[
+          incluyeMoneda ? "🪙 Moneda conmemorativa" : "",
+          incluyeDistintivo ? "🎖️ Distintivo" : "",
+        ]
+          .filter(Boolean)
+          .join(" y ")}</p>`
+        : ""
+      }
         <p style="font-size: 16px; line-height: 1.6;">
           Una vez validado el pago, se emitirá tu certificado. En caso de haber solicitado reconocimientos físicos, recibirás otro correo cuando estén disponibles para su retiro.
         </p>
@@ -708,8 +847,8 @@ const certificado = catchError(async (req, res) => {
             <h1 style="color: #1B326B; margin-bottom: 10px;">¡Felicitaciones ${user.firstName} ${user.lastName}!</h1>
             <h2 style="font-weight: normal; margin-bottom: 25px;">Tu certificado del curso:</h2>
             <h2 style="color: #1B326B; margin-bottom: 25px;">"${String(
-              curso?.nombre || pago.curso || "",
-            ).toUpperCase()}"</h2>
+        curso?.nombre || pago.curso || "",
+      ).toUpperCase()}"</h2>
             
             <p style="font-size: 16px; line-height: 1.6; margin-bottom: 25px;">
               Nos complace informarte que tu certificado ha sido emitido exitosamente y ya se encuentra disponible para su descarga.

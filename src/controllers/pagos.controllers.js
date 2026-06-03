@@ -13,6 +13,17 @@ const generarCertificado = require("../utils/generarCertificado");
 
 const { Op, Sequelize } = require("sequelize");
 
+const TZ = "America/Guayaquil";
+
+const getFechaEcuador = (date) => {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(date));
+};
+
 const getAll = catchError(async (req, res) => {
   const {
     curso,
@@ -27,6 +38,13 @@ const getAll = catchError(async (req, res) => {
     fechaInicio,
     fechaFin,
     certificado,
+    contificoDocumentoId,
+    contificoDocumentoNumero,
+    contificoEstado,
+    contificoFirmado,
+    contificoUrlRide,
+    contificoUrlXml,
+    contificoAutorizacion,
   } = req.query;
 
   const pagosWhere = {};
@@ -76,6 +94,8 @@ const getAll = catchError(async (req, res) => {
       "distintivo",
       "moneda",
       "valorDepositado",
+      "porcentajeIva",
+      "iva",
       "entidad",
       "idDeposito",
       "pagoUrl",
@@ -86,6 +106,13 @@ const getAll = catchError(async (req, res) => {
       "createdAt",
       "inscripcionId",
       "usuarioEdicion",
+      "contificoDocumentoId",
+      "contificoDocumentoNumero",
+      "contificoEstado",
+      "contificoFirmado",
+      "contificoUrlRide",
+      "contificoUrlXml",
+      "contificoAutorizacion",
     ],
     include: [
       {
@@ -309,11 +336,9 @@ const getDashboardPagos = catchError(async (req, res) => {
   const where = { confirmacion: true };
   if (desde || hasta) {
     where.createdAt = {};
-    if (desde) where.createdAt[Op.gte] = new Date(desde);
+    if (desde) where.createdAt[Op.gte] = new Date(`${desde}T00:00:00-05:00`);
     if (hasta) {
-      const hastaDate = new Date(hasta);
-      hastaDate.setDate(hastaDate.getDate() + 1);
-      where.createdAt[Op.lt] = hastaDate;
+      where.createdAt[Op.lt] = new Date(`${hasta}T23:59:59.999-05:00`);
     }
   }
 
@@ -350,8 +375,8 @@ const getDashboardPagos = catchError(async (req, res) => {
   const totalConceptos = totalMonedas + totalDistintivos;
 
   const totalPagos = pagos.reduce(
-    (acc, p) => acc + (p.valorDepositado || 0),
-    0,
+    (acc, p) => acc + Number(p.valorDepositado || 0),
+    0
   );
   const totalPagosNum = pagos.length;
   const pagosUnicosPorCurso = new Set(
@@ -376,14 +401,16 @@ const getDashboardPagos = catchError(async (req, res) => {
   ];
 
   // Evolutivo diario
+  // Evolutivo diario con zona horaria Ecuador
   const pagosPorFechaMap = {};
+
   pagos.forEach((p) => {
-    const fecha = new Date(p.createdAt);
-    fecha.setHours(fecha.getHours() - 5); // ajustar a hora local
-    const fechaStr = fecha.toISOString().split("T")[0];
+    const fechaStr = getFechaEcuador(p.createdAt);
+
     pagosPorFechaMap[fechaStr] =
-      (pagosPorFechaMap[fechaStr] || 0) + (p.valorDepositado || 0);
+      (pagosPorFechaMap[fechaStr] || 0) + Number(p.valorDepositado || 0);
   });
+
   const pagosPorFecha = Object.entries(pagosPorFechaMap)
     .map(([fecha, total]) => ({ fecha, total }))
     .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
@@ -549,7 +576,7 @@ const create = catchError(async (req, res) => {
 
   await sendEmail({
     to: user.email,
-    subject: "✅ Pago registrado - iDr.Mind",
+    subject: "✅ Pago registrado - iDr.Mind.",
     html: `
   <div style="font-family: Arial, sans-serif; background-color: #f0f8ff; padding: 20px; color: #333;">
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); overflow: hidden;">
@@ -741,6 +768,10 @@ const update = catchError(async (req, res) => {
 
   return res.json(pagoActualizado);
 });
+
+
+
+
 
 const certificado = catchError(async (req, res) => {
   const { id } = req.params;

@@ -37,6 +37,10 @@ const Course = sequelize.define("course", {
     allowNull: false,
     defaultValue: true,
   },
+  contificoProductoId: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 
 });
 

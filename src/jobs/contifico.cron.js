@@ -1,0 +1,188 @@
+// src/jobs/contifico.cron.js
+const cron = require("node-cron");
+const { Op } = require("sequelize");
+
+const Pagos = require("../models/Pagos");
+const Inscripcion = require("../models/Inscripcion");
+const User = require("../models/User");
+const Course = require("../models/Course");
+
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+
+const sendEmail = require("../utils/sendEmail");
+const { contificoGetDocumentoById } = require("../utils/contifico.service");
+
+let running = false;
+
+async function descargarFacturaRide({ urlRide, documento }) {
+  if (!urlRide || !documento) return null;
+
+  const carpeta = path.join(__dirname, "../../uploads/facturas");
+  fs.mkdirSync(carpeta, { recursive: true });
+
+  const nombreArchivo = `${documento.replaceAll("-", "_")}.pdf`;
+  const rutaLocal = path.join(carpeta, nombreArchivo);
+
+  const response = await axios.get(urlRide, {
+    responseType: "arraybuffer",
+  });
+
+  fs.writeFileSync(rutaLocal, response.data);
+
+  return `/uploads/facturas/${nombreArchivo}`;
+}
+
+const startContificoCron = () => {
+  cron.schedule("*/2 * * * *", async () => {
+    if (running) return;
+    running = true;
+
+    try {
+      /* =========================
+         PAGOS CURSOS
+      ========================= */
+      const pendientesCursos = await Pagos.findAll({
+        where: {
+          contificoDocumentoId: { [Op.ne]: null },
+          contificoAutorizacion: null,
+          contificoEmailEnviado: false,
+        },
+        order: [["updatedAt", "ASC"]],
+        limit: 20,
+      });
+
+      for (const pago of pendientesCursos) {
+        try {
+          const doc = await contificoGetDocumentoById(pago.contificoDocumentoId);
+
+          await Pagos.update(
+            {
+              contificoEstado: doc.estado,
+              contificoAutorizacion: doc.autorizacion,
+              contificoUrlRide: doc.url_ride,
+              contificoUrlXml: doc.url_xml,
+
+              // ✅ Datos tributarios
+              subtotal: Number(doc.subtotal || 0),
+              porcentajeIva: Number(
+                doc.detalles?.[0]?.porcentaje_iva || 0
+              ),
+              iva: Number(doc.iva || 0),
+              contificoFirmado: doc.firmado,
+            },
+            { where: { id: pago.id } }
+          );
+
+          if (!doc.autorizacion) continue;
+
+          const facturaUrl = await descargarFacturaRide({
+            urlRide: doc.url_ride,
+            documento: doc.documento,
+          });
+
+          const pagoFresh = await Pagos.findByPk(pago.id);
+          if (!pagoFresh || pagoFresh.contificoEmailEnviado) continue;
+
+          const ins = await Inscripcion.findByPk(pagoFresh.inscripcionId, {
+            include: [{ model: User }, { model: Course }],
+          });
+
+          const user = ins?.user;
+          const course = ins?.course;
+
+          if (!user?.email) continue;
+
+          await sendEmail({
+            to: user.email,
+            subject: `📄 Factura autorizada SRI - iDr.Mind. (${doc.documento})`,
+            html: `
+  <div style="font-family: Arial, sans-serif; background-color: #f0f8ff; padding: 20px; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); overflow: hidden;">
+      
+    <div style="text-align: center; background: linear-gradient(135deg, #0a2540, #174a8c); padding: 25px;">
+      <img src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png" alt="iDr.Mind" style="width: 160px;" />
+    </div>
+
+    <div style="padding:30px; text-align:center;">
+      <h2 style="color:#1B326B; margin-top:0;">¡Hola ${user.firstName || ""} ${user.lastName || ""}!</h2>
+
+      <p style="font-size:16px; line-height:1.6;">
+        Tu <strong>factura electrónica</strong> ha sido <strong>autorizada por el SRI ✅</strong>.
+      </p>
+
+      <div style="text-align:left; margin:20px auto 0; max-width:520px; background:#f7f9ff; border:1px solid #e2e8ff; border-radius:10px; padding:16px;">
+        <p style="margin:6px 0; font-size:14px;"><strong>Factura:</strong> ${doc.documento}</p>
+        <p style="margin:6px 0; font-size:14px;"><strong>Autorización:</strong> ${doc.autorizacion}</p>
+        <p style="margin:6px 0; font-size:14px;"><strong>Curso:</strong> ${course?.nombre || pagoFresh.curso || "Curso"}</p>
+        <p style="margin:6px 0; font-size:14px;"><strong>Total:</strong> $${doc.total}</p>
+      </div>
+
+<div style="margin-top:28px;">
+
+  ${facturaUrl ? `
+  <a href="${process.env.FRONT_URL}${facturaUrl}" target="_blank"
+     style="display:inline-block; background-color:#0f8f3d; color:white; padding:12px 20px; border-radius:5px; text-decoration:none; margin:6px;">
+    Descargar Factura
+  </a>` : ""}
+
+  ${doc.url_ride ? `
+  <a href="${doc.url_ride}" target="_blank"
+     style="display:inline-block; background-color:#1B326B; color:white; padding:12px 20px; border-radius:5px; text-decoration:none; margin:6px;">
+    RIDE Contífico
+  </a>` : ""}
+
+  ${doc.url_xml ? `
+  <a href="${doc.url_xml}" target="_blank"
+     style="display:inline-block; background-color:#0f2450; color:white; padding:12px 20px; border-radius:5px; text-decoration:none; margin:6px;">
+    XML
+  </a>` : ""}
+
+</div>
+
+      <p style="margin-top:26px; font-size:14px; color:#666;">
+        Si tienes alguna duda, responde a este correo y con gusto te ayudamos.
+      </p>
+    </div>
+
+      <!-- Pie -->
+      <div style="background-color: #f0f0f0; text-align: center; padding: 15px; font-size: 12px; color: #999;">
+        © ${new Date().getFullYear()} iDr.Mind. Todos los derechos reservados.
+      </div>
+  </div>
+</div>
+            `,
+          });
+
+          await Pagos.update(
+            {
+              facturaUrl,
+              contificoEmailEnviado: true,
+              contificoEmailEnviadoAt: new Date(),
+            },
+            { where: { id: pagoFresh.id } }
+          );
+
+          console.log("✅ Email enviado curso:", doc.documento);
+        } catch (err) {
+          console.error("❌ Error procesando pago curso:", pago.id, err.message);
+        }
+      }
+
+
+
+
+    } catch (error) {
+      console.error("❌ Error general cron:", error.message);
+    } finally {
+      running = false;
+    }
+  }, {
+    timezone: "America/Guayaquil",
+  });
+
+  console.log("⏱️ Cron Contifico activo (cada 2 minutos)");
+};
+
+module.exports = startContificoCron;

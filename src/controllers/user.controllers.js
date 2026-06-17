@@ -746,6 +746,16 @@ const verifyCode = catchError(async (req, res) => {
   return res.json({ message: "Usuario verificado correctamente", user });
 });
 
+
+
+
+
+
+
+
+
+
+
 // ========================== GET LOGGED USER (Optimizado) ==========================
 const getLoggedUser = catchError(async (req, res) => {
   try {
@@ -808,15 +818,128 @@ const getLoggedUser = catchError(async (req, res) => {
         { replacements: [moodleUserId] }
       );
 
+      // =========================
+      // TIEMPO DE ACTIVIDAD EN CURSO MOODLE
+      // =========================
+
+      const [activityRes] = await sequelizeM.query(
+        `
+        SELECT 
+          userid,
+          courseid,
+          timecreated
+        FROM mdl_logstore_standard_log
+        WHERE userid = ?
+          AND courseid IS NOT NULL
+          AND courseid > 1
+        ORDER BY userid, courseid, timecreated
+        `,
+        { replacements: [moodleUserId] }
+      );
+
+      const userCourseTimeMap = {};
+      const SESSION_LIMIT_SECONDS = 30 * 60;
+
+      activityRes.forEach((row) => {
+        const cid = String(row.courseid);
+
+        if (!userCourseTimeMap[cid]) {
+          userCourseTimeMap[cid] = {
+            totalSeconds: 0,
+            lastTime: null,
+          };
+        }
+
+        const currentTime = Number(row.timecreated);
+        const lastTime = userCourseTimeMap[cid].lastTime;
+
+        if (lastTime) {
+          const diff = currentTime - lastTime;
+
+          if (diff > 0 && diff <= SESSION_LIMIT_SECONDS) {
+            userCourseTimeMap[cid].totalSeconds += diff;
+          }
+        }
+
+        userCourseTimeMap[cid].lastTime = currentTime;
+      });
+
+      // =========================
+      // TIEMPO DE ZOOM POR CURSO MOODLE
+      // =========================
+
+      const [zoomRes] = await sequelizeM.query(
+        `
+        SELECT 
+          zmp.userid,
+          z.course AS courseid,
+          SUM(COALESCE(zmp.duration, 0)) AS total_minutes
+        FROM mdl_zoom_meeting_participants zmp
+        JOIN mdl_zoom_meeting_details zmd ON zmp.detailsid = zmd.id
+        JOIN mdl_zoom z ON zmd.zoomid = z.id
+        WHERE zmp.userid = ?
+        GROUP BY zmp.userid, z.course
+        `,
+        { replacements: [moodleUserId] }
+      );
+
+      const userCourseZoomTimeMap = {};
+
+      zoomRes.forEach((row) => {
+        const cid = String(row.courseid);
+
+        userCourseZoomTimeMap[cid] = {
+          totalMinutes: Number(row.total_minutes || 0),
+        };
+      });
+
       // Mapear notas
       const userCourseGradesMap = {};
       grades.forEach(({ courseid, itemname, finalgrade }) => {
         if (!userCourseGradesMap[courseid]) userCourseGradesMap[courseid] = {};
         userCourseGradesMap[courseid][itemname] = finalgrade;
       });
+
       finalGrades.forEach(({ courseid, finalgrade }) => {
         if (!userCourseGradesMap[courseid]) userCourseGradesMap[courseid] = {};
+
         userCourseGradesMap[courseid]["Nota Final"] = finalgrade;
+
+        const activityData = userCourseTimeMap[String(courseid)] || null;
+        const tiempoActividadSegundos = activityData?.totalSeconds || 0;
+        const tiempoActividadMinutos = Math.round(tiempoActividadSegundos / 60);
+
+        const horas = Math.floor(tiempoActividadMinutos / 60);
+        const minutos = tiempoActividadMinutos % 60;
+
+        const tiempoActividadCurso = `${horas}h ${minutos}m`;
+
+        const zoomData = userCourseZoomTimeMap[String(courseid)] || null;
+        const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
+
+        const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
+        const zoomMinutos = tiempoZoomMinutos % 60;
+
+        const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+
+        const tiempoTotalMinutos = tiempoActividadMinutos + tiempoZoomMinutos;
+
+        const totalHoras = Math.floor(tiempoTotalMinutos / 60);
+        const totalMinutos = tiempoTotalMinutos % 60;
+
+        const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+
+        userCourseGradesMap[courseid]["Tiempo Actividad Curso"] =
+          tiempoActividadCurso;
+        userCourseGradesMap[courseid]["Tiempo Actividad Minutos"] =
+          tiempoActividadMinutos;
+
+        userCourseGradesMap[courseid]["Tiempo Zoom"] = tiempoZoomCurso;
+        userCourseGradesMap[courseid]["Tiempo Zoom Minutos"] = tiempoZoomMinutos;
+
+        userCourseGradesMap[courseid]["Tiempo Total Curso"] = tiempoTotalCurso;
+        userCourseGradesMap[courseid]["Tiempo Total Minutos"] =
+          tiempoTotalMinutos;
       });
 
       const allCourses = await Course.findAll({ raw: true });
@@ -825,11 +948,58 @@ const getLoggedUser = catchError(async (req, res) => {
         courseMap[c.sigla] = c.nombre;
       });
 
-      userCourses = enrolments.map(({ courseid, course }) => ({
-        curso: course, // 🔥 sigla y curso son lo mismo → dejamos solo curso
-        fullname: courseMap[course] || course,
-        grades: userCourseGradesMap[courseid] || {},
-      }));
+      userCourses = enrolments.map(({ courseid, course }) => {
+        if (!userCourseGradesMap[courseid]) userCourseGradesMap[courseid] = {};
+
+        if (!userCourseGradesMap[courseid]["Tiempo Actividad Curso"]) {
+          const activityData = userCourseTimeMap[String(courseid)] || null;
+          const tiempoActividadSegundos = activityData?.totalSeconds || 0;
+          const tiempoActividadMinutos = Math.round(
+            tiempoActividadSegundos / 60
+          );
+
+          const horas = Math.floor(tiempoActividadMinutos / 60);
+          const minutos = tiempoActividadMinutos % 60;
+
+          const tiempoActividadCurso = `${horas}h ${minutos}m`;
+
+          const zoomData = userCourseZoomTimeMap[String(courseid)] || null;
+          const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
+
+          const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
+          const zoomMinutos = tiempoZoomMinutos % 60;
+
+          const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+
+          const tiempoTotalMinutos =
+            tiempoActividadMinutos + tiempoZoomMinutos;
+
+          const totalHoras = Math.floor(tiempoTotalMinutos / 60);
+          const totalMinutos = tiempoTotalMinutos % 60;
+
+          const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+
+          userCourseGradesMap[courseid]["Tiempo Actividad Curso"] =
+            tiempoActividadCurso;
+          userCourseGradesMap[courseid]["Tiempo Actividad Minutos"] =
+            tiempoActividadMinutos;
+
+          userCourseGradesMap[courseid]["Tiempo Zoom"] = tiempoZoomCurso;
+          userCourseGradesMap[courseid]["Tiempo Zoom Minutos"] =
+            tiempoZoomMinutos;
+
+          userCourseGradesMap[courseid]["Tiempo Total Curso"] =
+            tiempoTotalCurso;
+          userCourseGradesMap[courseid]["Tiempo Total Minutos"] =
+            tiempoTotalMinutos;
+        }
+
+        return {
+          curso: course,
+          fullname: courseMap[course] || course,
+          grades: userCourseGradesMap[courseid] || {},
+        };
+      });
     }
 
     // ========================== INSCRIPCIONES + PAGOS + CERTIFICADOS ==========================
@@ -842,21 +1012,20 @@ const getLoggedUser = catchError(async (req, res) => {
 
     const pagos = inscripcionIds.length
       ? await Pagos.findAll({
-        raw: true,
-        where: {
-          inscripcionId: inscripcionIds,
-          confirmacion: true, // solo pagos confirmados
-        },
-      })
+          raw: true,
+          where: {
+            inscripcionId: inscripcionIds,
+            confirmacion: true, // solo pagos confirmados
+          },
+        })
       : [];
 
     const certificados = inscripcionIds.length
       ? await Certificado.findAll({
-        raw: true,
-        where: { inscripcionId: inscripcionIds },
-      })
+          raw: true,
+          where: { inscripcionId: inscripcionIds },
+        })
       : [];
-
 
     // Map pagos (pueden ser varios por inscripción)
     const pagosMap = {};
@@ -871,7 +1040,6 @@ const getLoggedUser = catchError(async (req, res) => {
       if (!c.inscripcionId) return;
       certMap[String(c.inscripcionId)] = c;
     });
-
 
     // Merge final
     const coursesWithData = userCourses.map((course) => {
@@ -911,7 +1079,6 @@ const getLoggedUser = catchError(async (req, res) => {
           };
         }
       }
-
 
       return {
         ...course,

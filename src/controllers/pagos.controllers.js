@@ -24,6 +24,10 @@ const getFechaEcuador = (date) => {
   }).format(new Date(date));
 };
 
+
+
+
+
 const getAll = catchError(async (req, res) => {
   const {
     curso,
@@ -74,13 +78,13 @@ const getAll = catchError(async (req, res) => {
 
   const userWhere = busqueda
     ? {
-      [Op.or]: [
-        { grado: { [Op.iLike]: `%${busqueda}%` } },
-        { firstName: { [Op.iLike]: `%${busqueda}%` } },
-        { lastName: { [Op.iLike]: `%${busqueda}%` } },
-        { cI: { [Op.iLike]: `%${busqueda}%` } },
-      ],
-    }
+        [Op.or]: [
+          { grado: { [Op.iLike]: `%${busqueda}%` } },
+          { firstName: { [Op.iLike]: `%${busqueda}%` } },
+          { lastName: { [Op.iLike]: `%${busqueda}%` } },
+          { cI: { [Op.iLike]: `%${busqueda}%` } },
+        ],
+      }
     : undefined;
 
   let results = await Pagos.findAll({
@@ -233,6 +237,91 @@ const getAll = catchError(async (req, res) => {
   }
 
   // =========================
+  // TIEMPO DE ACTIVIDAD EN CURSO MOODLE
+  // =========================
+
+  let userCourseTimeMap = {};
+
+  if (moodleUserIds.length) {
+    const [activityRes] = await sequelizeM.query(
+      `
+      SELECT 
+        userid,
+        courseid,
+        timecreated
+      FROM mdl_logstore_standard_log
+      WHERE userid IN (?)
+        AND courseid IS NOT NULL
+        AND courseid > 1
+      ORDER BY userid, courseid, timecreated
+      `,
+      { replacements: [moodleUserIds] }
+    );
+
+    const SESSION_LIMIT_SECONDS = 30 * 60;
+
+    activityRes.forEach((row) => {
+      const uid = String(row.userid);
+      const cid = String(row.courseid);
+
+      if (!userCourseTimeMap[uid]) userCourseTimeMap[uid] = {};
+      if (!userCourseTimeMap[uid][cid]) {
+        userCourseTimeMap[uid][cid] = {
+          totalSeconds: 0,
+          lastTime: null,
+        };
+      }
+
+      const currentTime = Number(row.timecreated);
+      const lastTime = userCourseTimeMap[uid][cid].lastTime;
+
+      if (lastTime) {
+        const diff = currentTime - lastTime;
+
+        if (diff > 0 && diff <= SESSION_LIMIT_SECONDS) {
+          userCourseTimeMap[uid][cid].totalSeconds += diff;
+        }
+      }
+
+      userCourseTimeMap[uid][cid].lastTime = currentTime;
+    });
+  }
+
+  // =========================
+  // TIEMPO DE ZOOM POR CURSO MOODLE
+  // =========================
+
+  let userCourseZoomTimeMap = {};
+
+  if (moodleUserIds.length) {
+    const [zoomRes] = await sequelizeM.query(
+      `
+      SELECT 
+        zmp.userid,
+        z.course AS courseid,
+        SUM(COALESCE(zmp.duration, 0)) AS total_minutes
+      FROM mdl_zoom_meeting_participants zmp
+      JOIN mdl_zoom_meeting_details zmd ON zmp.detailsid = zmd.id
+      JOIN mdl_zoom z ON zmd.zoomid = z.id
+      WHERE zmp.userid IN (?)
+      GROUP BY zmp.userid, z.course
+      `,
+      { replacements: [moodleUserIds] }
+    );
+
+    zoomRes.forEach((row) => {
+      const uid = String(row.userid);
+      const cid = String(row.courseid);
+
+      if (!userCourseZoomTimeMap[uid]) userCourseZoomTimeMap[uid] = {};
+
+      userCourseZoomTimeMap[uid][cid] = {
+        totalMinutes: Number(row.total_minutes || 0),
+      };
+    });
+  }
+
+  // =========================
   // CERTIFICADOS
   // =========================
 
@@ -266,37 +355,79 @@ const getAll = catchError(async (req, res) => {
 
     const notaFinal = gradesObj["Nota Final"] || null;
 
+    const activityData =
+      enrolData && userCourseTimeMap[String(moodleUser?.id)]
+        ? userCourseTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
+        : null;
+
+    const tiempoActividadSegundos = activityData?.totalSeconds || 0;
+    const tiempoActividadMinutos = Math.round(tiempoActividadSegundos / 60);
+
+    const horas = Math.floor(tiempoActividadMinutos / 60);
+    const minutos = tiempoActividadMinutos % 60;
+
+    const tiempoActividadCurso = `${horas}h ${minutos}m`;
+
+    const zoomData =
+      enrolData && userCourseZoomTimeMap[String(moodleUser?.id)]
+        ? userCourseZoomTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
+        : null;
+
+    const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
+
+    const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
+    const zoomMinutos = tiempoZoomMinutos % 60;
+
+    const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+
+    const tiempoTotalMinutos = tiempoActividadMinutos + tiempoZoomMinutos;
+
+    const totalHoras = Math.floor(tiempoTotalMinutos / 60);
+    const totalMinutos = tiempoTotalMinutos % 60;
+
+    const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+
     const certEmp =
       pago.cert_emp === true || pago.cert_emp === "true"
         ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_emp"
-        ) || null
+            (c) =>
+              c.inscripcionId === inscripcion.id &&
+              c.tipo === "cert_emp"
+          ) || null
         : null;
 
     const certMdt =
       pago.cert_mdt === true || pago.cert_mdt === "true"
         ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_mdt"
-        ) || null
+            (c) =>
+              c.inscripcionId === inscripcion.id &&
+              c.tipo === "cert_mdt"
+          ) || null
         : null;
 
     const certInt =
       pago.cert_int === true || pago.cert_int === "true"
         ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_int"
-        ) || null
+            (c) =>
+              c.inscripcionId === inscripcion.id &&
+              c.tipo === "cert_int"
+          ) || null
         : null;
 
     return {
       ...pago.toJSON(),
 
       notaFinal,
+
+      tiempoActividadSegundos,
+      tiempoActividadMinutos,
+      tiempoActividadCurso,
+
+      tiempoZoomMinutos,
+      tiempoZoomCurso,
+
+      tiempoTotalMinutos,
+      tiempoTotalCurso,
 
       certificadoEmp: !!certEmp,
       certificadoMdt: !!certMdt,
@@ -322,7 +453,6 @@ const getAll = catchError(async (req, res) => {
 
   return res.json(results);
 });
-
 
 
 

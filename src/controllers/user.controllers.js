@@ -143,6 +143,81 @@ const getAll = catchError(async (req, res) => {
       }
     });
 
+
+
+    const formatHMS = (totalSeconds = 0) => {
+      const seconds = Number(totalSeconds || 0);
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    };
+
+    const userCourseTimeMap = {};
+    const userCourseZoomTimeMap = {};
+
+    if (moodleUserIds.length) {
+      const [activityRes] = await sequelizeM.query(
+        `
+    SELECT
+      userid,
+      courseid,
+      SUM(total_seconds) AS total_seconds
+    FROM (
+      SELECT
+        userid,
+        courseid,
+        CASE
+          WHEN LEAD(timecreated) OVER (PARTITION BY userid, courseid ORDER BY timecreated) - timecreated BETWEEN 1 AND 600
+          THEN LEAD(timecreated) OVER (PARTITION BY userid, courseid ORDER BY timecreated) - timecreated
+          ELSE 0
+        END AS total_seconds
+      FROM mdl_logstore_standard_log
+      WHERE userid IN (?)
+        AND courseid > 0
+    ) t
+    GROUP BY userid, courseid
+    `,
+        { replacements: [moodleUserIds] }
+      );
+
+      activityRes.forEach((row) => {
+        const uid = String(row.userid);
+        const cid = String(row.courseid);
+        if (!userCourseTimeMap[uid]) userCourseTimeMap[uid] = {};
+        userCourseTimeMap[uid][cid] = {
+          totalSeconds: Number(row.total_seconds || 0),
+        };
+      });
+
+      const [zoomRes] = await sequelizeM.query(
+        `
+    SELECT 
+      zmp.userid,
+      z.course AS courseid,
+      SUM(COALESCE(zmp.duration, 0)) AS total_seconds
+    FROM mdl_zoom_meeting_participants zmp
+    JOIN mdl_zoom_meeting_details zmd ON zmp.detailsid = zmd.id
+    JOIN mdl_zoom z ON zmd.zoomid = z.id
+    WHERE zmp.userid IN (?)
+    GROUP BY zmp.userid, z.course
+    `,
+        { replacements: [moodleUserIds] }
+      );
+
+      zoomRes.forEach((row) => {
+        const uid = String(row.userid);
+        const cid = String(row.courseid);
+        if (!userCourseZoomTimeMap[uid]) userCourseZoomTimeMap[uid] = {};
+        userCourseZoomTimeMap[uid][cid] = {
+          totalSeconds: Number(row.total_seconds || 0),
+        };
+      });
+    }
+
+
+
     // --- 5. Diccionario curso.sigla → nombre
     const allCourses = await Course.findAll({ raw: true });
     const courseMap = {};
@@ -228,6 +303,38 @@ const getAll = catchError(async (req, res) => {
               String(enrolData.courseid)
               ] || {}
               : {};
+
+
+
+
+          const activityData =
+            moodleUser && enrolData
+              ? userCourseTimeMap[String(moodleUser.id)]?.[
+              String(enrolData.courseid)
+              ]
+              : null;
+
+          const zoomData =
+            moodleUser && enrolData
+              ? userCourseZoomTimeMap[String(moodleUser.id)]?.[
+              String(enrolData.courseid)
+              ]
+              : null;
+
+          const tiempoActividadSegundos = Number(activityData?.totalSeconds || 0);
+          const tiempoZoomSegundos = Number(zoomData?.totalSeconds || 0);
+          const tiempoTotalSegundos = tiempoActividadSegundos + tiempoZoomSegundos;
+
+          gradesObj["Tiempo Actividad Curso"] = formatHMS(tiempoActividadSegundos);
+          gradesObj["Tiempo Actividad Minutos"] = Math.floor(tiempoActividadSegundos / 60);
+
+          gradesObj["Tiempo Zoom"] = formatHMS(tiempoZoomSegundos);
+          gradesObj["Tiempo Zoom Minutos"] = Math.floor(tiempoZoomSegundos / 60);
+
+          gradesObj["Tiempo Total Curso"] = formatHMS(tiempoTotalSegundos);
+          gradesObj["Tiempo Total Minutos"] = Math.floor(tiempoTotalSegundos / 60);
+
+
 
           const pagosList = pagosMap[String(insc.id)] || [];
 
@@ -905,29 +1012,57 @@ const getLoggedUser = catchError(async (req, res) => {
 
         userCourseGradesMap[courseid]["Nota Final"] = finalgrade;
 
+        // ======================
+        // Aula Virtual
+        // ======================
         const activityData = userCourseTimeMap[String(courseid)] || null;
-        const tiempoActividadSegundos = activityData?.totalSeconds || 0;
-        const tiempoActividadMinutos = Math.round(tiempoActividadSegundos / 60);
 
-        const horas = Math.floor(tiempoActividadMinutos / 60);
-        const minutos = tiempoActividadMinutos % 60;
+        const tiempoActividadSegundos = Number(activityData?.totalSeconds || 0);
+        const tiempoActividadMinutos = Math.floor(tiempoActividadSegundos / 60);
 
-        const tiempoActividadCurso = `${horas}h ${minutos}m`;
+        const actividadHoras = Math.floor(tiempoActividadSegundos / 3600);
+        const actividadMinutos = Math.floor((tiempoActividadSegundos % 3600) / 60);
+        const actividadSegundos = tiempoActividadSegundos % 60;
 
+        const tiempoActividadCurso = `${String(actividadHoras).padStart(2, "0")}:${String(
+          actividadMinutos
+        ).padStart(2, "0")}:${String(actividadSegundos).padStart(2, "0")}`;
+
+        // ======================
+        // Zoom (Zoom entrega SEGUNDOS)
+        // ======================
         const zoomData = userCourseZoomTimeMap[String(courseid)] || null;
-        const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
 
-        const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
-        const zoomMinutos = tiempoZoomMinutos % 60;
+        const tiempoZoomSegundos = Number(zoomData?.totalMinutes || 0);
+        const tiempoZoomMinutos = Math.floor(tiempoZoomSegundos / 60);
 
-        const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+        const zoomHoras = Math.floor(tiempoZoomSegundos / 3600);
+        const zoomMinutos = Math.floor((tiempoZoomSegundos % 3600) / 60);
+        const zoomSegundos = tiempoZoomSegundos % 60;
 
-        const tiempoTotalMinutos = tiempoActividadMinutos + tiempoZoomMinutos;
+        const tiempoZoomCurso = `${String(zoomHoras).padStart(2, "0")}:${String(
+          zoomMinutos
+        ).padStart(2, "0")}:${String(zoomSegundos).padStart(2, "0")}`;
 
-        const totalHoras = Math.floor(tiempoTotalMinutos / 60);
-        const totalMinutos = tiempoTotalMinutos % 60;
+        // ======================
+        // Total
+        // ======================
+        const tiempoTotalSegundos =
+          tiempoActividadSegundos + tiempoZoomSegundos;
 
-        const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+        const tiempoTotalMinutos = Math.floor(tiempoTotalSegundos / 60);
+
+        const totalHoras = Math.floor(tiempoTotalSegundos / 3600);
+        const totalMinutos = Math.floor((tiempoTotalSegundos % 3600) / 60);
+        const totalSegundos = tiempoTotalSegundos % 60;
+
+        const tiempoTotalCurso = `${String(totalHoras).padStart(2, "0")}:${String(
+          totalMinutos
+        ).padStart(2, "0")}:${String(totalSegundos).padStart(2, "0")}`;
+
+
+
+
 
         userCourseGradesMap[courseid]["Tiempo Actividad Curso"] =
           tiempoActividadCurso;
@@ -948,36 +1083,61 @@ const getLoggedUser = catchError(async (req, res) => {
         courseMap[c.sigla] = c.nombre;
       });
 
+
+
       userCourses = enrolments.map(({ courseid, course }) => {
         if (!userCourseGradesMap[courseid]) userCourseGradesMap[courseid] = {};
 
         if (!userCourseGradesMap[courseid]["Tiempo Actividad Curso"]) {
+
+
+          // ======================
+          // Aula Virtual
+          // ======================
           const activityData = userCourseTimeMap[String(courseid)] || null;
-          const tiempoActividadSegundos = activityData?.totalSeconds || 0;
-          const tiempoActividadMinutos = Math.round(
-            tiempoActividadSegundos / 60
-          );
 
-          const horas = Math.floor(tiempoActividadMinutos / 60);
-          const minutos = tiempoActividadMinutos % 60;
+          const tiempoActividadSegundos = Number(activityData?.totalSeconds || 0);
+          const tiempoActividadMinutos = Math.floor(tiempoActividadSegundos / 60);
 
-          const tiempoActividadCurso = `${horas}h ${minutos}m`;
+          const actividadHoras = Math.floor(tiempoActividadSegundos / 3600);
+          const actividadMinutos = Math.floor((tiempoActividadSegundos % 3600) / 60);
+          const actividadSegundos = tiempoActividadSegundos % 60;
 
+          const tiempoActividadCurso = `${String(actividadHoras).padStart(2, "0")}:${String(
+            actividadMinutos
+          ).padStart(2, "0")}:${String(actividadSegundos).padStart(2, "0")}`;
+
+          // ======================
+          // Zoom (Zoom entrega SEGUNDOS)
+          // ======================
           const zoomData = userCourseZoomTimeMap[String(courseid)] || null;
-          const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
 
-          const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
-          const zoomMinutos = tiempoZoomMinutos % 60;
+          const tiempoZoomSegundos = Number(zoomData?.totalMinutes || 0);
+          const tiempoZoomMinutos = Math.floor(tiempoZoomSegundos / 60);
 
-          const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+          const zoomHoras = Math.floor(tiempoZoomSegundos / 3600);
+          const zoomMinutos = Math.floor((tiempoZoomSegundos % 3600) / 60);
+          const zoomSegundos = tiempoZoomSegundos % 60;
 
-          const tiempoTotalMinutos =
-            tiempoActividadMinutos + tiempoZoomMinutos;
+          const tiempoZoomCurso = `${String(zoomHoras).padStart(2, "0")}:${String(
+            zoomMinutos
+          ).padStart(2, "0")}:${String(zoomSegundos).padStart(2, "0")}`;
 
-          const totalHoras = Math.floor(tiempoTotalMinutos / 60);
-          const totalMinutos = tiempoTotalMinutos % 60;
+          // ======================
+          // Total
+          // ======================
+          const tiempoTotalSegundos =
+            tiempoActividadSegundos + tiempoZoomSegundos;
 
-          const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+          const tiempoTotalMinutos = Math.floor(tiempoTotalSegundos / 60);
+
+          const totalHoras = Math.floor(tiempoTotalSegundos / 3600);
+          const totalMinutos = Math.floor((tiempoTotalSegundos % 3600) / 60);
+          const totalSegundos = tiempoTotalSegundos % 60;
+
+          const tiempoTotalCurso = `${String(totalHoras).padStart(2, "0")}:${String(
+            totalMinutos
+          ).padStart(2, "0")}:${String(totalSegundos).padStart(2, "0")}`;
 
           userCourseGradesMap[courseid]["Tiempo Actividad Curso"] =
             tiempoActividadCurso;
@@ -1000,6 +1160,10 @@ const getLoggedUser = catchError(async (req, res) => {
           grades: userCourseGradesMap[courseid] || {},
         };
       });
+
+
+
+
     }
 
     // ========================== INSCRIPCIONES + PAGOS + CERTIFICADOS ==========================
@@ -1012,19 +1176,19 @@ const getLoggedUser = catchError(async (req, res) => {
 
     const pagos = inscripcionIds.length
       ? await Pagos.findAll({
-          raw: true,
-          where: {
-            inscripcionId: inscripcionIds,
-            confirmacion: true, // solo pagos confirmados
-          },
-        })
+        raw: true,
+        where: {
+          inscripcionId: inscripcionIds,
+          confirmacion: true, // solo pagos confirmados
+        },
+      })
       : [];
 
     const certificados = inscripcionIds.length
       ? await Certificado.findAll({
-          raw: true,
-          where: { inscripcionId: inscripcionIds },
-        })
+        raw: true,
+        where: { inscripcionId: inscripcionIds },
+      })
       : [];
 
     // Map pagos (pueden ser varios por inscripción)

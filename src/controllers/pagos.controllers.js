@@ -78,13 +78,13 @@ const getAll = catchError(async (req, res) => {
 
   const userWhere = busqueda
     ? {
-        [Op.or]: [
-          { grado: { [Op.iLike]: `%${busqueda}%` } },
-          { firstName: { [Op.iLike]: `%${busqueda}%` } },
-          { lastName: { [Op.iLike]: `%${busqueda}%` } },
-          { cI: { [Op.iLike]: `%${busqueda}%` } },
-        ],
-      }
+      [Op.or]: [
+        { grado: { [Op.iLike]: `%${busqueda}%` } },
+        { firstName: { [Op.iLike]: `%${busqueda}%` } },
+        { lastName: { [Op.iLike]: `%${busqueda}%` } },
+        { cI: { [Op.iLike]: `%${busqueda}%` } },
+      ],
+    }
     : undefined;
 
   let results = await Pagos.findAll({
@@ -360,58 +360,82 @@ const getAll = catchError(async (req, res) => {
         ? userCourseTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
         : null;
 
-    const tiempoActividadSegundos = activityData?.totalSeconds || 0;
-    const tiempoActividadMinutos = Math.round(tiempoActividadSegundos / 60);
+    const tiempoActividadSegundos = Number(activityData?.totalSeconds || 0);
 
-    const horas = Math.floor(tiempoActividadMinutos / 60);
-    const minutos = tiempoActividadMinutos % 60;
+    const actividadHoras = Math.floor(tiempoActividadSegundos / 3600);
+    const actividadMinutos = Math.floor((tiempoActividadSegundos % 3600) / 60);
+    const actividadSegundos = tiempoActividadSegundos % 60;
 
-    const tiempoActividadCurso = `${horas}h ${minutos}m`;
+    const tiempoActividadMinutos = Math.floor(tiempoActividadSegundos / 60);
+
+    const tiempoActividadCurso = `${String(actividadHoras).padStart(2, "0")}:${String(
+      actividadMinutos
+    ).padStart(2, "0")}:${String(actividadSegundos).padStart(2, "0")}`;
+
+
+
 
     const zoomData =
       enrolData && userCourseZoomTimeMap[String(moodleUser?.id)]
         ? userCourseZoomTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
         : null;
 
-    const tiempoZoomMinutos = Math.round(zoomData?.totalMinutes || 0);
+    // ======================
+    // ZOOM (Zoom entrega SEGUNDOS)
+    // ======================
+    const tiempoZoomSegundos = Number(zoomData?.totalMinutes || 0);
 
-    const zoomHoras = Math.floor(tiempoZoomMinutos / 60);
-    const zoomMinutos = tiempoZoomMinutos % 60;
+    const zoomHoras = Math.floor(tiempoZoomSegundos / 3600);
+    const zoomMinutos = Math.floor((tiempoZoomSegundos % 3600) / 60);
+    const zoomSegundos = tiempoZoomSegundos % 60;
 
-    const tiempoZoomCurso = `${zoomHoras}h ${zoomMinutos}m`;
+    const tiempoZoomMinutos = Math.floor(tiempoZoomSegundos / 60);
 
-    const tiempoTotalMinutos = tiempoActividadMinutos + tiempoZoomMinutos;
+    const tiempoZoomCurso = `${String(zoomHoras).padStart(2, "0")}:${String(
+      zoomMinutos
+    ).padStart(2, "0")}:${String(zoomSegundos).padStart(2, "0")}`;
 
-    const totalHoras = Math.floor(tiempoTotalMinutos / 60);
-    const totalMinutos = tiempoTotalMinutos % 60;
+    // ======================
+    // TOTAL
+    // ======================
+    const tiempoTotalSegundos =
+      tiempoActividadSegundos + tiempoZoomSegundos;
 
-    const tiempoTotalCurso = `${totalHoras}h ${totalMinutos}m`;
+    const tiempoTotalMinutos = Math.floor(tiempoTotalSegundos / 60);
+
+    const totalHoras = Math.floor(tiempoTotalSegundos / 3600);
+    const totalMinutos = Math.floor((tiempoTotalSegundos % 3600) / 60);
+    const totalSegundos = tiempoTotalSegundos % 60;
+
+    const tiempoTotalCurso = `${String(totalHoras).padStart(2, "0")}:${String(
+      totalMinutos
+    ).padStart(2, "0")}:${String(totalSegundos).padStart(2, "0")}`;
 
     const certEmp =
       pago.cert_emp === true || pago.cert_emp === "true"
         ? certificados.find(
-            (c) =>
-              c.inscripcionId === inscripcion.id &&
-              c.tipo === "cert_emp"
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_emp"
+        ) || null
         : null;
 
     const certMdt =
       pago.cert_mdt === true || pago.cert_mdt === "true"
         ? certificados.find(
-            (c) =>
-              c.inscripcionId === inscripcion.id &&
-              c.tipo === "cert_mdt"
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_mdt"
+        ) || null
         : null;
 
     const certInt =
       pago.cert_int === true || pago.cert_int === "true"
         ? certificados.find(
-            (c) =>
-              c.inscripcionId === inscripcion.id &&
-              c.tipo === "cert_int"
-          ) || null
+          (c) =>
+            c.inscripcionId === inscripcion.id &&
+            c.tipo === "cert_int"
+        ) || null
         : null;
 
     return {

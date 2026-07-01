@@ -26,6 +26,7 @@ const getAll = catchError(async (req, res) => {
       curso,
       page = 1,
       limit = 15,
+      ordenFecha = "desc",
     } = req.query;
 
     // --- 1. Usuarios locales
@@ -408,6 +409,15 @@ const getAll = catchError(async (req, res) => {
         result.push({ ...user, courses: coursesWithData });
       }
     }
+
+    result.sort((a, b) => {
+      const fechaA = new Date(a.createdAt);
+      const fechaB = new Date(b.createdAt);
+
+      return ordenFecha === "asc"
+        ? fechaA - fechaB
+        : fechaB - fechaA;
+    });
 
     // --- 8. Paginación
     const total = result.length;

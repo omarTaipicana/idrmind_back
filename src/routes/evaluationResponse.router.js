@@ -4,6 +4,7 @@ const {
     getOne,
     remove,
     check,
+    results,
 } = require("../controllers/evaluationResponse.controllers");
 
 const express = require("express");
@@ -16,6 +17,10 @@ evaluationResponseRouter
     .post(create);
 
 evaluationResponseRouter.route("/evaluation-responses/check").get(check);
+
+evaluationResponseRouter
+  .route("/evaluation-responses/results")
+  .get(results);
 
 evaluationResponseRouter
     .route("/evaluation-responses/:id")

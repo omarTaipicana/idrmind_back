@@ -56,7 +56,6 @@ const create = catchError(async (req, res) => {
     const questions = await EvaluationQuestion.findAll({
         where: {
             isActive: true,
-            target,
             [Op.or]: [{ courseId: null }, { courseId }],
         },
     });
@@ -229,10 +228,163 @@ const check = catchError(async (req, res) => {
     });
 });
 
+
+
+
+
+
+
+
+const results = catchError(async (req, res) => {
+    const { courseId, startDate, endDate } = req.query;
+
+    if (!courseId) {
+        return res.status(400).json({
+            message: "courseId es obligatorio.",
+        });
+    }
+
+    const where = { courseId };
+
+    if (startDate || endDate) {
+        where.createdAt = {};
+
+        if (startDate) {
+            where.createdAt[Op.gte] = new Date(`${startDate}T00:00:00.000-05:00`);
+        }
+
+        if (endDate) {
+            where.createdAt[Op.lte] = new Date(`${endDate}T23:59:59.999-05:00`);
+        }
+    }
+
+    const responses = await EvaluationResponse.findAll({
+        where,
+        include: [
+            User,
+            Course,
+            Inscripcion,
+            CourseInstructor,
+            {
+                model: EvaluationAnswer,
+                include: [EvaluationQuestion],
+            },
+        ],
+        order: [["createdAt", "DESC"]],
+    });
+
+    const scaleAnswers = [];
+    const textAnswers = [];
+
+    responses.forEach((response) => {
+        response.evaluationAnswers?.forEach((answer) => {
+            const question = answer.evaluationQuestion;
+            if (!question) return;
+
+            if (question.type === "scale") {
+                const value = Number(answer.value);
+                if (!Number.isNaN(value)) {
+                    scaleAnswers.push({
+                        target: question.target,
+                        questionId: question.id,
+                        question: question.question,
+                        category: question.category,
+                        value,
+                        weight: Number(question.weight || 1),
+                    });
+                }
+            }
+
+            if (question.type === "text" && answer.value) {
+                textAnswers.push({
+                    target: question.target,
+                    questionId: question.id,
+                    question: question.question,
+                    category: question.category,
+                    value: answer.value,
+                    createdAt: response.createdAt,
+                });
+            }
+        });
+    });
+
+    const calcularPromedio = (items) => {
+        if (items.length === 0) return null;
+
+        const total = items.reduce((acc, item) => acc + item.value * item.weight, 0);
+        const peso = items.reduce((acc, item) => acc + item.weight, 0);
+
+        return peso > 0 ? Number((total / peso).toFixed(2)) : null;
+    };
+
+    const byTarget = {
+        course: calcularPromedio(scaleAnswers.filter((a) => a.target === "course")),
+        teacher: calcularPromedio(scaleAnswers.filter((a) => a.target === "teacher")),
+        platform: calcularPromedio(scaleAnswers.filter((a) => a.target === "platform")),
+    };
+
+    const questionsMap = {};
+
+    scaleAnswers.forEach((answer) => {
+        if (!questionsMap[answer.questionId]) {
+            questionsMap[answer.questionId] = {
+                questionId: answer.questionId,
+                question: answer.question,
+                category: answer.category,
+                target: answer.target,
+                totalAnswers: 0,
+                average: 0,
+                values: [],
+            };
+        }
+
+        questionsMap[answer.questionId].totalAnswers += 1;
+        questionsMap[answer.questionId].values.push(answer.value);
+    });
+
+    const questions = Object.values(questionsMap).map((q) => {
+        const average =
+            q.values.length > 0
+                ? Number(
+                    (q.values.reduce((acc, value) => acc + value, 0) / q.values.length).toFixed(2)
+                )
+                : null;
+
+        return {
+            questionId: q.questionId,
+            question: q.question,
+            category: q.category,
+            target: q.target,
+            totalAnswers: q.totalAnswers,
+            average,
+        };
+    });
+
+    const averageScore =
+        responses.length > 0
+            ? Number(
+                (
+                    responses.reduce((acc, r) => acc + Number(r.totalScore || 0), 0) /
+                    responses.length
+                ).toFixed(2)
+            )
+            : null;
+
+    return res.json({
+        courseId,
+        totalResponses: responses.length,
+        averageScore,
+        byTarget,
+        questions,
+        textAnswers,
+    });
+});
+
 module.exports = {
     create,
     getAll,
     getOne,
     remove,
     check,
+    results,
 };

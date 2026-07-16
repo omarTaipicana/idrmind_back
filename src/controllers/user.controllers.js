@@ -170,7 +170,7 @@ const getAll = catchError(async (req, res) => {
         userid,
         courseid,
         CASE
-          WHEN LEAD(timecreated) OVER (PARTITION BY userid, courseid ORDER BY timecreated) - timecreated BETWEEN 1 AND 600
+          WHEN LEAD(timecreated) OVER (PARTITION BY userid, courseid ORDER BY timecreated) - timecreated BETWEEN 1 AND 7200
           THEN LEAD(timecreated) OVER (PARTITION BY userid, courseid ORDER BY timecreated) - timecreated
           ELSE 0
         END AS total_seconds

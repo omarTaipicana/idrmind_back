@@ -72,6 +72,10 @@ const User = sequelize.define("user", {
     type: DataTypes.STRING,
     allowNull: true,
   },
+  empresaId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+  },
 });
 
 User.prototype.toJSON = function () {

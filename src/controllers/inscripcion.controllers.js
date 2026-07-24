@@ -326,6 +326,7 @@ const create = catchError(async (req, res) => {
     curso,
     aceptacion,
     courseId,
+    empresaId,
   } = req.body;
 
   if (!email || !courseId) {
@@ -341,6 +342,7 @@ const create = catchError(async (req, res) => {
     await user.update({
       cI: cedula,
       cellular: celular,
+      empresaId:empresaId,
       grado,
       subsistema,
     });
@@ -352,6 +354,7 @@ const create = catchError(async (req, res) => {
       firstName: nombres,
       lastName: apellidos,
       cellular: celular,
+      empresaId,
       grado,
       subsistema,
     });

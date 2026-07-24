@@ -443,7 +443,13 @@ const getAll = catchError(async (req, res) => {
 
 
 const create = catchError(async (req, res) => {
-  const { cI, email, password, firstName, lastName, frontBaseUrl } = req.body;
+  const { cI, email, password, firstName, lastName, frontBaseUrl, empresaId } = req.body;
+
+  const empresaIdFinal =
+    empresaId && String(empresaId).trim()
+      ? String(empresaId).trim()
+      : null;
+
 
   // Buscar usuario existente por email
   let user = await User.findOne({ where: { email } });
@@ -459,8 +465,12 @@ const create = catchError(async (req, res) => {
 
     // Si existe pero no tiene contraseña → actualizar contraseña y nombres
     const hashedPassword = await bcrypt.hash(password, 10);
-    await user.update({ password: hashedPassword, firstName, lastName });
-
+    await user.update({
+      password: hashedPassword,
+      firstName,
+      lastName,
+      empresaId: empresaIdFinal,
+    });
     // Crear código de verificación y enviar correo
     const code = crypto.randomBytes(32).toString("hex");
     const link = `${frontBaseUrl}/${code}`;
@@ -520,6 +530,7 @@ const create = catchError(async (req, res) => {
     password: hashedPassword,
     firstName,
     lastName,
+    empresaId: empresaIdFinal,
     isVerified: false,
   });
 

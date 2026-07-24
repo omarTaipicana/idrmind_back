@@ -10,6 +10,8 @@ const EvaluationResponse = require("./EvaluationResponse");
 const EvaluationAnswer = require("./EvaluationAnswer");
 const CourseInstructor = require("./CourseInstructor");
 const EvaluationAccessToken = require("./EvaluationAccessToken");
+const Empresa = require("./Empresa");
+const EmpresaSeccion = require("./EmpresaSeccion");
 
 
 EmailCode.belongsTo(User);
@@ -30,6 +32,9 @@ User.hasOne(Inscripcion);
 
 Certificado.belongsTo(Inscripcion);
 Inscripcion.hasOne(Certificado);
+
+
+
 
 // ===============================
 // Evaluaciones de cursos
@@ -75,3 +80,32 @@ Course.hasMany(EvaluationAccessToken, { foreignKey: "courseId" });
 
 EvaluationAccessToken.belongsTo(Inscripcion, { foreignKey: "inscripcionId" });
 Inscripcion.hasMany(EvaluationAccessToken, { foreignKey: "inscripcionId" });
+
+
+
+
+Empresa.hasMany(User, {
+  foreignKey: "empresaId",
+  as: "usuarios",
+  onDelete: "SET NULL",
+  onUpdate: "CASCADE",
+});
+
+User.belongsTo(Empresa, {
+  foreignKey: "empresaId",
+  as: "empresa",
+  onDelete: "SET NULL",
+  onUpdate: "CASCADE",
+});
+
+
+Empresa.hasMany(EmpresaSeccion, {
+  foreignKey: "empresaId",
+  as: "secciones",
+  onDelete: "CASCADE",
+});
+
+EmpresaSeccion.belongsTo(Empresa, {
+  foreignKey: "empresaId",
+  as: "empresa",
+});

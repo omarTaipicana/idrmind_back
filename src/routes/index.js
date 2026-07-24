@@ -16,6 +16,10 @@ const evaluationResponseRouter = require("./evaluationResponse.router");
 const evaluationAnswerRouter = require("./evaluationAnswer.router");
 const courseInstructorRouter = require("./courseInstructor.router");
 const evaluationAccessRouter = require("./evaluationAccess.router");
+const empresaRouter = require("./empresa.router");
+const sectorRouter = require("./sector.router");
+const empresaSeccionRouter = require("./empresaSeccion.router");
+
 
 const router = express.Router();
 
@@ -37,6 +41,12 @@ router.use(evaluationResponseRouter);
 router.use(evaluationAnswerRouter);
 router.use(courseInstructorRouter);
 router.use(evaluationAccessRouter);
+router.use(empresaRouter);
+router.use(sectorRouter);
+router.use(empresaSeccionRouter);
+
+
+
 
 
 module.exports = router;

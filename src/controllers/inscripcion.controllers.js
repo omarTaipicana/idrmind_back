@@ -4,6 +4,8 @@ const { Op } = require("sequelize");
 const Inscripcion = require("../models/Inscripcion");
 const Course = require("../models/Course");
 const User = require("../models/User");
+const Empresa = require("../models/Empresa");
+const EmpresaSeccion = require("../models/EmpresaSeccion");
 const { crearUsuarioMoodle, inscribirUsuarioCurso, registrarUsuarioEnCurso, getMoodleCourseId } = require("../utils/moodle");
 
 
@@ -327,10 +329,63 @@ const create = catchError(async (req, res) => {
     aceptacion,
     courseId,
     empresaId,
+    seccionId,
   } = req.body;
 
   if (!email || !courseId) {
     return res.status(400).json({ error: "Email y courseId son requeridos" });
+  }
+
+  const empresaIdFinal =
+    empresaId && String(empresaId).trim()
+      ? String(empresaId).trim()
+      : null;
+
+  const seccionIdFinal =
+    empresaIdFinal &&
+      seccionId &&
+      String(seccionId).trim()
+      ? String(seccionId).trim()
+      : null;
+
+  if (empresaIdFinal) {
+    const empresa = await Empresa.findByPk(empresaIdFinal);
+
+    if (!empresa) {
+      return res.status(404).json({
+        message: "La empresa seleccionada no existe.",
+      });
+    }
+
+    if (empresa.activo === false) {
+      return res.status(400).json({
+        message:
+          "La empresa seleccionada no se encuentra activa.",
+      });
+    }
+  }
+
+  if (seccionIdFinal) {
+    const seccion = await EmpresaSeccion.findOne({
+      where: {
+        id: seccionIdFinal,
+        empresaId: empresaIdFinal,
+      },
+    });
+
+    if (!seccion) {
+      return res.status(400).json({
+        message:
+          "La sección seleccionada no pertenece a la empresa indicada.",
+      });
+    }
+
+    if (seccion.activo === false) {
+      return res.status(400).json({
+        message:
+          "La sección seleccionada no se encuentra activa.",
+      });
+    }
   }
 
   // Verificar si ya existe un usuario por email
@@ -342,7 +397,8 @@ const create = catchError(async (req, res) => {
     await user.update({
       cI: cedula,
       cellular: celular,
-      empresaId:empresaId,
+      empresaId: empresaIdFinal,
+      seccionId: seccionIdFinal,
       grado,
       subsistema,
     });
@@ -354,7 +410,8 @@ const create = catchError(async (req, res) => {
       firstName: nombres,
       lastName: apellidos,
       cellular: celular,
-      empresaId,
+      empresaId: empresaIdFinal,
+      seccionId: seccionIdFinal,
       grado,
       subsistema,
     });

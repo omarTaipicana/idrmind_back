@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/server",
-    "dev": "nodemon src/server"
+    "dev": "nodemon src/server",
+    "seed:psychometric": "node src/scripts/runPsychometricSeed.js",
+    "seed:psychometric-content": "node src/scripts/runPsychometricContentSeed.js"
   },
   "keywords": [],
   "author": "",

@@ -1,6 +1,11 @@
 const catchError = require("../utils/catchError");
 const sendEmail = require("../utils/sendEmail");
 const sequelizeM = require("../utils/connectionM");
+const crypto = require("crypto");
+
+const PsychometricAccessToken = require(
+  "../models/PsychometricAccessToken"
+);
 
 const path = require("path");
 const fs = require("fs");
@@ -10,6 +15,9 @@ const Course = require("../models/Course");
 const User = require("../models/User");
 const Certificado = require("../models/Certificado");
 const generarCertificado = require("../utils/generarCertificado");
+const PsychometricEvaluation = require(
+  "../models/PsychometricEvaluation"
+);
 
 const { Op, Sequelize } = require("sequelize");
 
@@ -661,9 +669,16 @@ const validatePago = catchError(async (req, res) => {
   });
 });
 
+
+
+
 const create = catchError(async (req, res) => {
-  if (!req.file)
-    return res.status(400).json({ message: "debes subir un archivo" });
+  if (!req.file) {
+    return res.status(400).json({
+      message: "Debes subir un archivo.",
+    });
+  }
+
   const {
     inscripcionId,
     curso,
@@ -678,120 +693,525 @@ const create = catchError(async (req, res) => {
     entregado,
     observacion,
     usuarioEdicion,
+
+    psychometricEvaluationId,
+    tipoPago,
   } = req.body;
+
   const url = req.fileUrl;
 
-  const inscrito = await Inscripcion.findByPk(inscripcionId);
-  const user = await User.findByPk(inscrito.userId);
-  const cursoData = await Course.findByPk(inscrito.courseId);
+  /* =========================================
+     VALIDACIONES GENERALES
+  ========================================= */
+
+  if (!inscripcionId) {
+    return res.status(400).json({
+      message: "El identificador de la inscripción es requerido.",
+    });
+  }
+
+  if (
+    valorDepositado === undefined ||
+    valorDepositado === null ||
+    valorDepositado === ""
+  ) {
+    return res.status(400).json({
+      message: "El valor depositado es requerido.",
+    });
+  }
+
+  const valorDepositadoFinal = Number(valorDepositado);
+
+  if (
+    Number.isNaN(valorDepositadoFinal) ||
+    valorDepositadoFinal <= 0
+  ) {
+    return res.status(400).json({
+      message: "El valor depositado no es válido.",
+    });
+  }
+
+  /* =========================================
+     BUSCAR INSCRIPCIÓN, USUARIO Y CURSO
+  ========================================= */
+
+  const inscrito = await Inscripcion.findByPk(
+    inscripcionId
+  );
+
+  if (!inscrito) {
+    return res.status(404).json({
+      message: "La inscripción no existe.",
+    });
+  }
+
+  const user = await User.findByPk(
+    inscrito.userId
+  );
+
+  if (!user) {
+    return res.status(404).json({
+      message:
+        "No se encontró el usuario asociado a la inscripción.",
+    });
+  }
+
+  const cursoData = inscrito.courseId
+    ? await Course.findByPk(
+      inscrito.courseId
+    )
+    : null;
+
+  if (!cursoData) {
+    return res.status(404).json({
+      message:
+        "No se encontró el curso asociado a la inscripción.",
+    });
+  }
+
+  /* =========================================
+     VALIDAR PAGO PSICOMÉTRICO
+  ========================================= */
+
+  let evaluation = null;
+
+  if (psychometricEvaluationId) {
+    evaluation =
+      await PsychometricEvaluation.findByPk(
+        psychometricEvaluationId
+      );
+
+    if (!evaluation) {
+      return res.status(404).json({
+        message:
+          "La evaluación psicométrica no existe.",
+      });
+    }
+
+    if (
+      String(evaluation.inscripcionId) !==
+      String(inscripcionId)
+    ) {
+      return res.status(400).json({
+        message:
+          "La evaluación psicométrica no pertenece a la inscripción indicada.",
+      });
+    }
+
+    if (
+      evaluation.estado !== "completada"
+    ) {
+      return res.status(409).json({
+        message:
+          "La evaluación debe estar completada antes de registrar el pago.",
+        estadoEvaluacion:
+          evaluation.estado,
+      });
+    }
+
+    const verifiedPayment =
+      await Pagos.findOne({
+        where: {
+          psychometricEvaluationId:
+            evaluation.id,
+          verificado: true,
+        },
+      });
+
+    if (verifiedPayment) {
+      return res.status(409).json({
+        message:
+          "Esta evaluación ya tiene un pago verificado.",
+        pagoId: verifiedPayment.id,
+      });
+    }
+  }
+
+  /* =========================================
+     DETERMINAR TIPO DE PAGO
+  ========================================= */
+
+  const tipoPagoFinal =
+    psychometricEvaluationId
+      ? "test_psicometrico"
+      : "curso";
+
+  /*
+   * No confiamos directamente en tipoPago enviado
+   * por el frontend. Se calcula desde la evaluación.
+   */
+  if (
+    tipoPago &&
+    tipoPago !== tipoPagoFinal
+  ) {
+    return res.status(400).json({
+      message:
+        "El tipo de pago no corresponde con los datos enviados.",
+    });
+  }
+
+  const cursoFinal =
+    curso ||
+    cursoData.sigla ||
+    inscrito.curso;
+
+  if (!cursoFinal) {
+    return res.status(400).json({
+      message:
+        "No se pudo determinar el curso del pago.",
+    });
+  }
+
+  /* =========================================
+     CREAR PAGO
+  ========================================= */
+
   const result = await Pagos.create({
     inscripcionId,
-    curso,
-    cert_emp,
-    cert_mdt,
-    cert_int,
-    valorDepositado,
-    confirmacion,
-    verificado,
-    distintivo,
-    moneda,
-    entregado,
-    observacion,
-    usuarioEdicion,
+
+    psychometricEvaluationId:
+      evaluation?.id || null,
+
+    tipoPago: tipoPagoFinal,
+
+    curso: cursoFinal,
+
+    cert_emp:
+      tipoPagoFinal === "curso"
+        ? cert_emp || null
+        : null,
+
+    cert_mdt:
+      tipoPagoFinal === "curso"
+        ? cert_mdt || null
+        : null,
+
+    cert_int:
+      tipoPagoFinal === "curso"
+        ? cert_int || null
+        : null,
+
+    valorDepositado:
+      valorDepositadoFinal,
+
+    confirmacion:
+      confirmacion === true ||
+      confirmacion === "true" ||
+      confirmacion === 1 ||
+      confirmacion === "1",
+
+    verificado:
+      verificado === true ||
+      verificado === "true" ||
+      verificado === 1 ||
+      verificado === "1",
+
+    distintivo:
+      tipoPagoFinal === "curso" &&
+      (
+        distintivo === true ||
+        distintivo === "true" ||
+        distintivo === 1 ||
+        distintivo === "1"
+      ),
+
+    moneda:
+      tipoPagoFinal === "curso" &&
+      (
+        moneda === true ||
+        moneda === "true" ||
+        moneda === 1 ||
+        moneda === "1"
+      ),
+
+    entregado:
+      entregado === true ||
+      entregado === "true" ||
+      entregado === 1 ||
+      entregado === "1",
+
+    observacion:
+      observacion || null,
+
+    usuarioEdicion:
+      usuarioEdicion || null,
+
     pagoUrl: url,
   });
 
+  /* =========================================
+     PREPARAR CONTENIDO DEL CORREO
+  ========================================= */
+
   const incluyeMoneda =
-    moneda === true || moneda === "true" || moneda === 1 || moneda === "1";
+    result.moneda === true;
+
   const incluyeDistintivo =
-    distintivo === true ||
-    distintivo === "true" ||
-    distintivo === 1 ||
-    distintivo === "1";
+    result.distintivo === true;
 
   const certificados = [];
 
-  if (cert_emp === true || cert_emp === "true") {
-    certificados.push("Certificado Empresarial iDr.Mind.");
+  if (
+    tipoPagoFinal === "curso" &&
+    (
+      cert_emp === true ||
+      cert_emp === "true"
+    )
+  ) {
+    certificados.push(
+      "Certificado Empresarial iDr.Mind."
+    );
   }
 
-  if (cert_mdt === true || cert_mdt === "true") {
-    certificados.push("Certificado por el Ministerio de Trabajo");
+  if (
+    tipoPagoFinal === "curso" &&
+    (
+      cert_mdt === true ||
+      cert_mdt === "true"
+    )
+  ) {
+    certificados.push(
+      "Certificado por el Ministerio de Trabajo"
+    );
   }
 
-  if (cert_int === true || cert_int === "true") {
-    certificados.push("Certificado Internacional");
+  if (
+    tipoPagoFinal === "curso" &&
+    (
+      cert_int === true ||
+      cert_int === "true"
+    )
+  ) {
+    certificados.push(
+      "Certificado Internacional"
+    );
   }
 
-  const detalleCertificados =
-    certificados.length > 0
-      ? `Pago por: ${certificados.join(", ")}`
-      : "Pago registrado";
+  const nombreServicio =
+    tipoPagoFinal === "test_psicometrico"
+      ? cursoData.nombre ||
+      "Test Psicotécnico"
+      : cursoData.nombre;
 
-  await sendEmail({
-    to: user.email,
-    subject: "✅ Pago registrado - iDr.Mind.",
-    html: `
-  <div style="font-family: Arial, sans-serif; background-color: #f0f8ff; padding: 20px; color: #333;">
-    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); overflow: hidden;">
-      
-   <!-- Encabezado -->
-    <div style="text-align: center; background: linear-gradient(135deg, #0a2540, #174a8c); padding: 25px;">
-      <img src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png" alt="iDr.Mind" style="width: 160px;" />
-    </div>
+  const detallePago =
+    tipoPagoFinal === "test_psicometrico"
+      ? `Pago correspondiente a la evaluación psicométrica número ${evaluation.numeroEvaluacion}.`
+      : certificados.length > 0
+        ? `Pago por: ${certificados.join(", ")}`
+        : "Pago registrado.";
 
-      <!-- Cuerpo del mensaje -->
-      <div style="padding: 30px; text-align: center;">
-        <h2 style="color: #1B326B;">¡Hola ${user.firstName} ${user.lastName
-      }!</h2>
-        <p style="font-size: 16px; line-height: 1.6;">
-          Hemos recibido tu comprobante de pago por el curso <strong>"${cursoData.nombre
-      }"</strong>.
-        </p>
-        <p style="font-size: 16px; line-height: 1.6;">
-        <p><strong>${detalleCertificados}</strong></p>
-          <strong>Valor depositado:</strong> $${valorDepositado}
-        </p>
-        ${incluyeMoneda || incluyeDistintivo
-        ? `<p style="font-size: 16px; line-height: 1.6;">Incluye: ${[
-          incluyeMoneda ? "🪙 Moneda conmemorativa" : "",
-          incluyeDistintivo ? "🎖️ Distintivo" : "",
-        ]
-          .filter(Boolean)
-          .join(" y ")}</p>`
-        : ""
-      }
-        <p style="font-size: 16px; line-height: 1.6;">
-          Una vez validado el pago, se emitirá tu certificado. En caso de haber solicitado reconocimientos físicos, recibirás otro correo cuando estén disponibles para su retiro.
-        </p>
+  const mensajePosterior =
+    tipoPagoFinal === "test_psicometrico"
+      ? `
+        Una vez validado el pago, tu informe de resultados
+        psicométricos será habilitado por iDr.Mind.
+      `
+      : `
+        Una vez validado el pago, se emitirá tu certificado.
+        En caso de haber solicitado reconocimientos físicos,
+        recibirás otro correo cuando estén disponibles para
+        su retiro.
+      `;
 
-        <!-- Botón para ver comprobante -->
-        <div style="margin-top: 30px;">
-          <a href="${url}" target="_blank" style="background-color: #1B326B; color: white; padding: 12px 20px; border-radius: 5px; text-decoration: none;">
-            Ver comprobante de pago
-          </a>
+  /* =========================================
+     ENVIAR CORREO
+  ========================================= */
+
+  let emailSent = true;
+
+  try {
+    await sendEmail({
+      to: user.email,
+
+      subject:
+        tipoPagoFinal ===
+          "test_psicometrico"
+          ? "✅ Pago registrado - Test Psicotécnico iDr.Mind"
+          : "✅ Pago registrado - iDr.Mind",
+
+      html: `
+        <div style="
+          font-family:Arial,sans-serif;
+          background-color:#f0f8ff;
+          padding:20px;
+          color:#333;
+        ">
+          <div style="
+            max-width:600px;
+            margin:0 auto;
+            background-color:#ffffff;
+            border-radius:10px;
+            box-shadow:0 2px 10px rgba(0,0,0,.1);
+            overflow:hidden;
+          ">
+
+            <div style="
+              text-align:center;
+              background:linear-gradient(
+                135deg,
+                #0a2540,
+                #174a8c
+              );
+              padding:25px;
+            ">
+              <img
+                src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+                alt="iDr.Mind"
+                style="width:160px;"
+              />
+            </div>
+
+            <div style="
+              padding:30px;
+              text-align:center;
+            ">
+              <h2 style="color:#1B326B;">
+                ¡Hola ${user.firstName || ""}
+                ${user.lastName || ""}!
+              </h2>
+
+              <p style="
+                font-size:16px;
+                line-height:1.6;
+              ">
+                Hemos recibido tu comprobante de pago por:
+                <strong>
+                  "${nombreServicio}"
+                </strong>.
+              </p>
+
+              <div style="
+                margin:22px 0;
+                padding:16px;
+                border-radius:10px;
+                background:#eef6ff;
+              ">
+                <p style="
+                  margin:0 0 8px;
+                  font-size:16px;
+                  line-height:1.6;
+                ">
+                  <strong>${detallePago}</strong>
+                </p>
+
+                <p style="
+                  margin:0;
+                  font-size:16px;
+                  line-height:1.6;
+                ">
+                  <strong>
+                    Valor depositado:
+                  </strong>
+                  $${valorDepositadoFinal.toFixed(2)}
+                </p>
+              </div>
+
+              ${incluyeMoneda ||
+          incluyeDistintivo
+          ? `
+                    <p style="
+                      font-size:16px;
+                      line-height:1.6;
+                    ">
+                      Incluye:
+                      ${[
+            incluyeMoneda
+              ? "🪙 Moneda conmemorativa"
+              : "",
+
+            incluyeDistintivo
+              ? "🎖️ Distintivo"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" y ")}
+                    </p>
+                  `
+          : ""
+        }
+
+              <p style="
+                font-size:16px;
+                line-height:1.6;
+              ">
+                ${mensajePosterior}
+              </p>
+
+              <div style="margin-top:30px;">
+                <a
+                  href="${url}"
+                  target="_blank"
+                  rel="noopener"
+                  style="
+                    background-color:#1B326B;
+                    color:white;
+                    padding:12px 20px;
+                    border-radius:5px;
+                    text-decoration:none;
+                    display:inline-block;
+                  "
+                >
+                  Ver comprobante de pago
+                </a>
+              </div>
+
+              <p style="
+                margin-top:30px;
+                font-size:14px;
+                color:#666;
+              ">
+                Si no realizaste este registro de pago,
+                comunícate con nosotros.
+              </p>
+            </div>
+
+            <div style="
+              background-color:#f0f0f0;
+              text-align:center;
+              padding:15px;
+              font-size:12px;
+              color:#999;
+            ">
+              © ${new Date().getFullYear()}
+              iDr.Mind. Todos los derechos reservados.
+            </div>
+          </div>
         </div>
+      `,
+    });
+  } catch (emailError) {
+    emailSent = false;
 
-        <p style="margin-top: 30px; font-size: 14px; color: #666;">
-          Si no realizaste este registro de pago, por favor comunícate con nosotros.
-        </p>
-      </div>
+    console.error(
+      "No se pudo enviar el correo de pago:",
+      emailError
+    );
+  }
 
-      <!-- Pie -->
-      <div style="background-color: #f0f0f0; text-align: center; padding: 15px; font-size: 12px; color: #999;">
-        © ${new Date().getFullYear()} iDr.Mind. Todos los derechos reservados.
-      </div>
-
-    </div>
-  </div>
-  `,
-  });
+  /* =========================================
+     SOCKET
+  ========================================= */
 
   const io = req.app.get("io");
-  if (io) io.emit("pagoCreado", result);
 
-  return res.status(201).json(result);
+  if (io) {
+    io.emit("pagoCreado", result);
+  }
+
+  return res.status(201).json({
+    message: emailSent
+      ? "Pago registrado correctamente. Se envió la confirmación al correo."
+      : "Pago registrado correctamente, pero no se pudo enviar el correo.",
+
+    emailSent,
+    payment: result,
+  });
 });
+
+
+
+
+
 
 const getOne = catchError(async (req, res) => {
   const { id } = req.params;
@@ -828,6 +1248,235 @@ const remove = catchError(async (req, res) => {
 
   return res.sendStatus(204);
 });
+
+
+/* =========================================================
+   GENERAR TOKEN DE RESULTADO
+========================================================= */
+
+const createPsychometricResultAccess = async (
+  evaluationId
+) => {
+  /*
+   * Desactiva enlaces anteriores de resultado
+   * para esta evaluación.
+   */
+  await PsychometricAccessToken.update(
+    {
+      activo: false,
+      revokedAt: new Date(),
+    },
+    {
+      where: {
+        evaluationId,
+        purpose: "result",
+        activo: true,
+      },
+    }
+  );
+
+  const token = crypto
+    .randomBytes(32)
+    .toString("hex");
+
+  const tokenHash = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const resultTokenHours = Number(
+    process.env.PSYCHOMETRIC_RESULT_TOKEN_HOURS ||
+    720
+  );
+
+  const expiresAt = new Date(
+    Date.now() +
+    resultTokenHours *
+    60 *
+    60 *
+    1000
+  );
+
+  await PsychometricAccessToken.create({
+    evaluationId,
+    tokenHash,
+    purpose: "result",
+    expiresAt,
+    activo: true,
+  });
+
+  return {
+    token,
+    expiresAt,
+  };
+};
+
+
+/* =========================================================
+   ENVIAR CORREO DE RESULTADO LIBERADO
+========================================================= */
+
+const sendPsychometricResultEmail = async ({
+  user,
+  course,
+  evaluation,
+  token,
+  expiresAt,
+}) => {
+  const frontendUrl =
+    process.env.FRONTEND_URL ||
+    "https://idrmind.com";
+
+  const resultUrl =
+    `${frontendUrl}/#/resultado-psicometrico/${token}`;
+
+  const expirationDate =
+    expiresAt.toLocaleString("es-EC", {
+      timeZone: "America/Guayaquil",
+      dateStyle: "long",
+      timeStyle: "short",
+    });
+
+  await sendEmail({
+    to: user.email,
+
+    subject:
+      "Tu resultado psicométrico está disponible - iDr.Mind",
+
+    html: `
+      <div style="
+        margin:0;
+        padding:30px 15px;
+        background:#f1f5f9;
+        font-family:Arial,sans-serif;
+        color:#101828;
+      ">
+        <div style="
+          max-width:640px;
+          margin:0 auto;
+          background:#ffffff;
+          border-radius:18px;
+          overflow:hidden;
+          box-shadow:0 18px 45px rgba(7,27,63,.16);
+        ">
+          <div style="
+            padding:28px;
+            text-align:center;
+            background:linear-gradient(
+              135deg,
+              #071b3f,
+              #173a8a
+            );
+          ">
+            <img
+              src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+              alt="iDr.Mind"
+              style="width:165px;max-width:100%;"
+            />
+          </div>
+
+          <div style="padding:34px;">
+            <h1 style="
+              margin:0 0 18px;
+              color:#071b3f;
+              font-size:27px;
+            ">
+              ¡Hola ${user.firstName || ""}
+              ${user.lastName || ""}!
+            </h1>
+
+            <p style="
+              font-size:16px;
+              line-height:1.7;
+              color:#475467;
+            ">
+              Tu pago fue validado correctamente y
+              tu informe de resultados de
+              <strong>${course.nombre}</strong>
+              ya se encuentra disponible.
+            </p>
+
+            <div style="
+              margin:25px 0;
+              padding:18px;
+              border-radius:12px;
+              background:#eef6ff;
+              border-left:5px solid #28a7e8;
+            ">
+              <p style="
+                margin:0;
+                color:#344054;
+                line-height:1.6;
+              ">
+                Evaluación número:
+                <strong>
+                  ${evaluation.numeroEvaluacion}
+                </strong>
+              </p>
+
+              <p style="
+                margin:6px 0 0;
+                color:#344054;
+                line-height:1.6;
+              ">
+                Enlace válido hasta:
+                <strong>${expirationDate}</strong>
+              </p>
+            </div>
+
+            <div style="
+              text-align:center;
+              margin:30px 0;
+            ">
+              <a
+                href="${resultUrl}"
+                style="
+                  display:inline-block;
+                  padding:15px 30px;
+                  border-radius:12px;
+                  background:linear-gradient(
+                    135deg,
+                    #173a8a,
+                    #071b3f
+                  );
+                  color:#ffffff;
+                  text-decoration:none;
+                  font-size:16px;
+                  font-weight:bold;
+                "
+              >
+                Consultar mi resultado
+              </a>
+            </div>
+
+            <p style="
+              font-size:14px;
+              color:#667085;
+              line-height:1.6;
+            ">
+              Este enlace es personal. No lo compartas
+              con otras personas.
+            </p>
+          </div>
+
+          <div style="
+            padding:18px;
+            background:#f8fafc;
+            text-align:center;
+            color:#98a2b3;
+            font-size:12px;
+          ">
+            © ${new Date().getFullYear()}
+            iDr.Mind. Todos los derechos reservados.
+          </div>
+        </div>
+      </div>
+    `,
+  });
+
+  return resultUrl;
+};
+
 
 const update = catchError(async (req, res) => {
   const { id } = req.params;
@@ -912,6 +1561,103 @@ const update = catchError(async (req, res) => {
   const verificadoAntes = pagoOriginal.verificado;
   const verificadoDespues = pagoActualizado.verificado;
 
+  let psychometricResultEmailSent = null;
+
+  if (
+    !verificadoAntes &&
+    verificadoDespues &&
+    pagoActualizado.psychometricEvaluationId
+  ) {
+    const evaluation =
+      await PsychometricEvaluation.findByPk(
+        pagoActualizado.psychometricEvaluationId,
+        {
+          include: [
+            {
+              model: Inscripcion,
+              as: "inscripcion",
+
+              include: [
+                {
+                  model: User,
+                  as: "user",
+                },
+              ],
+            },
+          ],
+        }
+      );
+
+    if (!evaluation) {
+      return res.status(404).json({
+        message:
+          "El pago fue actualizado, pero no se encontró la evaluación psicométrica asociada.",
+      });
+    }
+
+    if (
+      evaluation.estado !== "completada"
+    ) {
+      return res.status(409).json({
+        message:
+          "No se puede liberar el resultado porque la evaluación no está completada.",
+        estadoEvaluacion:
+          evaluation.estado,
+      });
+    }
+
+    await evaluation.update({
+      resultadoLiberado: true,
+    });
+
+    const {
+      token,
+      expiresAt,
+    } =
+      await createPsychometricResultAccess(
+        evaluation.id
+      );
+
+    psychometricResultEmailSent = true;
+
+    try {
+      const user =
+        evaluation.inscripcion?.user;
+
+      const inscripcion =
+        evaluation.inscripcion;
+
+      const course = inscripcion?.courseId
+        ? await Course.findByPk(
+          inscripcion.courseId
+        )
+        : null;
+
+      if (!user?.email || !course) {
+        psychometricResultEmailSent = false;
+
+        console.error(
+          "No se encontraron usuario o curso para enviar el resultado."
+        );
+      } else {
+        await sendPsychometricResultEmail({
+          user,
+          course,
+          evaluation,
+          token,
+          expiresAt,
+        });
+      }
+    } catch (emailError) {
+      psychometricResultEmailSent = false;
+
+      console.error(
+        "No se pudo enviar el correo del resultado:",
+        emailError
+      );
+    }
+  }
+
   // if (!verificadoAntes && verificadoDespues) {
   //   try {
   //     await generarCertificado(pagoActualizado.id);
@@ -920,7 +1666,18 @@ const update = catchError(async (req, res) => {
   //   }
   // }
 
-  return res.json(pagoActualizado);
+  return res.json({
+    ...pagoActualizado.toJSON(),
+
+    message:
+      psychometricResultEmailSent === true
+        ? "Pago actualizado, resultado liberado y correo enviado."
+        : psychometricResultEmailSent === false
+          ? "Pago actualizado y resultado liberado, pero no se pudo enviar el correo."
+          : "Pago actualizado correctamente.",
+
+    psychometricResultEmailSent,
+  });
 });
 
 

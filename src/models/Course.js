@@ -20,6 +20,16 @@ const Course = sequelize.define("course", {
     type: DataTypes.TEXT,
     allowNull: false,
   },
+
+  tipo: {
+    type: DataTypes.ENUM(
+      "curso",
+      "test_psicotecnico"
+    ),
+    allowNull: false,
+    defaultValue: "curso",
+  },
+
   precio_emp: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,

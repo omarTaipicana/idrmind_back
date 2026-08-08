@@ -12,6 +12,15 @@ const CourseInstructor = require("./CourseInstructor");
 const EvaluationAccessToken = require("./EvaluationAccessToken");
 const Empresa = require("./Empresa");
 const EmpresaSeccion = require("./EmpresaSeccion");
+const PsychometricEvaluation = require("./PsychometricEvaluation");
+const PsychometricTest = require("./PsychometricTest");
+const PsychometricPersonality = require("./PsychometricPersonality");
+const PsychometricOption = require("./PsychometricOption");
+const PsychometricQuestion = require("./PsychometricQuestion");
+const PsychometricSection = require("./PsychometricSection");
+const PsychometricAnswerOption = require("./PsychometricAnswerOption");
+const PsychometricAnswer = require("./PsychometricAnswer");
+const PsychometricAccessToken = require("./PsychometricAccessToken");
 
 
 EmailCode.belongsTo(User);
@@ -84,6 +93,23 @@ Inscripcion.hasMany(EvaluationAccessToken, { foreignKey: "inscripcionId" });
 
 
 
+
+
+
+
+Empresa.hasMany(EmpresaSeccion, {
+  foreignKey: "empresaId",
+  as: "secciones",
+  onDelete: "CASCADE",
+  onUpdate: "CASCADE",
+});
+
+EmpresaSeccion.belongsTo(Empresa, {
+  foreignKey: "empresaId",
+  as: "empresa",
+});
+
+
 Empresa.hasMany(User, {
   foreignKey: "empresaId",
   as: "usuarios",
@@ -94,18 +120,311 @@ Empresa.hasMany(User, {
 User.belongsTo(Empresa, {
   foreignKey: "empresaId",
   as: "empresa",
+});
+
+
+EmpresaSeccion.hasMany(User, {
+  foreignKey: "seccionId",
+  as: "usuarios",
   onDelete: "SET NULL",
   onUpdate: "CASCADE",
 });
 
+User.belongsTo(EmpresaSeccion, {
+  foreignKey: "seccionId",
+  as: "empresaSeccion",
+});
 
-Empresa.hasMany(EmpresaSeccion, {
-  foreignKey: "empresaId",
-  as: "secciones",
+
+
+/* =========================================
+   COURSE ↔ PSYCHOMETRIC TEST
+========================================= */
+
+Course.hasOne(PsychometricTest, {
+  foreignKey: "courseId",
+  as: "psychometricTest",
+  onUpdate: "CASCADE",
   onDelete: "CASCADE",
 });
 
-EmpresaSeccion.belongsTo(Empresa, {
-  foreignKey: "empresaId",
-  as: "empresa",
+PsychometricTest.belongsTo(Course, {
+  foreignKey: "courseId",
+  as: "course",
 });
+
+
+/* =========================================
+   PSYCHOMETRIC TEST ↔ SECTIONS
+========================================= */
+
+PsychometricTest.hasMany(
+  PsychometricSection,
+  {
+    foreignKey: "testId",
+    as: "sections",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricSection.belongsTo(
+  PsychometricTest,
+  {
+    foreignKey: "testId",
+    as: "test",
+  }
+);
+
+
+/* =========================================
+   PSYCHOMETRIC SECTION ↔ QUESTIONS
+========================================= */
+
+PsychometricSection.hasMany(
+  PsychometricQuestion,
+  {
+    foreignKey: "sectionId",
+    as: "questions",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricQuestion.belongsTo(
+  PsychometricSection,
+  {
+    foreignKey: "sectionId",
+    as: "section",
+  }
+);
+
+
+/* =========================================
+   PSYCHOMETRIC QUESTION ↔ OPTIONS
+========================================= */
+
+PsychometricQuestion.hasMany(
+  PsychometricOption,
+  {
+    foreignKey: "questionId",
+    as: "options",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricOption.belongsTo(
+  PsychometricQuestion,
+  {
+    foreignKey: "questionId",
+    as: "question",
+  }
+);
+
+
+/* =========================================
+   INSCRIPCION ↔ PSYCHOMETRIC EVALUATIONS
+========================================= */
+
+Inscripcion.hasMany(
+  PsychometricEvaluation,
+  {
+    foreignKey: "inscripcionId",
+    as: "psychometricEvaluations",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricEvaluation.belongsTo(
+  Inscripcion,
+  {
+    foreignKey: "inscripcionId",
+    as: "inscripcion",
+  }
+);
+
+
+/* =========================================
+   PSYCHOMETRIC TEST ↔ EVALUATIONS
+========================================= */
+
+PsychometricTest.hasMany(
+  PsychometricEvaluation,
+  {
+    foreignKey: "testId",
+    as: "evaluations",
+    onUpdate: "CASCADE",
+    onDelete: "RESTRICT",
+  }
+);
+
+PsychometricEvaluation.belongsTo(
+  PsychometricTest,
+  {
+    foreignKey: "testId",
+    as: "test",
+  }
+);
+
+
+/* =========================================
+   PERSONALITY ↔ EVALUATIONS
+========================================= */
+
+PsychometricPersonality.hasMany(
+  PsychometricEvaluation,
+  {
+    foreignKey: "personalityId",
+    as: "evaluations",
+    onUpdate: "CASCADE",
+    onDelete: "SET NULL",
+  }
+);
+
+PsychometricEvaluation.belongsTo(
+  PsychometricPersonality,
+  {
+    foreignKey: "personalityId",
+    as: "personality",
+  }
+);
+
+
+
+/* =========================================
+   EVALUATION ↔ ANSWERS
+========================================= */
+
+PsychometricEvaluation.hasMany(
+  PsychometricAnswer,
+  {
+    foreignKey: "evaluationId",
+    as: "answers",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricAnswer.belongsTo(
+  PsychometricEvaluation,
+  {
+    foreignKey: "evaluationId",
+    as: "evaluation",
+  }
+);
+
+
+/* =========================================
+   QUESTION ↔ ANSWERS
+========================================= */
+
+PsychometricQuestion.hasMany(
+  PsychometricAnswer,
+  {
+    foreignKey: "questionId",
+    as: "answers",
+    onUpdate: "CASCADE",
+    onDelete: "RESTRICT",
+  }
+);
+
+PsychometricAnswer.belongsTo(
+  PsychometricQuestion,
+  {
+    foreignKey: "questionId",
+    as: "question",
+  }
+);
+
+
+/* =========================================
+   ANSWER ↔ SELECTED OPTIONS
+========================================= */
+
+PsychometricAnswer.hasMany(
+  PsychometricAnswerOption,
+  {
+    foreignKey: "answerId",
+    as: "selectedOptions",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricAnswerOption.belongsTo(
+  PsychometricAnswer,
+  {
+    foreignKey: "answerId",
+    as: "answer",
+  }
+);
+
+
+/* =========================================
+   OPTION ↔ ANSWER OPTIONS
+========================================= */
+
+PsychometricOption.hasMany(
+  PsychometricAnswerOption,
+  {
+    foreignKey: "optionId",
+    as: "answerSelections",
+    onUpdate: "CASCADE",
+    onDelete: "RESTRICT",
+  }
+);
+
+PsychometricAnswerOption.belongsTo(
+  PsychometricOption,
+  {
+    foreignKey: "optionId",
+    as: "option",
+  }
+);
+
+
+PsychometricEvaluation.hasMany(
+  PsychometricAccessToken,
+  {
+    foreignKey: "evaluationId",
+    as: "accessTokens",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricAccessToken.belongsTo(
+  PsychometricEvaluation,
+  {
+    foreignKey: "evaluationId",
+    as: "evaluation",
+  }
+);
+
+
+
+PsychometricEvaluation.hasMany(
+  Pagos,
+  {
+    foreignKey:
+      "psychometricEvaluationId",
+
+    as: "pagos",
+
+    onUpdate: "CASCADE",
+    onDelete: "SET NULL",
+  }
+);
+
+Pagos.belongsTo(
+  PsychometricEvaluation,
+  {
+    foreignKey:
+      "psychometricEvaluationId",
+
+    as: "psychometricEvaluation",
+  }
+);
+

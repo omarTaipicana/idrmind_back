@@ -263,8 +263,8 @@ const update = catchError(async (req, res) => {
     telefono:
       telefono !== undefined
         ? telefono
-            ?.replace(/[^\d+]/g, "")
-            .trim() || null
+          ?.replace(/[^\d+]/g, "")
+          .trim() || null
         : seccion.telefono,
 
     activo:
@@ -300,8 +300,46 @@ const remove = catchError(async (req, res) => {
   });
 });
 
+
+const getPublicByEmpresa =
+  catchError(async (req, res) => {
+    const { empresaId } =
+      req.query;
+
+    if (!empresaId) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "empresaId es requerido.",
+        });
+    }
+
+    const results =
+      await EmpresaSeccion.findAll({
+        where: {
+          empresaId,
+          activo: true,
+        },
+
+        attributes: [
+          "id",
+          "nombre",
+          "empresaId",
+        ],
+
+        order: [
+          ["nombre", "ASC"],
+        ],
+      });
+
+    return res.json(results);
+  });
+
+
 module.exports = {
   getAll,
+  getPublicByEmpresa,
   getOne,
   create,
   update,

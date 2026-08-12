@@ -19,11 +19,13 @@ const {
   "../controllers/psychometricEvaluation.controllers"
 );
 
+
 const {
   getIndividualResult,
   getUserHistory,
   getAllResults,
   getPublicResultByToken,
+  getPsychometricResultPdf,
 } = require(
   "../controllers/psychometricResult.controllers"
 );
@@ -73,6 +75,18 @@ psychometricRouter
 psychometricRouter
   .route("/psychometric/result/:token")
   .get(getPublicResultByToken);
+
+/* =========================================
+ PDF PÚBLICO DEL RESULTADO POR TOKEN
+========================================= */
+
+psychometricRouter
+  .route(
+    "/psychometric/result/:token/pdf"
+  )
+  .get(
+    getPsychometricResultPdf
+  );
 
 /* =========================================
    RESULTADOS ADMINISTRATIVOS

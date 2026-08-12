@@ -156,6 +156,33 @@ const PsychometricEvaluation = sequelize.define(
       defaultValue: false,
     },
 
+    resultadoGeneradoAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    resultadoEmailEnviado: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+
+    resultadoEmailEnviadoAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    resultadoEmailEnvios: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+
+    resultadoInformeUrl: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+
     observacion: {
       type: DataTypes.TEXT,
       allowNull: true,

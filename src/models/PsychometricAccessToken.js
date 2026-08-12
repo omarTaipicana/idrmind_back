@@ -73,6 +73,7 @@ const PsychometricAccessToken = sequelize.define(
         isIn: [
           [
             "test",
+            "payment",
             "result",
           ],
         ],

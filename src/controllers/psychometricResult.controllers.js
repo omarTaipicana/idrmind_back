@@ -3,6 +3,11 @@ const crypto = require("crypto");
 
 const catchError = require("../utils/catchError");
 
+
+const generarInformePsicometrico = require(
+  "../utils/generarInformePsicometrico"
+);
+
 const PsychometricAccessToken = require(
   "../models/PsychometricAccessToken"
 );
@@ -166,133 +171,133 @@ const getIndividualResult = catchError(
 
       user: user
         ? {
-            id: user.id,
-            cI: user.cI,
-            email: user.email,
+          id: user.id,
+          cI: user.cI,
+          email: user.email,
 
-            firstName:
-              user.firstName,
+          firstName:
+            user.firstName,
 
-            lastName:
-              user.lastName,
+          lastName:
+            user.lastName,
 
-            cellular:
-              user.cellular,
+          cellular:
+            user.cellular,
 
-            grado:
-              user.grado,
+          grado:
+            user.grado,
 
-            subsistema:
-              user.subsistema,
+          subsistema:
+            user.subsistema,
 
-            empresa: user.empresa
+          empresa: user.empresa
+            ? {
+              id:
+                user.empresa.id,
+
+              nombre:
+                user.empresa
+                  .nombreComercial ||
+                user.empresa
+                  .razonSocial,
+            }
+            : null,
+
+          seccion:
+            user.empresaSeccion
               ? {
-                  id:
-                    user.empresa.id,
+                id:
+                  user.empresaSeccion.id,
 
-                  nombre:
-                    user.empresa
-                      .nombreComercial ||
-                    user.empresa
-                      .razonSocial,
-                }
+                nombre:
+                  user.empresaSeccion
+                    .nombre,
+              }
               : null,
-
-            seccion:
-              user.empresaSeccion
-                ? {
-                    id:
-                      user.empresaSeccion.id,
-
-                    nombre:
-                      user.empresaSeccion
-                        .nombre,
-                  }
-                : null,
-          }
+        }
         : null,
 
       course: evaluation.test?.course
         ? {
-            id:
-              evaluation.test.course.id,
+          id:
+            evaluation.test.course.id,
 
-            nombre:
-              evaluation.test.course
-                .nombre,
+          nombre:
+            evaluation.test.course
+              .nombre,
 
-            sigla:
-              evaluation.test.course
-                .sigla,
+          sigla:
+            evaluation.test.course
+              .sigla,
 
-            objetivo:
-              evaluation.test.course
-                .objetivo,
+          objetivo:
+            evaluation.test.course
+              .objetivo,
 
-            tipo:
-              evaluation.test.course
-                .tipo,
-          }
+          tipo:
+            evaluation.test.course
+              .tipo,
+        }
         : null,
 
       personality:
         evaluation.personality
           ? {
-              id:
-                evaluation.personality.id,
+            id:
+              evaluation.personality.id,
 
-              numero:
-                evaluation.personality
-                  .numero,
+            numero:
+              evaluation.personality
+                .numero,
 
-              codigo:
-                evaluation.personality
-                  .codigo,
+            codigo:
+              evaluation.personality
+                .codigo,
 
-              nombre:
-                evaluation.personality
-                  .nombre,
+            nombre:
+              evaluation.personality
+                .nombre,
 
-              animal:
-                evaluation.personality
-                  .animal,
+            animal:
+              evaluation.personality
+                .animal,
 
-              colorCabeza:
-                evaluation.personality
-                  .colorCabeza,
+            colorCabeza:
+              evaluation.personality
+                .colorCabeza,
 
-              tipoCerebro:
-                evaluation.personality
-                  .tipoCerebro,
+            tipoCerebro:
+              evaluation.personality
+                .tipoCerebro,
 
-              colorPecho:
-                evaluation.personality
-                  .colorPecho,
+            colorPecho:
+              evaluation.personality
+                .colorPecho,
 
-              tipoComunicacion:
-                evaluation.personality
-                  .tipoComunicacion,
+            tipoComunicacion:
+              evaluation.personality
+                .tipoComunicacion,
 
-              imagenUrl:
-                evaluation.personality
-                  .imagenUrl,
+            imagenUrl:
+              evaluation.personality
+                .imagenUrl,
 
-              descripcion:
-                evaluation.personality
-                  .descripcion,
+            descripcion:
+              evaluation.personality
+                .descripcion,
 
-              formaPensar:
-                evaluation.personality
-                  .formaPensar,
+            formaPensar:
+              evaluation.personality
+                .formaPensar,
 
-              formaAprender:
-                evaluation.personality
-                  .formaAprender,
+            formaAprender:
+              evaluation.personality
+                .formaAprender,
 
-              descripcionComunicacion:
-                evaluation.personality
-                  .descripcionComunicacion,
-            }
+            descripcionComunicacion:
+              evaluation.personality
+                .descripcionComunicacion,
+          }
           : null,
 
       /*
@@ -304,55 +309,55 @@ const getIndividualResult = catchError(
 
       payment: verifiedPayment
         ? {
-            id:
-              verifiedPayment.id,
+          id:
+            verifiedPayment.id,
 
-            tipoPago:
-              verifiedPayment.tipoPago,
+          tipoPago:
+            verifiedPayment.tipoPago,
 
-            valorDepositado:
-              verifiedPayment
-                .valorDepositado,
+          valorDepositado:
+            verifiedPayment
+              .valorDepositado,
 
-            pagoUrl:
-              verifiedPayment.pagoUrl,
+          pagoUrl:
+            verifiedPayment.pagoUrl,
 
-            verificado:
-              verifiedPayment.verificado,
+          verificado:
+            verifiedPayment.verificado,
 
-            confirmacion:
-              verifiedPayment.confirmacion,
+          confirmacion:
+            verifiedPayment.confirmacion,
 
-            entidad:
-              verifiedPayment.entidad,
+          entidad:
+            verifiedPayment.entidad,
 
-            idDeposito:
-              verifiedPayment.idDeposito,
+          idDeposito:
+            verifiedPayment.idDeposito,
 
-            contificoDocumentoId:
-              verifiedPayment
-                .contificoDocumentoId,
+          contificoDocumentoId:
+            verifiedPayment
+              .contificoDocumentoId,
 
-            contificoDocumentoNumero:
-              verifiedPayment
-                .contificoDocumentoNumero,
+          contificoDocumentoNumero:
+            verifiedPayment
+              .contificoDocumentoNumero,
 
-            contificoEstado:
-              verifiedPayment
-                .contificoEstado,
+          contificoEstado:
+            verifiedPayment
+              .contificoEstado,
 
-            contificoAutorizacion:
-              verifiedPayment
-                .contificoAutorizacion,
+          contificoAutorizacion:
+            verifiedPayment
+              .contificoAutorizacion,
 
-            contificoUrlRide:
-              verifiedPayment
-                .contificoUrlRide,
+          contificoUrlRide:
+            verifiedPayment
+              .contificoUrlRide,
 
-            contificoUrlXml:
-              verifiedPayment
-                .contificoUrlXml,
-          }
+          contificoUrlXml:
+            verifiedPayment
+              .contificoUrlXml,
+        }
         : null,
     });
   }
@@ -466,26 +471,26 @@ const getUserHistory = catchError(
 
         empresa: user.empresa
           ? {
-              id: user.empresa.id,
+            id: user.empresa.id,
 
-              nombre:
-                user.empresa
-                  .nombreComercial ||
-                user.empresa
-                  .razonSocial,
-            }
+            nombre:
+              user.empresa
+                .nombreComercial ||
+              user.empresa
+                .razonSocial,
+          }
           : null,
 
         seccion:
           user.empresaSeccion
             ? {
-                id:
-                  user.empresaSeccion.id,
+              id:
+                user.empresaSeccion.id,
 
-                nombre:
-                  user.empresaSeccion
-                    .nombre,
-              }
+              nombre:
+                user.empresaSeccion
+                  .nombre,
+            }
             : null,
       },
 
@@ -529,85 +534,85 @@ const getUserHistory = catchError(
             course:
               evaluation.test?.course
                 ? {
-                    id:
-                      evaluation.test.course
-                        .id,
+                  id:
+                    evaluation.test.course
+                      .id,
 
-                    nombre:
-                      evaluation.test.course
-                        .nombre,
+                  nombre:
+                    evaluation.test.course
+                      .nombre,
 
-                    sigla:
-                      evaluation.test.course
-                        .sigla,
-                  }
+                  sigla:
+                    evaluation.test.course
+                      .sigla,
+                }
                 : null,
 
             personality:
               evaluation.personality
                 ? {
-                    id:
-                      evaluation.personality
-                        .id,
+                  id:
+                    evaluation.personality
+                      .id,
 
-                    numero:
-                      evaluation.personality
-                        .numero,
+                  numero:
+                    evaluation.personality
+                      .numero,
 
-                    codigo:
-                      evaluation.personality
-                        .codigo,
+                  codigo:
+                    evaluation.personality
+                      .codigo,
 
-                    nombre:
-                      evaluation.personality
-                        .nombre,
+                  nombre:
+                    evaluation.personality
+                      .nombre,
 
-                    animal:
-                      evaluation.personality
-                        .animal,
+                  animal:
+                    evaluation.personality
+                      .animal,
 
-                    colorCabeza:
-                      evaluation.personality
-                        .colorCabeza,
+                  colorCabeza:
+                    evaluation.personality
+                      .colorCabeza,
 
-                    tipoCerebro:
-                      evaluation.personality
-                        .tipoCerebro,
+                  tipoCerebro:
+                    evaluation.personality
+                      .tipoCerebro,
 
-                    colorPecho:
-                      evaluation.personality
-                        .colorPecho,
+                  colorPecho:
+                    evaluation.personality
+                      .colorPecho,
 
-                    tipoComunicacion:
-                      evaluation.personality
-                        .tipoComunicacion,
+                  tipoComunicacion:
+                    evaluation.personality
+                      .tipoComunicacion,
 
-                    imagenUrl:
-                      evaluation.personality
-                        .imagenUrl,
-                  }
+                  imagenUrl:
+                    evaluation.personality
+                      .imagenUrl,
+                }
                 : null,
 
             payment: verifiedPayment
               ? {
-                  id:
-                    verifiedPayment.id,
+                id:
+                  verifiedPayment.id,
 
-                  tipoPago:
-                    verifiedPayment.tipoPago,
+                tipoPago:
+                  verifiedPayment.tipoPago,
 
-                  valorDepositado:
-                    verifiedPayment
-                      .valorDepositado,
+                valorDepositado:
+                  verifiedPayment
+                    .valorDepositado,
 
-                  verificado:
-                    verifiedPayment
-                      .verificado,
+                verificado:
+                  verifiedPayment
+                    .verificado,
 
-                  createdAt:
-                    verifiedPayment
-                      .createdAt,
-                }
+                createdAt:
+                  verifiedPayment
+                    .createdAt,
+              }
               : null,
           };
         }
@@ -943,167 +948,167 @@ const getAllResults = catchError(
 
             user: user
               ? {
-                  id: user.id,
-                  cI: user.cI,
-                  email: user.email,
+                id: user.id,
+                cI: user.cI,
+                email: user.email,
 
-                  nombre: [
-                    user.firstName,
-                    user.lastName,
-                  ]
-                    .filter(Boolean)
-                    .join(" "),
+                nombre: [
+                  user.firstName,
+                  user.lastName,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
 
-                  cellular:
-                    user.cellular,
+                cellular:
+                  user.cellular,
 
-                  empresa:
-                    user.empresa
-                      ? {
-                          id:
-                            user.empresa.id,
+                empresa:
+                  user.empresa
+                    ? {
+                      id:
+                        user.empresa.id,
 
-                          nombre:
-                            user.empresa
-                              .nombreComercial ||
-                            user.empresa
-                              .razonSocial,
-                        }
-                      : null,
+                      nombre:
+                        user.empresa
+                          .nombreComercial ||
+                        user.empresa
+                          .razonSocial,
+                    }
+                    : null,
 
-                  seccion:
-                    user.empresaSeccion
-                      ? {
-                          id:
-                            user
-                              .empresaSeccion
-                              .id,
+                seccion:
+                  user.empresaSeccion
+                    ? {
+                      id:
+                        user
+                          .empresaSeccion
+                          .id,
 
-                          nombre:
-                            user
-                              .empresaSeccion
-                              .nombre,
-                        }
-                      : null,
-                }
+                      nombre:
+                        user
+                          .empresaSeccion
+                          .nombre,
+                    }
+                    : null,
+              }
               : null,
 
             course:
               evaluation.test?.course
                 ? {
-                    id:
-                      evaluation.test.course
-                        .id,
+                  id:
+                    evaluation.test.course
+                      .id,
 
-                    nombre:
-                      evaluation.test.course
-                        .nombre,
+                  nombre:
+                    evaluation.test.course
+                      .nombre,
 
-                    sigla:
-                      evaluation.test.course
-                        .sigla,
-                  }
+                  sigla:
+                    evaluation.test.course
+                      .sigla,
+                }
                 : null,
 
             personality:
               evaluation.personality
                 ? {
-                    id:
-                      evaluation.personality
-                        .id,
+                  id:
+                    evaluation.personality
+                      .id,
 
-                    numero:
-                      evaluation.personality
-                        .numero,
+                  numero:
+                    evaluation.personality
+                      .numero,
 
-                    codigo:
-                      evaluation.personality
-                        .codigo,
+                  codigo:
+                    evaluation.personality
+                      .codigo,
 
-                    nombre:
-                      evaluation.personality
-                        .nombre,
+                  nombre:
+                    evaluation.personality
+                      .nombre,
 
-                    animal:
-                      evaluation.personality
-                        .animal,
+                  animal:
+                    evaluation.personality
+                      .animal,
 
-                    colorCabeza:
-                      evaluation.personality
-                        .colorCabeza,
+                  colorCabeza:
+                    evaluation.personality
+                      .colorCabeza,
 
-                    tipoCerebro:
-                      evaluation.personality
-                        .tipoCerebro,
+                  tipoCerebro:
+                    evaluation.personality
+                      .tipoCerebro,
 
-                    colorPecho:
-                      evaluation.personality
-                        .colorPecho,
+                  colorPecho:
+                    evaluation.personality
+                      .colorPecho,
 
-                    tipoComunicacion:
-                      evaluation.personality
-                        .tipoComunicacion,
+                  tipoComunicacion:
+                    evaluation.personality
+                      .tipoComunicacion,
 
-                    imagenUrl:
-                      evaluation.personality
-                        .imagenUrl,
-                  }
+                  imagenUrl:
+                    evaluation.personality
+                      .imagenUrl,
+                }
                 : null,
 
             payment: verifiedPayment
               ? {
-                  id:
-                    verifiedPayment.id,
+                id:
+                  verifiedPayment.id,
 
-                  estado: "verificado",
+                estado: "verificado",
+
+                tipoPago:
+                  verifiedPayment.tipoPago,
+
+                valorDepositado:
+                  verifiedPayment
+                    .valorDepositado,
+
+                pagoUrl:
+                  verifiedPayment.pagoUrl,
+
+                verificado: true,
+
+                contificoDocumentoNumero:
+                  verifiedPayment
+                    .contificoDocumentoNumero,
+
+                contificoEstado:
+                  verifiedPayment
+                    .contificoEstado,
+              }
+              : pendingPayment
+                ? {
+                  id:
+                    pendingPayment.id,
+
+                  estado: "pendiente",
 
                   tipoPago:
-                    verifiedPayment.tipoPago,
+                    pendingPayment.tipoPago,
 
                   valorDepositado:
-                    verifiedPayment
+                    pendingPayment
                       .valorDepositado,
 
                   pagoUrl:
-                    verifiedPayment.pagoUrl,
+                    pendingPayment.pagoUrl,
 
-                  verificado: true,
+                  verificado: false,
 
                   contificoDocumentoNumero:
-                    verifiedPayment
+                    pendingPayment
                       .contificoDocumentoNumero,
 
                   contificoEstado:
-                    verifiedPayment
+                    pendingPayment
                       .contificoEstado,
                 }
-              : pendingPayment
-                ? {
-                    id:
-                      pendingPayment.id,
-
-                    estado: "pendiente",
-
-                    tipoPago:
-                      pendingPayment.tipoPago,
-
-                    valorDepositado:
-                      pendingPayment
-                        .valorDepositado,
-
-                    pagoUrl:
-                      pendingPayment.pagoUrl,
-
-                    verificado: false,
-
-                    contificoDocumentoNumero:
-                      pendingPayment
-                        .contificoDocumentoNumero,
-
-                    contificoEstado:
-                      pendingPayment
-                        .contificoEstado,
-                  }
                 : null,
           };
         }
@@ -1308,7 +1313,7 @@ const getPublicResultByToken = catchError(
         (payment) =>
           payment.verificado === true &&
           payment.tipoPago ===
-            "test_psicometrico"
+          "test_psicometrico"
       );
 
     if (!verifiedPayment) {
@@ -1388,123 +1393,123 @@ const getPublicResultByToken = catchError(
 
       user: user
         ? {
-            id: user.id,
-            cI: user.cI,
-            email: user.email,
+          id: user.id,
+          cI: user.cI,
+          email: user.email,
 
-            firstName:
-              user.firstName,
+          firstName:
+            user.firstName,
 
-            lastName:
-              user.lastName,
+          lastName:
+            user.lastName,
 
-            cellular:
-              user.cellular,
+          cellular:
+            user.cellular,
 
-            empresa: user.empresa
+          empresa: user.empresa
+            ? {
+              id:
+                user.empresa.id,
+
+              nombre:
+                user.empresa
+                  .nombreComercial ||
+                user.empresa
+                  .razonSocial,
+            }
+            : null,
+
+          seccion:
+            user.empresaSeccion
               ? {
-                  id:
-                    user.empresa.id,
+                id:
+                  user.empresaSeccion.id,
 
-                  nombre:
-                    user.empresa
-                      .nombreComercial ||
-                    user.empresa
-                      .razonSocial,
-                }
+                nombre:
+                  user.empresaSeccion
+                    .nombre,
+              }
               : null,
-
-            seccion:
-              user.empresaSeccion
-                ? {
-                    id:
-                      user.empresaSeccion.id,
-
-                    nombre:
-                      user.empresaSeccion
-                        .nombre,
-                  }
-                : null,
-          }
+        }
         : null,
 
       course: evaluation.test?.course
         ? {
-            id:
-              evaluation.test.course.id,
+          id:
+            evaluation.test.course.id,
 
-            nombre:
-              evaluation.test.course
-                .nombre,
+          nombre:
+            evaluation.test.course
+              .nombre,
 
-            sigla:
-              evaluation.test.course
-                .sigla,
+          sigla:
+            evaluation.test.course
+              .sigla,
 
-            objetivo:
-              evaluation.test.course
-                .objetivo,
-          }
+          objetivo:
+            evaluation.test.course
+              .objetivo,
+        }
         : null,
 
       personality:
         evaluation.personality
           ? {
-              id:
-                evaluation.personality.id,
+            id:
+              evaluation.personality.id,
 
-              numero:
-                evaluation.personality
-                  .numero,
+            numero:
+              evaluation.personality
+                .numero,
 
-              codigo:
-                evaluation.personality
-                  .codigo,
+            codigo:
+              evaluation.personality
+                .codigo,
 
-              nombre:
-                evaluation.personality
-                  .nombre,
+            nombre:
+              evaluation.personality
+                .nombre,
 
-              animal:
-                evaluation.personality
-                  .animal,
+            animal:
+              evaluation.personality
+                .animal,
 
-              colorCabeza:
-                evaluation.personality
-                  .colorCabeza,
+            colorCabeza:
+              evaluation.personality
+                .colorCabeza,
 
-              tipoCerebro:
-                evaluation.personality
-                  .tipoCerebro,
+            tipoCerebro:
+              evaluation.personality
+                .tipoCerebro,
 
-              colorPecho:
-                evaluation.personality
-                  .colorPecho,
+            colorPecho:
+              evaluation.personality
+                .colorPecho,
 
-              tipoComunicacion:
-                evaluation.personality
-                  .tipoComunicacion,
+            tipoComunicacion:
+              evaluation.personality
+                .tipoComunicacion,
 
-              imagenUrl:
-                evaluation.personality
-                  .imagenUrl,
+            imagenUrl:
+              evaluation.personality
+                .imagenUrl,
 
-              descripcion:
-                evaluation.personality
-                  .descripcion,
+            descripcion:
+              evaluation.personality
+                .descripcion,
 
-              formaPensar:
-                evaluation.personality
-                  .formaPensar,
+            formaPensar:
+              evaluation.personality
+                .formaPensar,
 
-              formaAprender:
-                evaluation.personality
-                  .formaAprender,
+            formaAprender:
+              evaluation.personality
+                .formaAprender,
 
-              descripcionComunicacion:
-                evaluation.personality
-                  .descripcionComunicacion,
-            }
+            descripcionComunicacion:
+              evaluation.personality
+                .descripcionComunicacion,
+          }
           : null,
 
       result:
@@ -1556,9 +1561,175 @@ const getPublicResultByToken = catchError(
   }
 );
 
+
+/* =========================================================
+   DESCARGAR / VISUALIZAR PDF DEL RESULTADO
+   GET /psychometric/result/:token/pdf
+========================================================= */
+
+const getPsychometricResultPdf =
+  catchError(async (req, res) => {
+    const { token } = req.params;
+
+    /* =========================================
+       1. VALIDAR TOKEN
+    ========================================= */
+
+    if (
+      !token ||
+      !String(token).trim()
+    ) {
+      return res.status(400).json({
+        message:
+          "El token de resultado es requerido.",
+      });
+    }
+
+    /* =========================================
+       2. HASH DEL TOKEN
+    ========================================= */
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(
+        String(token).trim()
+      )
+      .digest("hex");
+
+    /* =========================================
+       3. BUSCAR ACCESO
+    ========================================= */
+
+    const access =
+      await PsychometricAccessToken.findOne({
+        where: {
+          tokenHash,
+          purpose: "result",
+          activo: true,
+        },
+      });
+
+    if (!access) {
+      return res.status(404).json({
+        message:
+          "El enlace de resultado no es válido o ya no está activo.",
+      });
+    }
+
+    /* =========================================
+       4. VALIDAR EXPIRACIÓN
+    ========================================= */
+
+    if (
+      access.revokedAt ||
+      (
+        access.expiresAt &&
+        new Date(
+          access.expiresAt
+        ).getTime() <
+        Date.now()
+      )
+    ) {
+      return res.status(410).json({
+        message:
+          "El enlace de resultado ha expirado.",
+      });
+    }
+
+    /* =========================================
+       5. GENERAR PDF EN MEMORIA
+    ========================================= */
+
+    let pdfBuffer;
+
+    try {
+      pdfBuffer =
+        await generarInformePsicometrico({
+          evaluationId:
+            access.evaluationId,
+        });
+    } catch (error) {
+      console.error(
+        "Error generando informe psicométrico:",
+        error
+      );
+
+      if (error.statusCode) {
+        return res
+          .status(
+            error.statusCode
+          )
+          .json({
+            message:
+              error.message,
+          });
+      }
+
+      throw error;
+    }
+
+    /* =========================================
+       6. VALIDAR RESULTADO
+    ========================================= */
+
+    if (
+      !pdfBuffer ||
+      !Buffer.isBuffer(pdfBuffer)
+    ) {
+      return res.status(500).json({
+        message:
+          "No fue posible generar el informe psicométrico.",
+      });
+    }
+
+    /* =========================================
+       7. HEADERS PDF
+    ========================================= */
+
+    const fileName =
+      `resultado-proyecto-pensar-${access.evaluationId}.pdf`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/pdf"
+    );
+
+    /*
+     * inline:
+     * abre el PDF en navegador.
+     *
+     * Si después quieres descarga directa:
+     * cambia inline por attachment.
+     */
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="${fileName}"`
+    );
+
+    res.setHeader(
+      "Content-Length",
+      pdfBuffer.length
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "private, no-store, max-age=0"
+    );
+
+    /* =========================================
+       8. ENVIAR PDF
+    ========================================= */
+
+    return res.send(
+      pdfBuffer
+    );
+  });
+
 module.exports = {
   getIndividualResult,
   getUserHistory,
   getAllResults,
   getPublicResultByToken,
+
+  getPsychometricResultPdf,
 };

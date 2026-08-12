@@ -2,6 +2,19 @@ const sequelize = require("../utils/connection");
 const catchError = require("../utils/catchError");
 const crypto = require("crypto");
 
+/* =========================================================
+   SERVICIO / FUNCIÓN PARA TOKEN DE PAGO
+========================================================= */
+
+const {
+    createPsychometricPaymentAccess,
+} = require(
+    "./pagos.controllers"
+);
+
+/* =========================================================
+   MODELOS
+========================================================= */
 
 const Inscripcion = require(
     "../models/Inscripcion"
@@ -19,22 +32,8 @@ const Course = require(
     "../models/Course"
 );
 
-/*
- * Ajusta la ruta a la misma función de correo
- * que ya usas en registro y usuarios.
- */
-const sendEmail = require(
-    "../utils/sendEmail"
-);
-
 const PsychometricAccessToken = require(
     "../models/PsychometricAccessToken"
-);
-
-const {
-    calculateCompleteResult,
-} = require(
-    "../utils/psychometricScoring.service"
 );
 
 const PsychometricEvaluation = require(
@@ -59,6 +58,20 @@ const PsychometricAnswer = require(
 
 const PsychometricAnswerOption = require(
     "../models/PsychometricAnswerOption"
+);
+
+/* =========================================================
+   UTILS
+========================================================= */
+
+const sendEmail = require(
+    "../utils/sendEmail"
+);
+
+const {
+    calculateCompleteResult,
+} = require(
+    "../utils/psychometricScoring.service"
 );
 
 /* =========================================================
@@ -116,7 +129,10 @@ const validateSelectedOptions = async ({
     }
 
     const optionIds = selectedOptions
-        .map((item) => item?.optionId)
+        .map(
+            (item) =>
+                item?.optionId
+        )
         .filter(Boolean);
 
     if (!optionIds.length) {
@@ -127,19 +143,24 @@ const validateSelectedOptions = async ({
         await PsychometricOption.findAll({
             where: {
                 id: optionIds,
-                questionId: question.id,
+                questionId:
+                    question.id,
                 activo: true,
             },
 
             transaction,
         });
 
-    if (options.length !== optionIds.length) {
+    if (
+        options.length !==
+        optionIds.length
+    ) {
         const error = new Error(
             "Una o más opciones no pertenecen a la pregunta."
         );
 
         error.statusCode = 400;
+
         throw error;
     }
 
@@ -151,60 +172,66 @@ const validateSelectedOptions = async ({
 ========================================================= */
 
 const validateSelectionCount = ({
-  question,
-  selectedOptions,
+    question,
+    selectedOptions,
 }) => {
-  /*
-   * Las escalas se responden mediante valorNumerico.
-   * No deben validar selectedOptions.
-   */
-  if (
-    ![
-      "seleccion_unica",
-      "seleccion_ponderada",
-    ].includes(question.tipoRespuesta)
-  ) {
-    return;
-  }
+    /*
+     * Las preguntas de escala utilizan
+     * valorNumerico y NO selectedOptions.
+     */
+    if (
+        ![
+            "seleccion_unica",
+            "seleccion_ponderada",
+        ].includes(
+            question.tipoRespuesta
+        )
+    ) {
+        return;
+    }
 
-  const total = Array.isArray(
-    selectedOptions
-  )
-    ? selectedOptions.length
-    : 0;
+    const total = Array.isArray(
+        selectedOptions
+    )
+        ? selectedOptions.length
+        : 0;
 
-  const minimum = Number(
-    question.seleccionesMinimas || 0
-  );
-
-  const maximum = Number(
-    question.seleccionesMaximas || 0
-  );
-
-  if (
-    question.obligatoria &&
-    minimum > 0 &&
-    total < minimum
-  ) {
-    const error = new Error(
-      `La pregunta requiere al menos ${minimum} selección(es).`
+    const minimum = Number(
+        question.seleccionesMinimas ||
+        0
     );
 
-    error.statusCode = 400;
-    throw error;
-  }
-
-  if (
-    maximum > 0 &&
-    total > maximum
-  ) {
-    const error = new Error(
-      `La pregunta permite máximo ${maximum} selección(es).`
+    const maximum = Number(
+        question.seleccionesMaximas ||
+        0
     );
 
-    error.statusCode = 400;
-    throw error;
-  }
+    if (
+        question.obligatoria &&
+        minimum > 0 &&
+        total < minimum
+    ) {
+        const error = new Error(
+            `La pregunta requiere al menos ${minimum} selección(es).`
+        );
+
+        error.statusCode = 400;
+
+        throw error;
+    }
+
+    if (
+        maximum > 0 &&
+        total > maximum
+    ) {
+        const error = new Error(
+            `La pregunta permite máximo ${maximum} selección(es).`
+        );
+
+        error.statusCode = 400;
+
+        throw error;
+    }
 };
 
 /* =========================================================
@@ -217,35 +244,46 @@ const calculateAppliedScore = ({
     selectedOption,
 }) => {
     /*
-     * Para selección ponderada:
+     * En selección ponderada:
+     *
      * prioridad 1 = 3 puntos
      * prioridad 2 = 1 punto
      *
-     * Los valores pueden venir desde configuración.
+     * Los valores pueden venir de configuracion.
      */
+
     if (
         question.tipoRespuesta ===
         "seleccion_ponderada"
     ) {
         const config =
-            question.configuracion || {};
+            question.configuracion ||
+            {};
 
         const firstScore = Number(
-            config.puntajePrimeraSeleccion || 3
+            config
+                .puntajePrimeraSeleccion ||
+            3
         );
 
         const secondScore = Number(
-            config.puntajeSegundaSeleccion || 1
+            config
+                .puntajeSegundaSeleccion ||
+            1
         );
 
         if (
-            Number(selectedOption.prioridad) === 1
+            Number(
+                selectedOption.prioridad
+            ) === 1
         ) {
             return firstScore;
         }
 
         if (
-            Number(selectedOption.prioridad) === 2
+            Number(
+                selectedOption.prioridad
+            ) === 2
         ) {
             return secondScore;
         }
@@ -254,20 +292,27 @@ const calculateAppliedScore = ({
     }
 
     if (
-        selectedOption.puntajeAplicado !==
+        selectedOption
+            .puntajeAplicado !==
         undefined &&
-        selectedOption.puntajeAplicado !== null
+        selectedOption
+            .puntajeAplicado !==
+        null
     ) {
         return Number(
-            selectedOption.puntajeAplicado
+            selectedOption
+                .puntajeAplicado
         );
     }
 
     if (
-        option.puntaje !== undefined &&
+        option.puntaje !==
+        undefined &&
         option.puntaje !== null
     ) {
-        return Number(option.puntaje);
+        return Number(
+            option.puntaje
+        );
     }
 
     return null;
@@ -284,13 +329,21 @@ const saveSingleAnswer = async ({
 }) => {
     const {
         questionId,
+
         valorNumerico = null,
         valorBooleano = null,
         valorTexto = null,
+
         tiempoSegundos = null,
+
         metadata = null,
+
         selectedOptions = [],
     } = answerData;
+
+    /* =========================================
+       VALIDAR ID DE PREGUNTA
+    ========================================= */
 
     if (!questionId) {
         const error = new Error(
@@ -298,13 +351,21 @@ const saveSingleAnswer = async ({
         );
 
         error.statusCode = 400;
+
         throw error;
     }
+
+    /* =========================================
+       BUSCAR PREGUNTA
+    ========================================= */
 
     const question =
         await getQuestionForEvaluation({
             questionId,
-            testId: evaluation.testId,
+
+            testId:
+                evaluation.testId,
+
             transaction,
         });
 
@@ -314,8 +375,13 @@ const saveSingleAnswer = async ({
         );
 
         error.statusCode = 400;
+
         throw error;
     }
+
+    /* =========================================
+       VALIDAR SELECCIONES
+    ========================================= */
 
     validateSelectionCount({
         question,
@@ -329,14 +395,21 @@ const saveSingleAnswer = async ({
             transaction,
         });
 
+    /* =========================================
+       VALIDAR PREGUNTAS NUMÉRICAS
+    ========================================= */
+
     const isNumericQuestion = [
         "escala_bipolar",
         "escala_1_5",
-    ].includes(question.tipoRespuesta);
+    ].includes(
+        question.tipoRespuesta
+    );
 
     if (isNumericQuestion) {
         if (
-            valorNumerico === undefined ||
+            valorNumerico ===
+            undefined ||
             valorNumerico === null ||
             valorNumerico === ""
         ) {
@@ -345,6 +418,7 @@ const saveSingleAnswer = async ({
             );
 
             error.statusCode = 400;
+
             throw error;
         }
 
@@ -352,110 +426,160 @@ const saveSingleAnswer = async ({
             Number(valorNumerico);
 
         if (
-            Number.isNaN(numericValue)
+            Number.isNaN(
+                numericValue
+            )
         ) {
             const error = new Error(
                 "El valor numérico no es válido."
             );
 
             error.statusCode = 400;
+
             throw error;
         }
 
         if (
-            question.valorMinimo !== null &&
+            question.valorMinimo !==
+            null &&
             numericValue <
-            Number(question.valorMinimo)
+            Number(
+                question.valorMinimo
+            )
         ) {
             const error = new Error(
                 `El valor mínimo permitido es ${question.valorMinimo}.`
             );
 
             error.statusCode = 400;
+
             throw error;
         }
 
         if (
-            question.valorMaximo !== null &&
+            question.valorMaximo !==
+            null &&
             numericValue >
-            Number(question.valorMaximo)
+            Number(
+                question.valorMaximo
+            )
         ) {
             const error = new Error(
                 `El valor máximo permitido es ${question.valorMaximo}.`
             );
 
             error.statusCode = 400;
+
             throw error;
         }
     }
 
+    /* =========================================
+       BUSCAR RESPUESTA EXISTENTE
+    ========================================= */
+
     let answer =
         await PsychometricAnswer.findOne({
             where: {
-                evaluationId: evaluation.id,
-                questionId: question.id,
+                evaluationId:
+                    evaluation.id,
+
+                questionId:
+                    question.id,
             },
 
             transaction,
         });
 
+    /* =========================================
+       CREAR RESPUESTA
+    ========================================= */
+
     if (!answer) {
-        answer = await PsychometricAnswer.create(
-            {
-                evaluationId: evaluation.id,
-                questionId: question.id,
+        answer =
+            await PsychometricAnswer.create(
+                {
+                    evaluationId:
+                        evaluation.id,
 
-                valorNumerico:
-                    valorNumerico !== null &&
-                        valorNumerico !== ""
-                        ? Number(valorNumerico)
-                        : null,
+                    questionId:
+                        question.id,
 
-                valorBooleano:
-                    valorBooleano !== undefined
-                        ? valorBooleano
-                        : null,
+                    valorNumerico:
+                        valorNumerico !==
+                            null &&
+                            valorNumerico !==
+                            ""
+                            ? Number(
+                                valorNumerico
+                            )
+                            : null,
 
-                valorTexto:
-                    valorTexto || null,
+                    valorBooleano:
+                        valorBooleano !==
+                            undefined
+                            ? valorBooleano
+                            : null,
 
-                tiempoSegundos:
-                    tiempoSegundos !== null
-                        ? Number(tiempoSegundos)
-                        : null,
+                    valorTexto:
+                        valorTexto ||
+                        null,
 
-                metadata:
-                    metadata || null,
-            },
+                    tiempoSegundos:
+                        tiempoSegundos !==
+                            null
+                            ? Number(
+                                tiempoSegundos
+                            )
+                            : null,
 
-            {
-                transaction,
-            }
-        );
+                    metadata:
+                        metadata ||
+                        null,
+                },
+
+                {
+                    transaction,
+                }
+            );
     } else {
+        /* =========================================
+           ACTUALIZAR RESPUESTA
+        ========================================= */
+
         await answer.update(
             {
                 valorNumerico:
-                    valorNumerico !== null &&
-                        valorNumerico !== ""
-                        ? Number(valorNumerico)
+                    valorNumerico !==
+                        null &&
+                        valorNumerico !==
+                        ""
+                        ? Number(
+                            valorNumerico
+                        )
                         : null,
 
                 valorBooleano:
-                    valorBooleano !== undefined
+                    valorBooleano !==
+                        undefined
                         ? valorBooleano
                         : null,
 
                 valorTexto:
-                    valorTexto || null,
+                    valorTexto ||
+                    null,
 
                 tiempoSegundos:
-                    tiempoSegundos !== null
-                        ? Number(tiempoSegundos)
+                    tiempoSegundos !==
+                        null
+                        ? Number(
+                            tiempoSegundos
+                        )
                         : null,
 
                 metadata:
-                    metadata || null,
+                    metadata ||
+                    null,
             },
 
             {
@@ -464,30 +588,47 @@ const saveSingleAnswer = async ({
         );
     }
 
-    /*
-     * Reemplazamos las opciones anteriores.
-     */
+    /* =========================================
+       ELIMINAR OPCIONES ANTERIORES
+    ========================================= */
+
     await PsychometricAnswerOption.destroy({
         where: {
-            answerId: answer.id,
+            answerId:
+                answer.id,
         },
 
         transaction,
     });
 
+    /* =========================================
+       CREAR OPCIONES NUEVAS
+    ========================================= */
+
     let calculatedScore = 0;
-    let hasCalculatedScore = false;
+
+    let hasCalculatedScore =
+        false;
 
     for (
-        const selectedOption of selectedOptions
+        const selectedOption
+        of selectedOptions
     ) {
-        const option = validOptions.find(
-            (item) =>
-                String(item.id) ===
-                String(selectedOption.optionId)
-        );
+        const option =
+            validOptions.find(
+                (item) =>
+                    String(
+                        item.id
+                    ) ===
+                    String(
+                        selectedOption
+                            .optionId
+                    )
+            );
 
-        if (!option) continue;
+        if (!option) {
+            continue;
+        }
 
         const appliedScore =
             calculateAppliedScore({
@@ -496,23 +637,33 @@ const saveSingleAnswer = async ({
                 selectedOption,
             });
 
-        if (appliedScore !== null) {
+        if (
+            appliedScore !== null
+        ) {
             calculatedScore +=
-                Number(appliedScore);
+                Number(
+                    appliedScore
+                );
 
-            hasCalculatedScore = true;
+            hasCalculatedScore =
+                true;
         }
 
         await PsychometricAnswerOption.create(
             {
-                answerId: answer.id,
-                optionId: option.id,
+                answerId:
+                    answer.id,
+
+                optionId:
+                    option.id,
 
                 prioridad:
-                    selectedOption.prioridad !==
+                    selectedOption
+                        .prioridad !==
                         undefined
                         ? Number(
-                            selectedOption.prioridad
+                            selectedOption
+                                .prioridad
                         )
                         : null,
 
@@ -520,11 +671,13 @@ const saveSingleAnswer = async ({
                     appliedScore,
 
                 categoriaResultado:
-                    option.categoriaResultado ||
+                    option
+                        .categoriaResultado ||
                     null,
 
                 metadata:
-                    selectedOption.metadata ||
+                    selectedOption
+                        .metadata ||
                     option.metadata ||
                     null,
             },
@@ -534,6 +687,10 @@ const saveSingleAnswer = async ({
             }
         );
     }
+
+    /* =========================================
+       GUARDAR PUNTAJE DE RESPUESTA
+    ========================================= */
 
     await answer.update(
         {
@@ -551,40 +708,69 @@ const saveSingleAnswer = async ({
     return answer;
 };
 
+/* =========================================================
+   HASH DEL TOKEN
+========================================================= */
 
-const hashAccessToken = (token) => {
+const hashAccessToken = (
+    token
+) => {
     return crypto
         .createHash("sha256")
-        .update(String(token || "").trim())
+        .update(
+            String(
+                token || ""
+            ).trim()
+        )
         .digest("hex");
 };
+
+/* =========================================================
+   BUSCAR EVALUACIÓN MEDIANTE TOKEN
+========================================================= */
 
 const getEvaluationByToken = async (
     token,
     options = {}
 ) => {
-    if (!token || !String(token).trim()) {
+    if (
+        !token ||
+        !String(token).trim()
+    ) {
         const error = new Error(
             "El código de acceso es requerido."
         );
 
         error.statusCode = 400;
+
         throw error;
     }
 
-    const tokenHash = hashAccessToken(token);
+    const tokenHash =
+        hashAccessToken(token);
 
     const access =
         await PsychometricAccessToken.findOne({
             where: {
                 tokenHash,
                 activo: true,
+
+                /*
+                 * IMPORTANTE:
+                 * este controlador solamente
+                 * acepta tokens para rendir
+                 * la evaluación.
+                 */
+                purpose: "test",
             },
 
             include: [
                 {
-                    model: PsychometricEvaluation,
+                    model:
+                        PsychometricEvaluation,
+
                     as: "evaluation",
+
                     ...options,
                 },
             ],
@@ -596,12 +782,19 @@ const getEvaluationByToken = async (
         );
 
         error.statusCode = 404;
+
         throw error;
     }
 
+    /* =========================================
+       VALIDAR EXPIRACIÓN
+    ========================================= */
+
     if (
         access.revokedAt ||
-        new Date(access.expiresAt).getTime() <
+        new Date(
+            access.expiresAt
+        ).getTime() <
         Date.now()
     ) {
         const error = new Error(
@@ -609,6 +802,7 @@ const getEvaluationByToken = async (
         );
 
         error.statusCode = 410;
+
         throw error;
     }
 
@@ -618,80 +812,122 @@ const getEvaluationByToken = async (
         );
 
         error.statusCode = 404;
+
         throw error;
     }
 
     return {
         access,
-        evaluation: access.evaluation,
+
+        evaluation:
+            access.evaluation,
     };
 };
 
 /* =========================================================
-   PUT /psychometric/evaluations/:id/answers
+   GUARDAR RESPUESTAS
+   PUT /psychometric/access/:token/answers
 ========================================================= */
 
 const saveAnswers = catchError(
     async (req, res) => {
-        const { token } = req.params;
-        const answers = Array.isArray(
-            req.body
-        )
-            ? req.body
-            : req.body.answers;
+        const { token } =
+            req.params;
 
-        if (!Array.isArray(answers)) {
-            return res.status(400).json({
-                message:
-                    "Debe enviar un arreglo de respuestas.",
-            });
+        const answers =
+            Array.isArray(
+                req.body
+            )
+                ? req.body
+                : req.body.answers;
+
+        /* =========================================
+           VALIDAR BODY
+        ========================================= */
+
+        if (
+            !Array.isArray(
+                answers
+            )
+        ) {
+            return res
+                .status(400)
+                .json({
+                    message:
+                        "Debe enviar un arreglo de respuestas.",
+                });
         }
 
         if (!answers.length) {
-            return res.status(400).json({
-                message:
-                    "No se enviaron respuestas para guardar.",
-            });
+            return res
+                .status(400)
+                .json({
+                    message:
+                        "No se enviaron respuestas para guardar.",
+                });
         }
+
+        /* =========================================
+           OBTENER EVALUACIÓN
+        ========================================= */
 
         let evaluation;
 
         try {
             const result =
-                await getEvaluationByToken(token);
+                await getEvaluationByToken(
+                    token
+                );
 
-            evaluation = result.evaluation;
+            evaluation =
+                result.evaluation;
         } catch (error) {
             return res
-                .status(error.statusCode || 500)
+                .status(
+                    error.statusCode ||
+                    500
+                )
                 .json({
-                    message: error.message,
+                    message:
+                        error.message,
                 });
         }
 
         if (!evaluation) {
-            return res.status(404).json({
-                message:
-                    "La evaluación no existe.",
-            });
+            return res
+                .status(404)
+                .json({
+                    message:
+                        "La evaluación no existe.",
+                });
+        }
+
+        /* =========================================
+           VALIDAR ESTADO
+        ========================================= */
+
+        if (
+            evaluation.estado ===
+            "completada"
+        ) {
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación ya fue completada y no permite cambios.",
+                });
         }
 
         if (
-            evaluation.estado === "completada"
+            evaluation.estado ===
+            "anulada"
         ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación ya fue completada y no permite cambios.",
-            });
-        }
-
-        if (
-            evaluation.estado === "anulada"
-        ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación fue anulada.",
-            });
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación fue anulada.",
+                });
         }
 
         if (
@@ -699,13 +935,21 @@ const saveAnswers = catchError(
                 "habilitada",
                 "pago_validado",
                 "en_progreso",
-            ].includes(evaluation.estado)
+            ].includes(
+                evaluation.estado
+            )
         ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación no está habilitada para recibir respuestas.",
-            });
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación no está habilitada para recibir respuestas.",
+                });
         }
+
+        /* =========================================
+           TRANSACCIÓN
+        ========================================= */
 
         const transaction =
             await sequelize.transaction();
@@ -713,7 +957,10 @@ const saveAnswers = catchError(
         try {
             const saved = [];
 
-            for (const answerData of answers) {
+            for (
+                const answerData
+                of answers
+            ) {
                 const answer =
                     await saveSingleAnswer({
                         evaluation,
@@ -721,11 +968,17 @@ const saveAnswers = catchError(
                         transaction,
                     });
 
-                saved.push(answer);
+                saved.push(
+                    answer
+                );
             }
 
             let fechaInicioFinal =
                 evaluation.fechaInicio;
+
+            /* =====================================
+               MARCAR EN PROGRESO
+            ===================================== */
 
             if (
                 evaluation.estado !==
@@ -737,10 +990,13 @@ const saveAnswers = catchError(
 
                 await evaluation.update(
                     {
-                        estado: "en_progreso",
+                        estado:
+                            "en_progreso",
+
                         fechaInicio:
                             fechaInicioFinal,
                     },
+
                     {
                         transaction,
                     }
@@ -748,6 +1004,10 @@ const saveAnswers = catchError(
             }
 
             await transaction.commit();
+
+            /* =====================================
+               CONTAR RESPUESTAS
+            ===================================== */
 
             const totalSaved =
                 await PsychometricAnswer.count({
@@ -762,8 +1022,12 @@ const saveAnswers = catchError(
                     "Respuestas guardadas correctamente.",
 
                 evaluation: {
-                    id: evaluation.id,
-                    estado: "en_progreso",
+                    id:
+                        evaluation.id,
+
+                    estado:
+                        "en_progreso",
+
                     fechaInicio:
                         fechaInicioFinal,
                 },
@@ -776,11 +1040,20 @@ const saveAnswers = catchError(
         } catch (error) {
             await transaction.rollback();
 
-            if (error.statusCode) {
+            if (
+                error.statusCode
+            ) {
                 return res
-                    .status(error.statusCode)
+                    .status(
+                        error.statusCode
+                    )
                     .json({
-                        message: error.message,
+                        message:
+                            error.message,
+
+                        details:
+                            error.details ||
+                            null,
                     });
             }
 
@@ -789,9 +1062,14 @@ const saveAnswers = catchError(
     }
 );
 
+/* =========================================================
+   ENVIAR CORREO DE FINALIZACIÓN
+   CON TOKEN PERSONAL DE PAGO
+========================================================= */
 
 /* =========================================================
    ENVIAR CORREO DE FINALIZACIÓN
+   CON TOKEN PERSONAL DE PAGO
 ========================================================= */
 
 const sendPsychometricCompletionEmail =
@@ -799,10 +1077,123 @@ const sendPsychometricCompletionEmail =
         user,
         course,
         evaluation,
+
+        paymentToken,
+        paymentExpiresAt,
     }) => {
+        /* =========================================
+           1. URL BASE DEL FRONTEND PARA PAGO
+        ========================================= */
+
+        /*
+         * Desarrollo:
+         * PSYCHOMETRIC_PAYMENT_URL=http://localhost:5173/#/pago-test
+         *
+         * Producción:
+         * PSYCHOMETRIC_PAYMENT_URL=https://idrmind.com/#/pago-test
+         *
+         * replace(/\/+$/, "")
+         * evita que una "/" al final genere:
+         * .../pago-test//TOKEN
+         */
+
+        const paymentBaseUrl =
+            (
+                process.env
+                    .PSYCHOMETRIC_PAYMENT_URL ||
+                "https://idrmind.com/#/pago-test"
+            ).replace(/\/+$/, "");
+
+        /* =========================================
+           2. VALIDAR TOKEN
+        ========================================= */
+
+        if (
+            !paymentToken ||
+            !String(
+                paymentToken
+            ).trim()
+        ) {
+            throw new Error(
+                "No se recibió un token válido para generar el enlace de pago."
+            );
+        }
+
+        const cleanPaymentToken =
+            String(
+                paymentToken
+            ).trim();
+
+        /* =========================================
+           3. URL PERSONAL DE PAGO
+        ========================================= */
+
         const paymentUrl =
-            process.env.PSYCHOMETRIC_PAYMENT_URL ||
-            "https://idrmind.com/#/pago-test";
+            `${paymentBaseUrl}/${cleanPaymentToken}`;
+
+        /* =========================================
+           4. LOGS TEMPORALES DE VERIFICACIÓN
+        ========================================= */
+
+        console.log(
+            "=============================================="
+        );
+
+        console.log(
+            "🔗 GENERANDO URL DE PAGO PSICOMÉTRICO"
+        );
+
+        console.log(
+            "PSYCHOMETRIC_PAYMENT_URL ENV:",
+            process.env
+                .PSYCHOMETRIC_PAYMENT_URL
+        );
+
+        console.log(
+            "paymentBaseUrl:",
+            paymentBaseUrl
+        );
+
+        console.log(
+            "paymentToken:",
+            cleanPaymentToken
+        );
+
+        console.log(
+            "URL FINAL DE PAGO:",
+            paymentUrl
+        );
+
+        console.log(
+            "=============================================="
+        );
+
+        /* =========================================
+           5. EXPIRACIÓN
+        ========================================= */
+
+        const expirationText =
+            paymentExpiresAt
+                ? new Date(
+                    paymentExpiresAt
+                ).toLocaleString(
+                    "es-EC",
+                    {
+                        timeZone:
+                            "America/Guayaquil",
+
+                        dateStyle:
+                            "long",
+
+                        timeStyle:
+                            "short",
+                    }
+                )
+                : null;
+
+        /* =========================================
+           6. CORREO
+        ========================================= */
 
         await sendEmail({
             to: user.email,
@@ -818,23 +1209,33 @@ const sendPsychometricCompletionEmail =
           font-family:Arial,sans-serif;
           color:#101828;
         ">
+
           <div style="
             max-width:640px;
             margin:0 auto;
             background:#ffffff;
             border-radius:18px;
             overflow:hidden;
-            box-shadow:0 18px 45px rgba(7,27,63,.16);
+            box-shadow:
+              0 18px 45px
+              rgba(7,27,63,.16);
           ">
+
+            <!-- =========================
+                 HEADER
+            ========================== -->
+
             <div style="
               padding:28px;
               text-align:center;
-              background:linear-gradient(
-                135deg,
-                #071b3f,
-                #173a8a
-              );
+              background:
+                linear-gradient(
+                  135deg,
+                  #071b3f,
+                  #173a8a
+                );
             ">
+
               <img
                 src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
                 alt="iDr.Mind"
@@ -843,9 +1244,17 @@ const sendPsychometricCompletionEmail =
                   max-width:100%;
                 "
               />
+
             </div>
 
-            <div style="padding:34px;">
+            <!-- =========================
+                 CONTENIDO
+            ========================== -->
+
+            <div style="
+              padding:34px;
+            ">
+
               <h1 style="
                 margin:0 0 18px;
                 color:#071b3f;
@@ -861,16 +1270,24 @@ const sendPsychometricCompletionEmail =
                 color:#475467;
               ">
                 Has completado correctamente
-                <strong>${course.nombre}</strong>.
+                <strong>
+                  ${course.nombre}
+                </strong>.
               </p>
+
+              <!-- =========================
+                   EVALUACIÓN
+              ========================== -->
 
               <div style="
                 margin:25px 0;
                 padding:18px;
                 border-radius:12px;
                 background:#eef6ff;
-                border-left:5px solid #28a7e8;
+                border-left:
+                  5px solid #28a7e8;
               ">
+
                 <p style="
                   margin:0;
                   color:#344054;
@@ -888,8 +1305,11 @@ const sendPsychometricCompletionEmail =
                   line-height:1.6;
                 ">
                   Estado:
-                  <strong>Completada</strong>
+                  <strong>
+                    Completada
+                  </strong>
                 </p>
+
               </div>
 
               <p style="
@@ -897,34 +1317,128 @@ const sendPsychometricCompletionEmail =
                 line-height:1.7;
                 color:#475467;
               ">
-                Para continuar con el proceso y
-                habilitar tu informe de resultados,
-                debes completar el pago correspondiente.
+                Para continuar con el proceso
+                y habilitar tu informe de
+                resultados debes registrar
+                el pago correspondiente.
               </p>
+
+              <!-- =========================
+                   SEGURIDAD DEL ENLACE
+              ========================== -->
+
+              <div style="
+                margin:24px 0;
+                padding:16px;
+                border-radius:12px;
+                background:#f8fafc;
+                border:
+                  1px solid #e4e7ec;
+              ">
+
+                <p style="
+                  margin:0;
+                  color:#475467;
+                  font-size:14px;
+                  line-height:1.65;
+                ">
+                  Este enlace es
+                  <strong>
+                    personal
+                  </strong>
+                  y está asociado exclusivamente
+                  a tu evaluación.
+
+                  ${expirationText
+                    ? `
+                          <br/><br/>
+
+                          Disponible hasta:
+                          <strong>
+                            ${expirationText}
+                          </strong>
+                        `
+                    : ""
+                }
+                </p>
+
+              </div>
+
+              <!-- =========================
+                   BOTÓN DE PAGO
+              ========================== -->
 
               <div style="
                 text-align:center;
                 margin:30px 0;
               ">
+
                 <a
                   href="${paymentUrl}"
+                  target="_blank"
+                  rel="noopener"
                   style="
                     display:inline-block;
                     padding:15px 30px;
                     border-radius:12px;
-                    background:linear-gradient(
-                      135deg,
-                      #173a8a,
-                      #071b3f
-                    );
+
+                    background:
+                      linear-gradient(
+                        135deg,
+                        #173a8a,
+                        #071b3f
+                      );
+
                     color:#ffffff;
+
                     text-decoration:none;
+
                     font-size:16px;
                     font-weight:bold;
+
+                    box-shadow:
+                      0 8px 20px
+                      rgba(23,58,138,.25);
                   "
                 >
-                  Ver información de pago
+                  Registrar mi pago
                 </a>
+
+              </div>
+
+              <!-- =========================
+                   URL ALTERNATIVA
+              ========================== -->
+
+              <div style="
+                margin:20px 0;
+                padding:14px;
+                border-radius:10px;
+                background:#f8fafc;
+                border:1px solid #e4e7ec;
+              ">
+
+                <p style="
+                  margin:0 0 8px;
+                  color:#667085;
+                  font-size:13px;
+                  line-height:1.5;
+                ">
+                  Si el botón no funciona,
+                  copia y pega este enlace
+                  en tu navegador:
+                </p>
+
+                <p style="
+                  margin:0;
+                  word-break:break-all;
+                  color:#173a8a;
+                  font-size:12px;
+                  line-height:1.5;
+                ">
+                  ${paymentUrl}
+                </p>
+
               </div>
 
               <p style="
@@ -932,10 +1446,27 @@ const sendPsychometricCompletionEmail =
                 color:#667085;
                 line-height:1.6;
               ">
-                Una vez validado el pago, tu resultado
-                será habilitado por iDr.Mind.
+                No necesitarás ingresar nuevamente
+                tu cédula, correo ni datos de
+                inscripción. El enlace ya identifica
+                esta evaluación.
               </p>
+
+              <p style="
+                font-size:14px;
+                color:#667085;
+                line-height:1.6;
+              ">
+                Una vez validado el pago,
+                recibirás otro correo con el
+                acceso a tu informe de resultados.
+              </p>
+
             </div>
+
+            <!-- =========================
+                 FOOTER
+            ========================== -->
 
             <div style="
               padding:18px;
@@ -944,98 +1475,159 @@ const sendPsychometricCompletionEmail =
               color:#98a2b3;
               font-size:12px;
             ">
+
               © ${new Date().getFullYear()}
-              iDr.Mind. Todos los derechos reservados.
+              iDr.Mind.
+              Todos los derechos reservados.
+
             </div>
+
           </div>
         </div>
       `,
         });
+
+        /* =========================================
+           7. CONFIRMACIÓN
+        ========================================= */
+
+        console.log(
+            `✅ Correo de pago psicométrico enviado a ${user.email}`
+        );
+
+        console.log(
+            "🔗 URL enviada:",
+            paymentUrl
+        );
+
+        return paymentUrl;
     };
 
 /* =========================================================
-   FINALIZAR
-   Se completará en el siguiente paso con los cálculos.
-========================================================= */
-
-/* =========================================================
    FINALIZAR EVALUACIÓN
+   POST /psychometric/access/:token/finish
 ========================================================= */
 
 const finishEvaluation = catchError(
     async (req, res) => {
-        const { token } = req.params;
+        const { token } =
+            req.params;
 
         let access;
         let evaluation;
 
+        /* =========================================
+           1. OBTENER EVALUACIÓN POR TOKEN
+        ========================================= */
+
         try {
             const result =
-                await getEvaluationByToken(token, {
-                    include: [
-                        {
-                            model: Inscripcion,
-                            as: "inscripcion",
+                await getEvaluationByToken(
+                    token,
+                    {
+                        include: [
+                            {
+                                model:
+                                    Inscripcion,
 
-                            include: [
-                                {
-                                    model: User,
-                                    as: "user",
-                                },
-                            ],
-                        },
+                                as:
+                                    "inscripcion",
 
-                        {
-                            model: PsychometricTest,
-                            as: "test",
+                                include: [
+                                    {
+                                        model:
+                                            User,
 
-                            include: [
-                                {
-                                    model: Course,
-                                    as: "course",
-                                },
-                            ],
-                        },
-                    ],
-                });
+                                        as:
+                                            "user",
+                                    },
+                                ],
+                            },
 
-            access = result.access;
-            evaluation = result.evaluation;
+                            {
+                                model:
+                                    PsychometricTest,
+
+                                as:
+                                    "test",
+
+                                include: [
+                                    {
+                                        model:
+                                            Course,
+
+                                        as:
+                                            "course",
+                                    },
+                                ],
+                            },
+                        ],
+                    }
+                );
+
+            access =
+                result.access;
+
+            evaluation =
+                result.evaluation;
         } catch (error) {
             return res
-                .status(error.statusCode || 500)
+                .status(
+                    error.statusCode ||
+                    500
+                )
                 .json({
-                    message: error.message,
+                    message:
+                        error.message,
+                });
+        }
+
+        /* =========================================
+           2. VALIDAR EVALUACIÓN
+        ========================================= */
+
+        if (
+            evaluation.estado ===
+            "completada"
+        ) {
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación ya fue completada.",
+
+                    evaluation: {
+                        id:
+                            evaluation.id,
+
+                        estado:
+                            evaluation.estado,
+
+                        fechaFinalizacion:
+                            evaluation
+                                .fechaFinalizacion,
+
+                        personalityId:
+                            evaluation
+                                .personalityId,
+
+                        resultadoLiberado:
+                            evaluation
+                                .resultadoLiberado,
+                    },
                 });
         }
 
         if (
-            evaluation.estado === "completada"
+            evaluation.estado ===
+            "anulada"
         ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación ya fue completada.",
-
-                evaluation: {
-                    id: evaluation.id,
-                    estado: evaluation.estado,
-                    fechaFinalizacion:
-                        evaluation.fechaFinalizacion,
-                    personalityId:
-                        evaluation.personalityId,
-                    resultadoLiberado:
-                        evaluation.resultadoLiberado,
-                },
-            });
-        }
-
-        if (
-            evaluation.estado === "anulada"
-        ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación fue anulada.",
-            });
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación fue anulada.",
+                });
         }
 
         if (
@@ -1043,41 +1635,62 @@ const finishEvaluation = catchError(
                 "habilitada",
                 "pago_validado",
                 "en_progreso",
-            ].includes(evaluation.estado)
+            ].includes(
+                evaluation.estado
+            )
         ) {
-            return res.status(409).json({
-                message:
-                    "La evaluación no está habilitada para finalizarse.",
-            });
+            return res
+                .status(409)
+                .json({
+                    message:
+                        "La evaluación no está habilitada para finalizarse.",
+                });
         }
+
+        /* =========================================
+           3. TRANSACCIÓN
+        ========================================= */
 
         const transaction =
             await sequelize.transaction();
 
         let scoring;
+
         let now;
 
         try {
+            /* =====================================
+               4. CALCULAR RESULTADO
+            ===================================== */
+
             scoring =
                 await calculateCompleteResult({
-                    evaluationId: evaluation.id,
+                    evaluationId:
+                        evaluation.id,
+
                     transaction,
                 });
 
-            if (!scoring.personalityId) {
-                const error = new Error(
-                    "No se pudo determinar una personalidad para el resultado obtenido."
-                );
+            if (
+                !scoring.personalityId
+            ) {
+                const error =
+                    new Error(
+                        "No se pudo determinar una personalidad para el resultado obtenido."
+                    );
 
-                error.statusCode = 422;
+                error.statusCode =
+                    422;
 
                 error.details = {
                     animal:
-                        scoring.result?.animodo
+                        scoring.result
+                            ?.animodo
                             ?.animal,
 
                     colorCabeza:
-                        scoring.result?.brain
+                        scoring.result
+                            ?.brain
                             ?.headColor,
 
                     colorPecho:
@@ -1091,11 +1704,17 @@ const finishEvaluation = catchError(
 
             now = new Date();
 
+            /* =====================================
+               5. COMPLETAR EVALUACIÓN
+            ===================================== */
+
             await evaluation.update(
                 {
-                    estado: "completada",
+                    estado:
+                        "completada",
 
-                    fechaFinalizacion: now,
+                    fechaFinalizacion:
+                        now,
 
                     puntajeTotal:
                         scoring.totalScore,
@@ -1104,121 +1723,245 @@ const finishEvaluation = catchError(
                         scoring.result,
 
                     personalityId:
-                        scoring.personalityId,
+                        scoring
+                            .personalityId,
 
-                    resultadoLiberado: false,
+                    /*
+                     * El resultado permanece
+                     * bloqueado hasta validar pago.
+                     */
+                    resultadoLiberado:
+                        false,
                 },
+
                 {
                     transaction,
                 }
             );
 
-            /*
-             * Invalida el token usado para rendir
-             * esta evaluación.
-             */
+            /* =====================================
+               6. INVALIDAR TOKEN DEL TEST
+            ===================================== */
+
             await access.update(
                 {
                     activo: false,
-                    revokedAt: now,
+
+                    revokedAt:
+                        now,
                 },
+
                 {
                     transaction,
                 }
             );
+
+            /* =====================================
+               7. CONFIRMAR TRANSACCIÓN
+            ===================================== */
 
             await transaction.commit();
         } catch (error) {
             await transaction.rollback();
 
-            if (error.statusCode) {
+            console.error(
+                "Error finalizando evaluación:",
+                error
+            );
+
+            if (
+                error.statusCode
+            ) {
                 return res
-                    .status(error.statusCode)
+                    .status(
+                        error.statusCode
+                    )
                     .json({
-                        message: error.message,
+                        message:
+                            error.message,
+
                         details:
-                            error.details || null,
+                            error.details ||
+                            null,
                     });
             }
 
             throw error;
         }
 
-        /*
-         * Enviar correo después de confirmar
-         * los cambios en la base.
-         */
+        /* =================================================
+           8. CREAR TOKEN DE PAGO
+
+           Se realiza DESPUÉS del commit de la evaluación.
+           Así nunca generamos enlace de pago para una
+           evaluación que realmente no terminó.
+        ================================================= */
+
+        let paymentAccess = null;
+
+        try {
+            paymentAccess =
+                await createPsychometricPaymentAccess(
+                    evaluation.id
+                );
+
+            console.log(
+                `✅ Token de pago creado para evaluación ${evaluation.id}`
+            );
+        } catch (
+        paymentTokenError
+        ) {
+            console.error(
+                "❌ No se pudo crear el enlace de pago psicométrico:",
+                paymentTokenError
+            );
+        }
+
+        /* =================================================
+           9. ENVIAR CORREO DE FINALIZACIÓN
+        ================================================= */
+
         let emailSent = true;
 
         try {
             const user =
-                evaluation.inscripcion?.user;
+                evaluation
+                    .inscripcion
+                    ?.user;
 
             const course =
-                evaluation.test?.course;
+                evaluation
+                    .test
+                    ?.course;
 
-            if (user?.email && course) {
+            if (
+                !user?.email ||
+                !course ||
+                !paymentAccess?.token
+            ) {
+                emailSent = false;
+
+                console.error(
+                    "No fue posible enviar el correo de pago.",
+                    {
+                        hasUser:
+                            Boolean(
+                                user
+                            ),
+
+                        hasEmail:
+                            Boolean(
+                                user
+                                    ?.email
+                            ),
+
+                        hasCourse:
+                            Boolean(
+                                course
+                            ),
+
+                        hasPaymentToken:
+                            Boolean(
+                                paymentAccess
+                                    ?.token
+                            ),
+                    }
+                );
+            } else {
                 await sendPsychometricCompletionEmail({
                     user,
                     course,
                     evaluation,
-                });
-            } else {
-                emailSent = false;
 
-                console.error(
-                    "No se encontraron usuario o curso para enviar el correo."
+                    paymentToken:
+                        paymentAccess.token,
+
+                    paymentExpiresAt:
+                        paymentAccess
+                            .expiresAt,
+                });
+
+                console.log(
+                    `✅ Correo de pago enviado a ${user.email}`
                 );
             }
-        } catch (emailError) {
+        } catch (
+        emailError
+        ) {
             emailSent = false;
 
             console.error(
-                "No se pudo enviar el correo de finalización:",
+                "❌ No se pudo enviar el correo de finalización:",
                 emailError
             );
         }
 
+        /* =================================================
+           10. RESPUESTA AL FRONTEND
+        ================================================= */
+
         return res.json({
-            message: emailSent
-                ? "Test finalizado correctamente. Se envió la información de pago al correo."
-                : "Test finalizado correctamente, pero no se pudo enviar el correo de culminación.",
+            message:
+                emailSent
+                    ? "Test finalizado correctamente. Se envió el enlace de pago al correo."
+                    : paymentAccess?.token
+                        ? "Test finalizado correctamente. Se creó el enlace de pago, pero no se pudo enviar el correo."
+                        : "Test finalizado correctamente, pero no se pudo generar el enlace de pago.",
 
             emailSent,
 
+            paymentAccessCreated:
+                Boolean(
+                    paymentAccess
+                        ?.token
+                ),
+
             evaluation: {
-                id: evaluation.id,
+                id:
+                    evaluation.id,
 
                 numeroEvaluacion:
-                    evaluation.numeroEvaluacion,
+                    evaluation
+                        .numeroEvaluacion,
 
-                estado: "completada",
+                estado:
+                    "completada",
 
-                fechaFinalizacion: now,
+                fechaFinalizacion:
+                    now,
 
                 puntajeTotal:
-                    scoring.totalScore,
+                    scoring
+                        .totalScore,
 
                 personalityId:
-                    scoring.personalityId,
+                    scoring
+                        .personalityId,
 
-                resultadoLiberado: false,
+                resultadoLiberado:
+                    false,
             },
 
             /*
-             * No se entrega el resultado completo
-             * hasta que el pago sea validado.
+             * No exponemos el resultado
+             * mientras no se valide el pago.
              */
             result: {
                 completed: true,
-                paymentRequired: true,
+
+                paymentRequired:
+                    true,
             },
 
-            paymentRequired: true,
+            paymentRequired:
+                true,
         });
     }
 );
 
+/* =========================================================
+   EXPORTACIONES
+========================================================= */
 
 module.exports = {
     saveAnswers,

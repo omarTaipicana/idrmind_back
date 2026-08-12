@@ -99,6 +99,10 @@ const getAll = catchError(async (req, res) => {
     where: pagosWhere,
     attributes: [
       "id",
+
+      "tipoPago",
+      "psychometricEvaluationId",
+
       "curso",
       "cert_emp",
       "cert_mdt",
@@ -1481,43 +1485,62 @@ const sendPsychometricResultEmail = async ({
 const update = catchError(async (req, res) => {
   const { id } = req.params;
 
-  // 1. Traer el pago ANTES de actualizar
+  /* =========================================================
+     1. BUSCAR PAGO ANTES DE ACTUALIZAR
+  ========================================================= */
+
   const pagoOriginal = await Pagos.findByPk(id);
 
   if (!pagoOriginal) {
-    return res.status(404).json({ message: "Pago no encontrado" });
+    return res.status(404).json({
+      message: "Pago no encontrado.",
+    });
   }
 
-  // =========================
-  // ✅ VALIDACIÓN NUEVA (entidad + idDeposito únicos)
-  // sin romper tu funcionalidad actual
-  // =========================
+  /* =========================================================
+     2. VALIDAR ENTIDAD + ID DEPÓSITO ÚNICOS
+  ========================================================= */
 
-  // Tomamos valores "finales" que quedarían tras el update:
   const entidadFinal =
-    req.body.entidad !== undefined ? req.body.entidad : pagoOriginal.entidad;
+    req.body.entidad !== undefined
+      ? req.body.entidad
+      : pagoOriginal.entidad;
 
   const idDepositoFinal =
     req.body.idDeposito !== undefined
       ? req.body.idDeposito
       : pagoOriginal.idDeposito;
 
-  // Solo validamos si ambos existen (no vacíos)
-  if (
+  const entidadNormalizada =
     entidadFinal !== undefined &&
-    entidadFinal !== null &&
-    String(entidadFinal).trim() !== "" &&
+      entidadFinal !== null
+      ? String(entidadFinal).trim()
+      : "";
+
+  const idDepositoNormalizado =
     idDepositoFinal !== undefined &&
-    idDepositoFinal !== null &&
-    String(idDepositoFinal).trim() !== ""
+      idDepositoFinal !== null
+      ? String(idDepositoFinal).trim()
+      : "";
+
+  if (
+    entidadNormalizada &&
+    idDepositoNormalizado
   ) {
-    const existe = await Pagos.findOne({
-      where: {
-        entidad: entidadFinal,
-        idDeposito: idDepositoFinal,
-        id: { [Op.ne]: id }, // excluye el mismo pago
-      },
-    });
+    const existe =
+      await Pagos.findOne({
+        where: {
+          entidad:
+            entidadNormalizada,
+
+          idDeposito:
+            idDepositoNormalizado,
+
+          id: {
+            [Op.ne]: id,
+          },
+        },
+      });
 
     if (existe) {
       return res.status(400).json({
@@ -1527,156 +1550,201 @@ const update = catchError(async (req, res) => {
     }
   }
 
-  // 2. Actualizar el pago con los datos del body
-  let pagosActualizados;
+  /* =========================================================
+     3. PREPARAR DATOS A ACTUALIZAR
+  ========================================================= */
+
+  const updateData = {
+    ...req.body,
+  };
+
+  /*
+   * Normalizamos estos dos valores si vienen
+   * dentro del request.
+   */
+  if (
+    req.body.entidad !== undefined
+  ) {
+    updateData.entidad =
+      entidadNormalizada || null;
+  }
+
+  if (
+    req.body.idDeposito !==
+    undefined
+  ) {
+    updateData.idDeposito =
+      idDepositoNormalizado ||
+      null;
+  }
+
+  /* =========================================================
+     4. NO PERMITIR CAMBIAR DATOS ESTRUCTURALES
+     DEL PAGO DESDE ESTE UPDATE
+  ========================================================= */
+
+  delete updateData.id;
+
+  delete updateData.inscripcionId;
+
+  delete updateData.psychometricEvaluationId;
+
+  delete updateData.tipoPago;
+
+  delete updateData.createdAt;
+
+  delete updateData.updatedAt;
+
+  /*
+   * Esto evita que desde el front administrativo
+   * puedan cambiar accidentalmente la relación
+   * del pago con otra inscripción/evaluación.
+   */
+
+  /* =========================================================
+     5. ACTUALIZAR PAGO
+  ========================================================= */
+
+  let pagoActualizado;
 
   try {
-    const [rowsUpdated, updated] = await Pagos.update(req.body, {
-      where: { id },
-      returning: true,
-    });
+    const [
+      rowsUpdated,
+      updated,
+    ] = await Pagos.update(
+      updateData,
+      {
+        where: {
+          id,
+        },
+
+        returning: true,
+      }
+    );
 
     if (rowsUpdated === 0) {
-      return res.status(404).json({ message: "Pago no encontrado" });
+      return res.status(404).json({
+        message:
+          "Pago no encontrado.",
+      });
     }
 
-    pagosActualizados = updated;
+    pagoActualizado =
+      updated[0];
   } catch (error) {
-    // Si tienes índice único en BD, esto captura el choque también
-    if (error?.name === "SequelizeUniqueConstraintError") {
+    /*
+     * Protección adicional si existe un
+     * índice UNIQUE en PostgreSQL.
+     */
+    if (
+      error?.name ===
+      "SequelizeUniqueConstraintError"
+    ) {
       return res.status(400).json({
         message:
           "Ya existe un pago registrado con ese ID de depósito para la entidad seleccionada.",
       });
     }
+
     throw error;
   }
 
-  const pagoActualizado = pagosActualizados[0];
+  /* =========================================================
+     6. DETECTAR CAMBIO DE VERIFICACIÓN
+  ========================================================= */
 
-  // 3. Emitir evento de pago actualizado
-  const io = req.app.get("io");
-  if (io) io.emit("pagoActualizado", pagoActualizado);
+  const verificadoAntes =
+    Boolean(
+      pagoOriginal.verificado
+    );
 
-  const verificadoAntes = pagoOriginal.verificado;
-  const verificadoDespues = pagoActualizado.verificado;
+  const verificadoDespues =
+    Boolean(
+      pagoActualizado.verificado
+    );
 
-  let psychometricResultEmailSent = null;
-
-  if (
+  const pagoFueValidadoAhora =
     !verificadoAntes &&
-    verificadoDespues &&
-    pagoActualizado.psychometricEvaluationId
-  ) {
-    const evaluation =
-      await PsychometricEvaluation.findByPk(
-        pagoActualizado.psychometricEvaluationId,
-        {
-          include: [
-            {
-              model: Inscripcion,
-              as: "inscripcion",
+    verificadoDespues;
 
-              include: [
-                {
-                  model: User,
-                  as: "user",
-                },
-              ],
-            },
-          ],
-        }
-      );
+  const pagoFueDesvalidadoAhora =
+    verificadoAntes &&
+    !verificadoDespues;
 
-    if (!evaluation) {
-      return res.status(404).json({
-        message:
-          "El pago fue actualizado, pero no se encontró la evaluación psicométrica asociada.",
-      });
-    }
+  /* =========================================================
+     7. SOCKET
+  ========================================================= */
 
+  const io =
+    req.app.get("io");
+
+  if (io) {
+    io.emit(
+      "pagoActualizado",
+      pagoActualizado
+    );
+  }
+
+  /* =========================================================
+     8. RESPUESTA
+  ========================================================= */
+
+  let message =
+    "Pago actualizado correctamente.";
+
+  if (pagoFueValidadoAhora) {
     if (
-      evaluation.estado !== "completada"
+      pagoActualizado.tipoPago ===
+      "test_psicometrico" &&
+      pagoActualizado
+        .psychometricEvaluationId
     ) {
-      return res.status(409).json({
-        message:
-          "No se puede liberar el resultado porque la evaluación no está completada.",
-        estadoEvaluacion:
-          evaluation.estado,
-      });
-    }
-
-    await evaluation.update({
-      resultadoLiberado: true,
-    });
-
-    const {
-      token,
-      expiresAt,
-    } =
-      await createPsychometricResultAccess(
-        evaluation.id
-      );
-
-    psychometricResultEmailSent = true;
-
-    try {
-      const user =
-        evaluation.inscripcion?.user;
-
-      const inscripcion =
-        evaluation.inscripcion;
-
-      const course = inscripcion?.courseId
-        ? await Course.findByPk(
-          inscripcion.courseId
-        )
-        : null;
-
-      if (!user?.email || !course) {
-        psychometricResultEmailSent = false;
-
-        console.error(
-          "No se encontraron usuario o curso para enviar el resultado."
-        );
-      } else {
-        await sendPsychometricResultEmail({
-          user,
-          course,
-          evaluation,
-          token,
-          expiresAt,
-        });
-      }
-    } catch (emailError) {
-      psychometricResultEmailSent = false;
-
-      console.error(
-        "No se pudo enviar el correo del resultado:",
-        emailError
-      );
+      message =
+        "Pago psicométrico validado correctamente. Ya puede generar el resultado.";
+    } else {
+      message =
+        "Pago validado correctamente.";
     }
   }
 
-  // if (!verificadoAntes && verificadoDespues) {
-  //   try {
-  //     await generarCertificado(pagoActualizado.id);
-  //   } catch (error) {
-  //     console.error("Error generando certificado:", error);
-  //   }
-  // }
+  if (pagoFueDesvalidadoAhora) {
+    message =
+      "La validación del pago fue retirada correctamente.";
+  }
 
   return res.json({
     ...pagoActualizado.toJSON(),
 
-    message:
-      psychometricResultEmailSent === true
-        ? "Pago actualizado, resultado liberado y correo enviado."
-        : psychometricResultEmailSent === false
-          ? "Pago actualizado y resultado liberado, pero no se pudo enviar el correo."
-          : "Pago actualizado correctamente.",
+    message,
 
-    psychometricResultEmailSent,
+    paymentStatus: {
+      verificado:
+        pagoActualizado.verificado,
+
+      validatedNow:
+        pagoFueValidadoAhora,
+
+      unvalidatedNow:
+        pagoFueDesvalidadoAhora,
+
+      isPsychometric:
+        pagoActualizado.tipoPago ===
+        "test_psicometrico" &&
+        Boolean(
+          pagoActualizado
+            .psychometricEvaluationId
+        ),
+
+      canGeneratePsychometricResult:
+        pagoActualizado.verificado ===
+        true &&
+        pagoActualizado.tipoPago ===
+        "test_psicometrico" &&
+        Boolean(
+          pagoActualizado
+            .psychometricEvaluationId
+        ),
+    },
   });
 });
 
@@ -1846,6 +1914,1165 @@ const certificado = catchError(async (req, res) => {
   }
 });
 
+
+/* =========================================================
+   TOKEN DE PAGO PSICOMÉTRICO
+========================================================= */
+
+const createPsychometricPaymentAccess = async (
+  evaluationId
+) => {
+  await PsychometricAccessToken.update(
+    {
+      activo: false,
+      revokedAt: new Date(),
+    },
+    {
+      where: {
+        evaluationId,
+        purpose: "payment",
+        activo: true,
+      },
+    }
+  );
+
+  const token = crypto
+    .randomBytes(32)
+    .toString("hex");
+
+  const tokenHash = crypto
+    .createHash("sha256")
+    .update(token)
+    .digest("hex");
+
+  const hours = Number(
+    process.env.PSYCHOMETRIC_PAYMENT_TOKEN_HOURS ||
+    720
+  );
+
+  const expiresAt = new Date(
+    Date.now() +
+    hours * 60 * 60 * 1000
+  );
+
+  await PsychometricAccessToken.create({
+    evaluationId,
+    tokenHash,
+    purpose: "payment",
+    expiresAt,
+    activo: true,
+  });
+
+  return {
+    token,
+    expiresAt,
+  };
+};
+
+const getPsychometricPaymentAccess =
+  catchError(async (req, res) => {
+    const { token } = req.params;
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const access =
+      await PsychometricAccessToken.findOne({
+        where: {
+          tokenHash,
+          purpose: "payment",
+          activo: true,
+        },
+      });
+
+    if (!access) {
+      return res.status(404).json({
+        message:
+          "El enlace de pago no es válido.",
+      });
+    }
+
+    if (
+      access.expiresAt &&
+      new Date(access.expiresAt) <
+      new Date()
+    ) {
+      return res.status(410).json({
+        message:
+          "El enlace de pago ha expirado.",
+      });
+    }
+
+    const evaluation =
+      await PsychometricEvaluation.findByPk(
+        access.evaluationId,
+        {
+          include: [
+            {
+              model: Inscripcion,
+              as: "inscripcion",
+              include: [
+                {
+                  model: User,
+                  as: "user",
+                },
+              ],
+            },
+          ],
+        }
+      );
+
+    if (!evaluation) {
+      return res.status(404).json({
+        message:
+          "La evaluación no existe.",
+      });
+    }
+
+    if (
+      evaluation.estado !== "completada"
+    ) {
+      return res.status(409).json({
+        message:
+          "La evaluación todavía no está completada.",
+      });
+    }
+
+    const inscripcion =
+      evaluation.inscripcion;
+
+    const user =
+      inscripcion?.user;
+
+    const course =
+      inscripcion?.courseId
+        ? await Course.findByPk(
+          inscripcion.courseId
+        )
+        : null;
+
+    const existingPayment =
+      await Pagos.findOne({
+        where: {
+          psychometricEvaluationId:
+            evaluation.id,
+        },
+        order: [["createdAt", "DESC"]],
+      });
+
+    return res.json({
+      evaluation: {
+        id: evaluation.id,
+        numeroEvaluacion:
+          evaluation.numeroEvaluacion,
+      },
+
+      user: {
+        firstName:
+          user?.firstName || "",
+        lastName:
+          user?.lastName || "",
+        email: user?.email || "",
+      },
+
+      course: course
+        ? {
+          id: course.id,
+          nombre: course.nombre,
+          sigla: course.sigla,
+        }
+        : null,
+
+      payment: {
+        alreadyRegistered:
+          Boolean(existingPayment),
+
+        verified:
+          Boolean(
+            existingPayment?.verificado
+          ),
+
+        paymentId:
+          existingPayment?.id || null,
+      },
+    });
+  });
+
+
+/* =========================================================
+ REGISTRAR PAGO PSICOMÉTRICO MEDIANTE TOKEN
+========================================================= */
+
+const createPsychometricPayment =
+  catchError(async (req, res) => {
+    const { token } = req.params;
+
+    /* =========================================
+       1. VALIDAR COMPROBANTE
+    ========================================= */
+
+    if (!req.file) {
+      return res.status(400).json({
+        message:
+          "Debes subir el comprobante de pago.",
+      });
+    }
+
+    const url = req.fileUrl;
+
+    if (!url) {
+      return res.status(400).json({
+        message:
+          "No se pudo obtener la URL del comprobante.",
+      });
+    }
+
+    /* =========================================
+       2. VALIDAR TOKEN
+    ========================================= */
+
+    if (!token) {
+      return res.status(400).json({
+        message:
+          "No se recibió el token de pago.",
+      });
+    }
+
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const access =
+      await PsychometricAccessToken.findOne({
+        where: {
+          tokenHash,
+          purpose: "payment",
+          activo: true,
+        },
+      });
+
+    if (!access) {
+      return res.status(404).json({
+        message:
+          "El enlace de pago no es válido.",
+      });
+    }
+
+    /* =========================================
+       3. VALIDAR EXPIRACIÓN
+    ========================================= */
+
+    if (
+      access.expiresAt &&
+      new Date(access.expiresAt) <
+      new Date()
+    ) {
+      return res.status(410).json({
+        message:
+          "El enlace de pago ha expirado.",
+      });
+    }
+
+    /* =========================================
+       4. BUSCAR EVALUACIÓN
+    ========================================= */
+
+    const evaluation =
+      await PsychometricEvaluation.findByPk(
+        access.evaluationId,
+        {
+          include: [
+            {
+              model: Inscripcion,
+              as: "inscripcion",
+
+              include: [
+                {
+                  model: User,
+                  as: "user",
+                },
+              ],
+            },
+          ],
+        }
+      );
+
+    if (!evaluation) {
+      return res.status(404).json({
+        message:
+          "No se encontró la evaluación asociada al enlace.",
+      });
+    }
+
+    /* =========================================
+       5. VALIDAR ESTADO DE LA EVALUACIÓN
+    ========================================= */
+
+    if (
+      evaluation.estado !==
+      "completada"
+    ) {
+      return res.status(409).json({
+        message:
+          "La evaluación debe estar completada antes de registrar el pago.",
+
+        estadoEvaluacion:
+          evaluation.estado,
+      });
+    }
+
+    const inscripcion =
+      evaluation.inscripcion;
+
+    if (!inscripcion) {
+      return res.status(404).json({
+        message:
+          "No se encontró la inscripción asociada a la evaluación.",
+      });
+    }
+
+    const user =
+      inscripcion.user;
+
+    if (!user) {
+      return res.status(404).json({
+        message:
+          "No se encontró el usuario asociado a la evaluación.",
+      });
+    }
+
+    /* =========================================
+       6. BUSCAR CURSO
+    ========================================= */
+
+    const course =
+      inscripcion.courseId
+        ? await Course.findByPk(
+          inscripcion.courseId
+        )
+        : null;
+
+    if (!course) {
+      return res.status(404).json({
+        message:
+          "No se encontró el test o curso asociado a la evaluación.",
+      });
+    }
+
+    /* =========================================
+       7. IMPEDIR PAGO DUPLICADO
+    ========================================= */
+
+    const existingPayment =
+      await Pagos.findOne({
+        where: {
+          psychometricEvaluationId:
+            evaluation.id,
+        },
+
+        order: [
+          ["createdAt", "DESC"],
+        ],
+      });
+
+    if (existingPayment) {
+      return res.status(409).json({
+        message:
+          existingPayment.verificado
+            ? "El pago de esta evaluación ya fue registrado y validado."
+            : "Ya existe un comprobante de pago registrado para esta evaluación y está pendiente de validación.",
+
+        payment: {
+          id: existingPayment.id,
+
+          verificado:
+            existingPayment.verificado,
+
+          createdAt:
+            existingPayment.createdAt,
+        },
+      });
+    }
+
+    /* =========================================
+       8. VALIDAR VALOR DEPOSITADO
+    ========================================= */
+
+    const {
+      valorDepositado,
+      entidad,
+      idDeposito,
+      observacion,
+    } = req.body;
+
+    if (
+      valorDepositado === undefined ||
+      valorDepositado === null ||
+      String(
+        valorDepositado
+      ).trim() === ""
+    ) {
+      return res.status(400).json({
+        message:
+          "El valor depositado es requerido.",
+      });
+    }
+
+    const valorDepositadoFinal =
+      Number(valorDepositado);
+
+    if (
+      Number.isNaN(
+        valorDepositadoFinal
+      ) ||
+      valorDepositadoFinal <= 0
+    ) {
+      return res.status(400).json({
+        message:
+          "El valor depositado no es válido.",
+      });
+    }
+
+    /* =========================================
+       9. VALIDAR ID DE DEPÓSITO DUPLICADO
+    ========================================= */
+
+    if (
+      entidad &&
+      String(entidad).trim() &&
+      idDeposito &&
+      String(idDeposito).trim()
+    ) {
+      const duplicateDeposit =
+        await Pagos.findOne({
+          where: {
+            entidad:
+              String(
+                entidad
+              ).trim(),
+
+            idDeposito:
+              String(
+                idDeposito
+              ).trim(),
+          },
+        });
+
+      if (duplicateDeposit) {
+        return res.status(409).json({
+          message:
+            "Ya existe un pago registrado con ese ID de depósito para la entidad seleccionada.",
+        });
+      }
+    }
+
+    /* =========================================
+       10. DETERMINAR CÓDIGO DEL TEST
+    ========================================= */
+
+    const cursoFinal =
+      course.sigla ||
+      inscripcion.curso ||
+      "test_psicometrico";
+
+    /* =========================================
+       11. CREAR PAGO
+    ========================================= */
+
+    const payment =
+      await Pagos.create({
+        inscripcionId:
+          inscripcion.id,
+
+        psychometricEvaluationId:
+          evaluation.id,
+
+        tipoPago:
+          "test_psicometrico",
+
+        curso:
+          cursoFinal,
+
+        pagoUrl:
+          url,
+
+        valorDepositado:
+          valorDepositadoFinal,
+
+        entidad:
+          entidad
+            ? String(
+              entidad
+            ).trim()
+            : null,
+
+        idDeposito:
+          idDeposito
+            ? String(
+              idDeposito
+            ).trim()
+            : null,
+
+        /*
+         * El usuario confirma que
+         * registró el comprobante.
+         */
+        confirmacion: true,
+
+        /*
+         * La validación la hará
+         * posteriormente el administrador.
+         */
+        verificado: false,
+
+        distintivo: false,
+        moneda: false,
+        entregado: false,
+
+        cert_emp: null,
+        cert_mdt: null,
+        cert_int: null,
+
+        observacion:
+          observacion ||
+          `Pago de evaluación psicométrica N.º ${evaluation.numeroEvaluacion}`,
+
+        usuarioEdicion: null,
+      });
+
+    /* =========================================
+       12. CORREO DE CONFIRMACIÓN
+    ========================================= */
+
+    let emailSent = true;
+
+    try {
+      await sendEmail({
+        to: user.email,
+
+        subject:
+          "✅ Comprobante recibido - Proyecto Pensar iDr.Mind",
+
+        html: `
+          <div style="
+            margin:0;
+            padding:30px 15px;
+            background:#f1f5f9;
+            font-family:Arial,sans-serif;
+            color:#101828;
+          ">
+
+            <div style="
+              max-width:640px;
+              margin:0 auto;
+              background:#ffffff;
+              border-radius:18px;
+              overflow:hidden;
+              box-shadow:
+                0 18px 45px
+                rgba(7,27,63,.16);
+            ">
+
+              <div style="
+                padding:28px;
+                text-align:center;
+                background:
+                  linear-gradient(
+                    135deg,
+                    #071b3f,
+                    #173a8a
+                  );
+              ">
+
+                <img
+                  src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+                  alt="iDr.Mind"
+                  style="
+                    width:165px;
+                    max-width:100%;
+                  "
+                />
+
+              </div>
+
+              <div style="
+                padding:34px;
+                text-align:center;
+              ">
+
+                <h1 style="
+                  margin:0 0 18px;
+                  color:#071b3f;
+                  font-size:27px;
+                ">
+                  ¡Gracias
+                  ${user.firstName || ""}
+                  ${user.lastName || ""}!
+                </h1>
+
+                <p style="
+                  font-size:16px;
+                  line-height:1.7;
+                  color:#475467;
+                ">
+                  Hemos recibido correctamente
+                  tu comprobante de pago de
+                  <strong>
+                    ${course.nombre ||
+          "Proyecto Pensar"}
+                  </strong>.
+                </p>
+
+                <div style="
+                  margin:25px 0;
+                  padding:18px;
+                  border-radius:12px;
+                  background:#eef6ff;
+                  border-left:
+                    5px solid #28a7e8;
+                  text-align:left;
+                ">
+
+                  <p style="
+                    margin:0;
+                    color:#344054;
+                    line-height:1.7;
+                  ">
+                    <strong>
+                      Evaluación:
+                    </strong>
+                    N.º
+                    ${evaluation.numeroEvaluacion}
+                  </p>
+
+                  <p style="
+                    margin:6px 0 0;
+                    color:#344054;
+                    line-height:1.7;
+                  ">
+                    <strong>
+                      Valor registrado:
+                    </strong>
+                    $${valorDepositadoFinal.toFixed(
+            2
+          )}
+                  </p>
+
+                  ${entidad
+            ? `
+                        <p style="
+                          margin:6px 0 0;
+                          color:#344054;
+                          line-height:1.7;
+                        ">
+                          <strong>
+                            Entidad:
+                          </strong>
+                          ${entidad}
+                        </p>
+                      `
+            : ""
+          }
+
+                  ${idDeposito
+            ? `
+                        <p style="
+                          margin:6px 0 0;
+                          color:#344054;
+                          line-height:1.7;
+                        ">
+                          <strong>
+                            ID de depósito:
+                          </strong>
+                          ${idDeposito}
+                        </p>
+                      `
+            : ""
+          }
+
+                </div>
+
+                <p style="
+                  font-size:16px;
+                  line-height:1.7;
+                  color:#475467;
+                ">
+                  Nuestro equipo verificará
+                  el pago. Una vez aprobado,
+                  recibirás automáticamente
+                  otro correo con el enlace
+                  para consultar tu informe
+                  de resultados.
+                </p>
+
+                <div style="
+                  margin-top:28px;
+                  padding:15px;
+                  border-radius:10px;
+                  background:#ecfdf3;
+                  color:#087443;
+                  font-size:14px;
+                  line-height:1.6;
+                ">
+                  No necesitas volver a
+                  registrar el comprobante.
+                  Te notificaremos cuando
+                  haya sido validado.
+                </div>
+
+              </div>
+
+              <div style="
+                padding:18px;
+                background:#f8fafc;
+                text-align:center;
+                color:#98a2b3;
+                font-size:12px;
+              ">
+                © ${new Date().getFullYear()}
+                iDr.Mind.
+                Todos los derechos reservados.
+              </div>
+
+            </div>
+          </div>
+        `,
+      });
+    } catch (emailError) {
+      emailSent = false;
+
+      console.error(
+        "No se pudo enviar el correo de confirmación del pago psicométrico:",
+        emailError
+      );
+    }
+
+    /* =========================================
+       13. SOCKET
+    ========================================= */
+
+    const io =
+      req.app.get("io");
+
+    if (io) {
+      io.emit(
+        "pagoCreado",
+        payment
+      );
+    }
+
+    /* =========================================
+       14. RESPUESTA
+    ========================================= */
+
+    return res
+      .status(201)
+      .json({
+        message: emailSent
+          ? "Comprobante registrado correctamente. Recibirás un correo cuando el pago sea validado."
+          : "Comprobante registrado correctamente, pero no se pudo enviar el correo de confirmación.",
+
+        emailSent,
+
+        payment: {
+          id: payment.id,
+
+          psychometricEvaluationId:
+            payment.psychometricEvaluationId,
+
+          tipoPago:
+            payment.tipoPago,
+
+          valorDepositado:
+            payment.valorDepositado,
+
+          verificado:
+            payment.verificado,
+
+          createdAt:
+            payment.createdAt,
+        },
+      });
+  });
+
+
+/* =========================================================
+ GENERAR / ENVIAR RESULTADO PSICOMÉTRICO
+ POST /pagos/:id/resultado-psicometrico
+========================================================= */
+
+const generatePsychometricResult =
+  catchError(async (req, res) => {
+    const { id } = req.params;
+
+    /*
+     * Si enviamos:
+     *
+     * {
+     *   "reenviar": true
+     * }
+     *
+     * permite mandar nuevamente el resultado.
+     */
+    const reenviar =
+      req.body?.reenviar === true ||
+      req.body?.reenviar === "true";
+
+    /* =========================================
+       1. BUSCAR PAGO
+    ========================================= */
+
+    const pago = await Pagos.findByPk(id);
+
+    if (!pago) {
+      return res.status(404).json({
+        message:
+          "Pago no encontrado.",
+      });
+    }
+
+    /* =========================================
+       2. SOLO PARA TEST PSICOMÉTRICO
+    ========================================= */
+
+    if (
+      pago.tipoPago !==
+      "test_psicometrico"
+    ) {
+      return res.status(400).json({
+        message:
+          "Esta acción solamente está disponible para pagos de test psicométrico.",
+      });
+    }
+
+    if (
+      !pago.psychometricEvaluationId
+    ) {
+      return res.status(400).json({
+        message:
+          "El pago no tiene una evaluación psicométrica asociada.",
+      });
+    }
+
+    /* =========================================
+       3. PAGO DEBE ESTAR VERIFICADO
+    ========================================= */
+
+    if (!pago.verificado) {
+      return res.status(409).json({
+        message:
+          "El pago debe estar verificado antes de generar el resultado.",
+      });
+    }
+
+    /* =========================================
+       4. BUSCAR EVALUACIÓN
+    ========================================= */
+
+    const evaluation =
+      await PsychometricEvaluation.findByPk(
+        pago.psychometricEvaluationId,
+        {
+          include: [
+            {
+              model: Inscripcion,
+              as: "inscripcion",
+
+              include: [
+                {
+                  model: User,
+                  as: "user",
+                },
+              ],
+            },
+          ],
+        }
+      );
+
+    if (!evaluation) {
+      return res.status(404).json({
+        message:
+          "No se encontró la evaluación psicométrica asociada.",
+      });
+    }
+
+    /* =========================================
+       5. DEBE ESTAR COMPLETADA
+    ========================================= */
+
+    if (
+      evaluation.estado !==
+      "completada"
+    ) {
+      return res.status(409).json({
+        message:
+          "La evaluación todavía no se encuentra completada.",
+
+        estado:
+          evaluation.estado,
+      });
+    }
+
+    if (
+      !evaluation.resultado ||
+      !evaluation.personalityId
+    ) {
+      return res.status(409).json({
+        message:
+          "La evaluación no tiene un resultado psicométrico calculado.",
+      });
+    }
+
+    /* =========================================
+       6. CONTROLAR ENVÍOS DUPLICADOS
+    ========================================= */
+
+    if (
+      evaluation.resultadoEmailEnviado &&
+      !reenviar
+    ) {
+      return res.status(409).json({
+        message:
+          "El resultado ya fue enviado anteriormente.",
+
+        alreadySent: true,
+
+        resultadoEmailEnviadoAt:
+          evaluation.resultadoEmailEnviadoAt,
+
+        resultadoEmailEnvios:
+          evaluation.resultadoEmailEnvios,
+
+        resultadoInformeUrl:
+          evaluation.resultadoInformeUrl ||
+          null,
+
+        hint:
+          "Para enviarlo nuevamente usa reenviar=true.",
+      });
+    }
+
+    /* =========================================
+       7. OBTENER USUARIO
+    ========================================= */
+
+    const inscripcion =
+      evaluation.inscripcion;
+
+    const user =
+      inscripcion?.user;
+
+    if (!user?.email) {
+      return res.status(404).json({
+        message:
+          "No se encontró el correo del participante.",
+      });
+    }
+
+    /* =========================================
+       8. OBTENER CURSO
+    ========================================= */
+
+    const course =
+      inscripcion?.courseId
+        ? await Course.findByPk(
+          inscripcion.courseId
+        )
+        : null;
+
+    if (!course) {
+      return res.status(404).json({
+        message:
+          "No se encontró el test asociado a la evaluación.",
+      });
+    }
+
+    /* =========================================
+       9. LIBERAR RESULTADO
+    ========================================= */
+
+    if (
+      !evaluation.resultadoLiberado
+    ) {
+      await evaluation.update({
+        resultadoLiberado: true,
+      });
+    }
+
+    /* =========================================
+       10. GENERAR INFORME PDF
+
+       LO CONECTAREMOS EN EL SIGUIENTE PASO.
+
+       const informe =
+         await generarInformePsicometrico({
+           evaluationId: evaluation.id
+         });
+
+       const informeUrl =
+         informe.absoluteUrl;
+    ========================================= */
+
+    const informeUrl =
+      evaluation.resultadoInformeUrl ||
+      null;
+
+    /* =========================================
+       11. GENERAR TOKEN DE RESULTADO
+
+       Esta función ya invalida el token
+       anterior y genera uno nuevo.
+    ========================================= */
+
+    const {
+      token,
+      expiresAt,
+    } =
+      await createPsychometricResultAccess(
+        evaluation.id
+      );
+
+    /* =========================================
+       12. ENVIAR CORREO
+    ========================================= */
+
+    let emailSent = false;
+
+    try {
+      await sendPsychometricResultEmail({
+        user,
+        course,
+        evaluation,
+        token,
+        expiresAt,
+
+        /*
+         * Después podemos pasar:
+         * informeUrl
+         */
+      });
+
+      emailSent = true;
+    } catch (emailError) {
+      console.error(
+        "No se pudo enviar el correo del resultado psicométrico:",
+        emailError
+      );
+    }
+
+    /* =========================================
+       13. REGISTRAR HISTORIAL
+    ========================================= */
+
+    const now = new Date();
+
+    const totalEnvios =
+      Number(
+        evaluation.resultadoEmailEnvios ||
+        0
+      ) +
+      (emailSent ? 1 : 0);
+
+    await evaluation.update({
+      resultadoGeneradoAt:
+        evaluation.resultadoGeneradoAt ||
+        now,
+
+      resultadoEmailEnviado:
+        emailSent
+          ? true
+          : evaluation.resultadoEmailEnviado,
+
+      resultadoEmailEnviadoAt:
+        emailSent
+          ? now
+          : evaluation.resultadoEmailEnviadoAt,
+
+      resultadoEmailEnvios:
+        totalEnvios,
+
+      resultadoInformeUrl:
+        informeUrl,
+    });
+
+    /* =========================================
+       14. SOCKET
+    ========================================= */
+
+    const io =
+      req.app.get("io");
+
+    if (io) {
+      io.emit(
+        "resultadoPsicometricoGenerado",
+        {
+          evaluationId:
+            evaluation.id,
+
+          pagoId:
+            pago.id,
+
+          emailSent,
+
+          resultadoEmailEnvios:
+            totalEnvios,
+        }
+      );
+    }
+
+    /* =========================================
+       15. RESPUESTA
+    ========================================= */
+
+    return res.json({
+      message: emailSent
+        ? reenviar
+          ? "Resultado reenviado correctamente al participante."
+          : "Resultado generado y enviado correctamente al participante."
+        : "El resultado fue liberado, pero no se pudo enviar el correo.",
+
+      emailSent,
+
+      reenviado:
+        reenviar,
+
+      result: {
+        evaluationId:
+          evaluation.id,
+
+        numeroEvaluacion:
+          evaluation.numeroEvaluacion,
+
+        resultadoLiberado:
+          true,
+
+        resultadoGeneradoAt:
+          evaluation.resultadoGeneradoAt ||
+          now,
+
+        resultadoEmailEnviado:
+          emailSent
+            ? true
+            : evaluation.resultadoEmailEnviado,
+
+        resultadoEmailEnviadoAt:
+          emailSent
+            ? now
+            : evaluation.resultadoEmailEnviadoAt,
+
+        resultadoEmailEnvios:
+          totalEnvios,
+
+        resultadoInformeUrl:
+          informeUrl,
+      },
+    });
+  });
+
+
 module.exports = {
   getAll,
   getDashboardPagos,
@@ -1855,4 +3082,10 @@ module.exports = {
   remove,
   update,
   certificado,
+
+  createPsychometricPaymentAccess,
+  getPsychometricPaymentAccess,
+  createPsychometricPayment,
+
+  generatePsychometricResult,
 };

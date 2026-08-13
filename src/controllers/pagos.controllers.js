@@ -59,110 +59,315 @@ const getAll = catchError(async (req, res) => {
     contificoAutorizacion,
   } = req.query;
 
+  /* =========================================================
+     FILTROS DE PAGOS
+  ========================================================= */
+
   const pagosWhere = {};
 
-  if (curso) pagosWhere.curso = curso;
-  if (cert_emp) pagosWhere.cert_emp = cert_emp === "true";
-  if (cert_mdt) pagosWhere.cert_mdt = cert_mdt === "true";
-  if (cert_int) pagosWhere.cert_int = cert_int === "true";
-  if (verificado) pagosWhere.verificado = verificado === "true";
-  if (moneda) pagosWhere.moneda = moneda === "true";
-  if (distintivo) pagosWhere.distintivo = distintivo === "true";
-  if (entregado) pagosWhere.entregado = entregado === "true";
+  if (curso) {
+    pagosWhere.curso = curso;
+  }
 
-  if (fechaInicio || fechaFin) {
+  if (cert_emp) {
+    pagosWhere.cert_emp =
+      cert_emp === "true";
+  }
+
+  if (cert_mdt) {
+    pagosWhere.cert_mdt =
+      cert_mdt === "true";
+  }
+
+  if (cert_int) {
+    pagosWhere.cert_int =
+      cert_int === "true";
+  }
+
+  if (verificado) {
+    pagosWhere.verificado =
+      verificado === "true";
+  }
+
+  if (moneda) {
+    pagosWhere.moneda =
+      moneda === "true";
+  }
+
+  if (distintivo) {
+    pagosWhere.distintivo =
+      distintivo === "true";
+  }
+
+  if (entregado) {
+    pagosWhere.entregado =
+      entregado === "true";
+  }
+
+  /* =========================================================
+     FILTRO FECHAS
+  ========================================================= */
+
+  if (
+    fechaInicio ||
+    fechaFin
+  ) {
     pagosWhere.createdAt = {};
 
     if (fechaInicio) {
-      pagosWhere.createdAt[Op.gte] = new Date(fechaInicio);
+      pagosWhere.createdAt[
+        Op.gte
+      ] =
+        new Date(
+          fechaInicio
+        );
     }
 
     if (fechaFin) {
-      const fin = new Date(fechaFin);
-      fin.setDate(fin.getDate() + 2);
-      pagosWhere.createdAt[Op.lt] = fin;
+      const fin =
+        new Date(
+          fechaFin
+        );
+
+      /*
+       * Mantengo exactamente tu lógica actual.
+       */
+      fin.setDate(
+        fin.getDate() + 2
+      );
+
+      pagosWhere.createdAt[
+        Op.lt
+      ] = fin;
     }
   }
 
-  const userWhere = busqueda
-    ? {
-      [Op.or]: [
-        { grado: { [Op.iLike]: `%${busqueda}%` } },
-        { firstName: { [Op.iLike]: `%${busqueda}%` } },
-        { lastName: { [Op.iLike]: `%${busqueda}%` } },
-        { cI: { [Op.iLike]: `%${busqueda}%` } },
-      ],
-    }
-    : undefined;
+  /* =========================================================
+     BÚSQUEDA DE USUARIO
+  ========================================================= */
 
-  let results = await Pagos.findAll({
-    where: pagosWhere,
-    attributes: [
-      "id",
-
-      "tipoPago",
-      "psychometricEvaluationId",
-
-      "curso",
-      "cert_emp",
-      "cert_mdt",
-      "cert_int",
-      "distintivo",
-      "moneda",
-      "valorDepositado",
-      "porcentajeIva",
-      "iva",
-      "entidad",
-      "idDeposito",
-      "pagoUrl",
-      "verificado",
-      "confirmacion",
-      "entregado",
-      "observacion",
-      "createdAt",
-      "inscripcionId",
-      "usuarioEdicion",
-      "contificoDocumentoId",
-      "contificoDocumentoNumero",
-      "contificoEstado",
-      "contificoFirmado",
-      "contificoUrlRide",
-      "contificoUrlXml",
-      "contificoAutorizacion",
-    ],
-    include: [
-      {
-        model: Inscripcion,
-        required: true,
-        attributes: ["id", "curso", "userId"],
-        include: [
+  const userWhere =
+    busqueda
+      ? {
+        [Op.or]: [
           {
-            model: User,
-            required: true,
-            attributes: [
-              "grado",
-              "firstName",
-              "lastName",
-              "cI",
-              "cellular",
-              "email",
-            ],
-            where: userWhere || undefined,
+            grado: {
+              [Op.iLike]:
+                `%${busqueda}%`,
+            },
+          },
+
+          {
+            firstName: {
+              [Op.iLike]:
+                `%${busqueda}%`,
+            },
+          },
+
+          {
+            lastName: {
+              [Op.iLike]:
+                `%${busqueda}%`,
+            },
+          },
+
+          {
+            cI: {
+              [Op.iLike]:
+                `%${busqueda}%`,
+            },
           },
         ],
-      },
-    ],
-    order: [["createdAt", "DESC"]],
-  });
+      }
+      : undefined;
 
-  // =========================
-  // USUARIOS MOODLE
-  // =========================
+  /* =========================================================
+     CONSULTAR PAGOS
+  ========================================================= */
+
+  let results =
+    await Pagos.findAll({
+      where:
+        pagosWhere,
+
+      attributes: [
+        "id",
+
+        "tipoPago",
+        "psychometricEvaluationId",
+
+        "curso",
+
+        "cert_emp",
+        "cert_mdt",
+        "cert_int",
+
+        "distintivo",
+        "moneda",
+
+        "valorDepositado",
+        "porcentajeIva",
+        "iva",
+
+        "entidad",
+        "idDeposito",
+        "pagoUrl",
+
+        "verificado",
+        "confirmacion",
+        "entregado",
+
+        "observacion",
+
+        "createdAt",
+
+        "inscripcionId",
+
+        "usuarioEdicion",
+
+        "contificoDocumentoId",
+        "contificoDocumentoNumero",
+        "contificoEstado",
+        "contificoFirmado",
+        "contificoUrlRide",
+        "contificoUrlXml",
+        "contificoAutorizacion",
+      ],
+
+      include: [
+        {
+          model:
+            Inscripcion,
+
+          required:
+            true,
+
+          attributes: [
+            "id",
+            "curso",
+            "userId",
+          ],
+
+          include: [
+            {
+              model:
+                User,
+
+              required:
+                true,
+
+              attributes: [
+                "grado",
+                "firstName",
+                "lastName",
+                "cI",
+                "cellular",
+                "email",
+              ],
+
+              where:
+                userWhere ||
+                undefined,
+            },
+          ],
+        },
+      ],
+
+      order: [
+        [
+          "createdAt",
+          "DESC",
+        ],
+      ],
+    });
+
+  /* =========================================================
+     EVALUACIONES PSICOMÉTRICAS
+     SOLO PARA PAGOS QUE TENGAN evaluationId
+  ========================================================= */
+
+  const psychometricEvaluationIds = [
+    ...new Set(
+      results
+        .map(
+          (pago) =>
+            pago
+              .psychometricEvaluationId
+        )
+        .filter(Boolean)
+        .map(String)
+    ),
+  ];
+
+  let psychometricEvaluationMap =
+    new Map();
+
+  if (
+    psychometricEvaluationIds.length
+  ) {
+    const evaluations =
+      await PsychometricEvaluation.findAll({
+        where: {
+          id: {
+            [Op.in]:
+              psychometricEvaluationIds,
+          },
+        },
+
+        attributes: [
+          "id",
+
+          "estado",
+
+          "resultadoLiberado",
+
+          "resultadoGeneradoAt",
+
+          "resultadoEmailEnviado",
+
+          "resultadoEmailEnviadoAt",
+
+          "resultadoEmailEnvios",
+
+          "resultadoInformeUrl",
+
+          "fechaFinalizacion",
+
+          "numeroEvaluacion",
+
+          "personalityId",
+        ],
+
+        raw: true,
+      });
+
+    psychometricEvaluationMap =
+      new Map(
+        evaluations.map(
+          (evaluation) => [
+            String(
+              evaluation.id
+            ),
+
+            evaluation,
+          ]
+        )
+      );
+  }
+
+  /* =========================================================
+     USUARIOS MOODLE
+  ========================================================= */
 
   const emails = [
     ...new Set(
       results
-        .map((pago) => pago.inscripcion?.user?.email?.toLowerCase())
+        .map(
+          (pago) =>
+            pago.inscripcion
+              ?.user?.email
+              ?.toLowerCase()
+        )
         .filter(Boolean)
     ),
   ];
@@ -171,323 +376,908 @@ const getAll = catchError(async (req, res) => {
   let moodleUserIds = [];
 
   if (emails.length) {
-    const [moodleUsersRes] = await sequelizeM.query(
-      `
-      SELECT id, LOWER(email) AS email
-      FROM mdl_user
-      WHERE deleted = 0
-        AND suspended = 0
-        AND LOWER(email) IN (?)
-      `,
-      { replacements: [emails] }
+    const [
+      moodleUsersRes,
+    ] =
+      await sequelizeM.query(
+        `
+        SELECT
+          id,
+          LOWER(email) AS email
+        FROM mdl_user
+        WHERE deleted = 0
+          AND suspended = 0
+          AND LOWER(email) IN (?)
+        `,
+        {
+          replacements: [
+            emails,
+          ],
+        }
+      );
+
+    moodleUsersRes.forEach(
+      (m) => {
+        moodleUserMap[
+          m.email
+        ] = m;
+      }
     );
 
-    moodleUsersRes.forEach((m) => {
-      moodleUserMap[m.email] = m;
-    });
-
-    moodleUserIds = moodleUsersRes.map((u) => u.id);
+    moodleUserIds =
+      moodleUsersRes.map(
+        (u) => u.id
+      );
   }
 
-  // =========================
-  // CURSOS MATRICULADOS MOODLE
-  // =========================
+  /* =========================================================
+     CURSOS MATRICULADOS MOODLE
+  ========================================================= */
 
   let enrolMap = {};
 
-  if (moodleUserIds.length) {
-    const [enrolRes] = await sequelizeM.query(
-      `
-      SELECT ue.userid, c.id AS courseid, c.shortname AS curso
-      FROM mdl_user_enrolments ue
-      JOIN mdl_enrol e ON ue.enrolid = e.id
-      JOIN mdl_course c ON e.courseid = c.id
-      WHERE ue.userid IN (?)
-      `,
-      { replacements: [moodleUserIds] }
-    );
+  if (
+    moodleUserIds.length
+  ) {
+    const [
+      enrolRes,
+    ] =
+      await sequelizeM.query(
+        `
+        SELECT
+          ue.userid,
+          c.id AS courseid,
+          c.shortname AS curso
+        FROM mdl_user_enrolments ue
+        JOIN mdl_enrol e
+          ON ue.enrolid = e.id
+        JOIN mdl_course c
+          ON e.courseid = c.id
+        WHERE ue.userid IN (?)
+        `,
+        {
+          replacements: [
+            moodleUserIds,
+          ],
+        }
+      );
 
-    enrolRes.forEach((e) => {
-      const uid = String(e.userid);
-      const cursoKey = String(e.curso || "").toLowerCase();
+    enrolRes.forEach(
+      (e) => {
+        const uid =
+          String(
+            e.userid
+          );
 
-      if (!enrolMap[uid]) enrolMap[uid] = {};
-      enrolMap[uid][cursoKey] = { courseid: e.courseid };
-    });
-  }
+        const cursoKey =
+          String(
+            e.curso ||
+            ""
+          ).toLowerCase();
 
-  // =========================
-  // NOTAS FINALES MOODLE
-  // =========================
+        if (
+          !enrolMap[uid]
+        ) {
+          enrolMap[
+            uid
+          ] = {};
+        }
 
-  let userCourseGradesMap = {};
-
-  if (moodleUserIds.length) {
-    const [finalGradesRes] = await sequelizeM.query(
-      `
-      SELECT gg.userid, gi.courseid, gg.finalgrade
-      FROM mdl_grade_grades gg
-      JOIN mdl_grade_items gi ON gg.itemid = gi.id
-      WHERE gg.userid IN (?)
-        AND gi.itemtype = 'course'
-      `,
-      { replacements: [moodleUserIds] }
-    );
-
-    finalGradesRes.forEach(({ userid, courseid, finalgrade }) => {
-      const uid = String(userid);
-      const cid = String(courseid);
-
-      if (!userCourseGradesMap[uid]) userCourseGradesMap[uid] = {};
-      if (!userCourseGradesMap[uid][cid]) userCourseGradesMap[uid][cid] = {};
-
-      userCourseGradesMap[uid][cid]["Nota Final"] =
-        finalgrade !== null && finalgrade !== undefined
-          ? Number(finalgrade).toFixed(2)
-          : null;
-    });
-  }
-
-  // =========================
-  // TIEMPO DE ACTIVIDAD EN CURSO MOODLE
-  // =========================
-
-  let userCourseTimeMap = {};
-
-  if (moodleUserIds.length) {
-    const [activityRes] = await sequelizeM.query(
-      `
-      SELECT 
-        userid,
-        courseid,
-        timecreated
-      FROM mdl_logstore_standard_log
-      WHERE userid IN (?)
-        AND courseid IS NOT NULL
-        AND courseid > 1
-      ORDER BY userid, courseid, timecreated
-      `,
-      { replacements: [moodleUserIds] }
-    );
-
-    const SESSION_LIMIT_SECONDS = 30 * 60;
-
-    activityRes.forEach((row) => {
-      const uid = String(row.userid);
-      const cid = String(row.courseid);
-
-      if (!userCourseTimeMap[uid]) userCourseTimeMap[uid] = {};
-      if (!userCourseTimeMap[uid][cid]) {
-        userCourseTimeMap[uid][cid] = {
-          totalSeconds: 0,
-          lastTime: null,
+        enrolMap[
+          uid
+        ][cursoKey] = {
+          courseid:
+            e.courseid,
         };
       }
+    );
+  }
 
-      const currentTime = Number(row.timecreated);
-      const lastTime = userCourseTimeMap[uid][cid].lastTime;
+  /* =========================================================
+     NOTAS FINALES MOODLE
+  ========================================================= */
 
-      if (lastTime) {
-        const diff = currentTime - lastTime;
+  let userCourseGradesMap =
+    {};
 
-        if (diff > 0 && diff <= SESSION_LIMIT_SECONDS) {
-          userCourseTimeMap[uid][cid].totalSeconds += diff;
+  if (
+    moodleUserIds.length
+  ) {
+    const [
+      finalGradesRes,
+    ] =
+      await sequelizeM.query(
+        `
+        SELECT
+          gg.userid,
+          gi.courseid,
+          gg.finalgrade
+        FROM mdl_grade_grades gg
+        JOIN mdl_grade_items gi
+          ON gg.itemid = gi.id
+        WHERE gg.userid IN (?)
+          AND gi.itemtype = 'course'
+        `,
+        {
+          replacements: [
+            moodleUserIds,
+          ],
         }
+      );
+
+    finalGradesRes.forEach(
+      ({
+        userid,
+        courseid,
+        finalgrade,
+      }) => {
+        const uid =
+          String(
+            userid
+          );
+
+        const cid =
+          String(
+            courseid
+          );
+
+        if (
+          !userCourseGradesMap[
+          uid
+          ]
+        ) {
+          userCourseGradesMap[
+            uid
+          ] = {};
+        }
+
+        if (
+          !userCourseGradesMap[
+          uid
+          ][cid]
+        ) {
+          userCourseGradesMap[
+            uid
+          ][cid] = {};
+        }
+
+        userCourseGradesMap[
+          uid
+        ][cid][
+          "Nota Final"
+        ] =
+          finalgrade !==
+            null &&
+            finalgrade !==
+            undefined
+            ? Number(
+              finalgrade
+            ).toFixed(
+              2
+            )
+            : null;
       }
+    );
+  }
 
-      userCourseTimeMap[uid][cid].lastTime = currentTime;
+  /* =========================================================
+     TIEMPO DE ACTIVIDAD EN CURSO MOODLE
+  ========================================================= */
+
+  let userCourseTimeMap =
+    {};
+
+  if (
+    moodleUserIds.length
+  ) {
+    const [
+      activityRes,
+    ] =
+      await sequelizeM.query(
+        `
+        SELECT
+          userid,
+          courseid,
+          timecreated
+        FROM mdl_logstore_standard_log
+        WHERE userid IN (?)
+          AND courseid IS NOT NULL
+          AND courseid > 1
+        ORDER BY
+          userid,
+          courseid,
+          timecreated
+        `,
+        {
+          replacements: [
+            moodleUserIds,
+          ],
+        }
+      );
+
+    const SESSION_LIMIT_SECONDS =
+      30 * 60;
+
+    activityRes.forEach(
+      (row) => {
+        const uid =
+          String(
+            row.userid
+          );
+
+        const cid =
+          String(
+            row.courseid
+          );
+
+        if (
+          !userCourseTimeMap[
+          uid
+          ]
+        ) {
+          userCourseTimeMap[
+            uid
+          ] = {};
+        }
+
+        if (
+          !userCourseTimeMap[
+          uid
+          ][cid]
+        ) {
+          userCourseTimeMap[
+            uid
+          ][cid] = {
+            totalSeconds:
+              0,
+
+            lastTime:
+              null,
+          };
+        }
+
+        const currentTime =
+          Number(
+            row.timecreated
+          );
+
+        const lastTime =
+          userCourseTimeMap[
+            uid
+          ][cid].lastTime;
+
+        if (lastTime) {
+          const diff =
+            currentTime -
+            lastTime;
+
+          if (
+            diff > 0 &&
+            diff <=
+            SESSION_LIMIT_SECONDS
+          ) {
+            userCourseTimeMap[
+              uid
+            ][
+              cid
+            ].totalSeconds +=
+              diff;
+          }
+        }
+
+        userCourseTimeMap[
+          uid
+        ][cid].lastTime =
+          currentTime;
+      }
+    );
+  }
+
+  /* =========================================================
+     TIEMPO ZOOM
+  ========================================================= */
+
+  let userCourseZoomTimeMap =
+    {};
+
+  if (
+    moodleUserIds.length
+  ) {
+    const [
+      zoomRes,
+    ] =
+      await sequelizeM.query(
+        `
+        SELECT
+          zmp.userid,
+          z.course AS courseid,
+          SUM(
+            COALESCE(
+              zmp.duration,
+              0
+            )
+          ) AS total_minutes
+        FROM mdl_zoom_meeting_participants zmp
+        JOIN mdl_zoom_meeting_details zmd
+          ON zmp.detailsid = zmd.id
+        JOIN mdl_zoom z
+          ON zmd.zoomid = z.id
+        WHERE zmp.userid IN (?)
+        GROUP BY
+          zmp.userid,
+          z.course
+        `,
+        {
+          replacements: [
+            moodleUserIds,
+          ],
+        }
+      );
+
+    zoomRes.forEach(
+      (row) => {
+        const uid =
+          String(
+            row.userid
+          );
+
+        const cid =
+          String(
+            row.courseid
+          );
+
+        if (
+          !userCourseZoomTimeMap[
+          uid
+          ]
+        ) {
+          userCourseZoomTimeMap[
+            uid
+          ] = {};
+        }
+
+        userCourseZoomTimeMap[
+          uid
+        ][cid] = {
+          totalMinutes:
+            Number(
+              row.total_minutes ||
+              0
+            ),
+        };
+      }
+    );
+  }
+
+  /* =========================================================
+     CERTIFICADOS
+  ========================================================= */
+
+  const certificados =
+    await Certificado.findAll({
+      attributes: [
+        "id",
+        "inscripcionId",
+        "url",
+        "tipo",
+      ],
+
+      raw: true,
     });
-  }
 
-  // =========================
-  // TIEMPO DE ZOOM POR CURSO MOODLE
-  // =========================
+  /* =========================================================
+     MAPEAR RESULTADOS
+  ========================================================= */
 
-  let userCourseZoomTimeMap = {};
+  results =
+    results.map(
+      (pago) => {
+        const inscripcion =
+          pago.inscripcion;
 
-  if (moodleUserIds.length) {
-    const [zoomRes] = await sequelizeM.query(
-      `
-      SELECT 
-        zmp.userid,
-        z.course AS courseid,
-        SUM(COALESCE(zmp.duration, 0)) AS total_minutes
-      FROM mdl_zoom_meeting_participants zmp
-      JOIN mdl_zoom_meeting_details zmd ON zmp.detailsid = zmd.id
-      JOIN mdl_zoom z ON zmd.zoomid = z.id
-      WHERE zmp.userid IN (?)
-      GROUP BY zmp.userid, z.course
-      `,
-      { replacements: [moodleUserIds] }
+        const user =
+          inscripcion.user;
+
+        const emailKey =
+          String(
+            user.email ||
+            ""
+          ).toLowerCase();
+
+        const moodleUser =
+          moodleUserMap[
+          emailKey
+          ];
+
+        const cursoKey =
+          String(
+            inscripcion.curso ||
+            pago.curso ||
+            ""
+          ).toLowerCase();
+
+        /* =====================================================
+           MATRICULACIÓN MOODLE
+        ===================================================== */
+
+        const enrolData =
+          moodleUser &&
+            enrolMap[
+            String(
+              moodleUser.id
+            )
+            ]?.[cursoKey]
+            ? enrolMap[
+            String(
+              moodleUser.id
+            )
+            ][cursoKey]
+            : null;
+
+        /* =====================================================
+           NOTA FINAL
+        ===================================================== */
+
+        const gradesObj =
+          enrolData &&
+            userCourseGradesMap[
+            String(
+              moodleUser?.id
+            )
+            ]
+            ? userCourseGradesMap[
+            String(
+              moodleUser.id
+            )
+            ][
+            String(
+              enrolData.courseid
+            )
+            ] ||
+            {}
+            : {};
+
+        const notaFinal =
+          gradesObj[
+          "Nota Final"
+          ] || null;
+
+        /* =====================================================
+           TIEMPO ACTIVIDAD
+        ===================================================== */
+
+        const activityData =
+          enrolData &&
+            userCourseTimeMap[
+            String(
+              moodleUser?.id
+            )
+            ]
+            ? userCourseTimeMap[
+            String(
+              moodleUser.id
+            )
+            ][
+            String(
+              enrolData.courseid
+            )
+            ]
+            : null;
+
+        const tiempoActividadSegundos =
+          Number(
+            activityData
+              ?.totalSeconds ||
+            0
+          );
+
+        const actividadHoras =
+          Math.floor(
+            tiempoActividadSegundos /
+            3600
+          );
+
+        const actividadMinutos =
+          Math.floor(
+            (
+              tiempoActividadSegundos %
+              3600
+            ) / 60
+          );
+
+        const actividadSegundos =
+          tiempoActividadSegundos %
+          60;
+
+        const tiempoActividadMinutos =
+          Math.floor(
+            tiempoActividadSegundos /
+            60
+          );
+
+        const tiempoActividadCurso =
+          `${String(
+            actividadHoras
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            actividadMinutos
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            actividadSegundos
+          ).padStart(
+            2,
+            "0"
+          )}`;
+
+        /* =====================================================
+           ZOOM
+        ===================================================== */
+
+        const zoomData =
+          enrolData &&
+            userCourseZoomTimeMap[
+            String(
+              moodleUser?.id
+            )
+            ]
+            ? userCourseZoomTimeMap[
+            String(
+              moodleUser.id
+            )
+            ][
+            String(
+              enrolData.courseid
+            )
+            ]
+            : null;
+
+        /*
+         * Mantengo tu lógica actual:
+         * el valor se usa como segundos.
+         */
+        const tiempoZoomSegundos =
+          Number(
+            zoomData
+              ?.totalMinutes ||
+            0
+          );
+
+        const zoomHoras =
+          Math.floor(
+            tiempoZoomSegundos /
+            3600
+          );
+
+        const zoomMinutos =
+          Math.floor(
+            (
+              tiempoZoomSegundos %
+              3600
+            ) / 60
+          );
+
+        const zoomSegundos =
+          tiempoZoomSegundos %
+          60;
+
+        const tiempoZoomMinutos =
+          Math.floor(
+            tiempoZoomSegundos /
+            60
+          );
+
+        const tiempoZoomCurso =
+          `${String(
+            zoomHoras
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            zoomMinutos
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            zoomSegundos
+          ).padStart(
+            2,
+            "0"
+          )}`;
+
+        /* =====================================================
+           TOTAL
+        ===================================================== */
+
+        const tiempoTotalSegundos =
+          tiempoActividadSegundos +
+          tiempoZoomSegundos;
+
+        const tiempoTotalMinutos =
+          Math.floor(
+            tiempoTotalSegundos /
+            60
+          );
+
+        const totalHoras =
+          Math.floor(
+            tiempoTotalSegundos /
+            3600
+          );
+
+        const totalMinutos =
+          Math.floor(
+            (
+              tiempoTotalSegundos %
+              3600
+            ) / 60
+          );
+
+        const totalSegundos =
+          tiempoTotalSegundos %
+          60;
+
+        const tiempoTotalCurso =
+          `${String(
+            totalHoras
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            totalMinutos
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            totalSegundos
+          ).padStart(
+            2,
+            "0"
+          )}`;
+
+        /* =====================================================
+           CERTIFICADOS
+        ===================================================== */
+
+        const certEmp =
+          pago.cert_emp ===
+            true ||
+            pago.cert_emp ===
+            "true"
+            ? certificados.find(
+              (c) =>
+                c.inscripcionId ===
+                inscripcion.id &&
+                c.tipo ===
+                "cert_emp"
+            ) ||
+            null
+            : null;
+
+        const certMdt =
+          pago.cert_mdt ===
+            true ||
+            pago.cert_mdt ===
+            "true"
+            ? certificados.find(
+              (c) =>
+                c.inscripcionId ===
+                inscripcion.id &&
+                c.tipo ===
+                "cert_mdt"
+            ) ||
+            null
+            : null;
+
+        const certInt =
+          pago.cert_int ===
+            true ||
+            pago.cert_int ===
+            "true"
+            ? certificados.find(
+              (c) =>
+                c.inscripcionId ===
+                inscripcion.id &&
+                c.tipo ===
+                "cert_int"
+            ) ||
+            null
+            : null;
+
+        /* =====================================================
+           RESULTADO PSICOMÉTRICO
+        ===================================================== */
+
+        const psychometricEvaluation =
+          pago
+            .psychometricEvaluationId
+            ? psychometricEvaluationMap.get(
+              String(
+                pago
+                  .psychometricEvaluationId
+              )
+            ) ||
+            null
+            : null;
+
+        /*
+         * Consideramos que ya fue generado cuando:
+         *
+         * - resultadoGeneradoAt tiene fecha
+         * O
+         * - resultadoEmailEnviado es true
+         *
+         * resultadoLiberado también lo devolvemos
+         * para información adicional.
+         */
+        const resultadoGenerado =
+          Boolean(
+            psychometricEvaluation
+              ?.resultadoGeneradoAt
+          ) ||
+          Boolean(
+            psychometricEvaluation
+              ?.resultadoEmailEnviado
+          );
+
+        /* =====================================================
+           RESPUESTA
+        ===================================================== */
+
+        return {
+          ...pago.toJSON(),
+
+          /* ===========================
+             MOODLE
+          =========================== */
+
+          notaFinal,
+
+          tiempoActividadSegundos,
+          tiempoActividadMinutos,
+          tiempoActividadCurso,
+
+          tiempoZoomMinutos,
+          tiempoZoomCurso,
+
+          tiempoTotalMinutos,
+          tiempoTotalCurso,
+
+          /* ===========================
+             CERTIFICADOS
+          =========================== */
+
+          certificadoEmp:
+            !!certEmp,
+
+          certificadoMdt:
+            !!certMdt,
+
+          certificadoInt:
+            !!certInt,
+
+          urlCertificadoEmp:
+            certEmp
+              ? certEmp.url
+              : null,
+
+          urlCertificadoMdt:
+            certMdt
+              ? certMdt.url
+              : null,
+
+          urlCertificadoInt:
+            certInt
+              ? certInt.url
+              : null,
+
+          /* ===========================
+             RESULTADO PSICOMÉTRICO
+          =========================== */
+
+          resultadoPsicometrico:
+            psychometricEvaluation
+              ? {
+                evaluationId:
+                  psychometricEvaluation.id,
+
+                numeroEvaluacion:
+                  psychometricEvaluation
+                    .numeroEvaluacion,
+
+                estado:
+                  psychometricEvaluation
+                    .estado,
+
+                personalityId:
+                  psychometricEvaluation
+                    .personalityId,
+
+                fechaFinalizacion:
+                  psychometricEvaluation
+                    .fechaFinalizacion,
+
+                resultadoLiberado:
+                  Boolean(
+                    psychometricEvaluation
+                      .resultadoLiberado
+                  ),
+
+                resultadoGenerado,
+
+                resultadoGeneradoAt:
+                  psychometricEvaluation
+                    .resultadoGeneradoAt ||
+                  null,
+
+                resultadoEmailEnviado:
+                  Boolean(
+                    psychometricEvaluation
+                      .resultadoEmailEnviado
+                  ),
+
+                resultadoEmailEnviadoAt:
+                  psychometricEvaluation
+                    .resultadoEmailEnviadoAt ||
+                  null,
+
+                resultadoEmailEnvios:
+                  Number(
+                    psychometricEvaluation
+                      .resultadoEmailEnvios ||
+                    0
+                  ),
+
+                resultadoInformeUrl:
+                  psychometricEvaluation
+                    .resultadoInformeUrl ||
+                  null,
+              }
+              : null,
+        };
+      }
     );
 
-    zoomRes.forEach((row) => {
-      const uid = String(row.userid);
-      const cid = String(row.courseid);
+  /* =========================================================
+     FILTRO CERTIFICADOS
+  ========================================================= */
 
-      if (!userCourseZoomTimeMap[uid]) userCourseZoomTimeMap[uid] = {};
-
-      userCourseZoomTimeMap[uid][cid] = {
-        totalMinutes: Number(row.total_minutes || 0),
-      };
-    });
+  if (
+    certificado ===
+    "true"
+  ) {
+    results =
+      results.filter(
+        (p) =>
+          p.certificadoEmp ||
+          p.certificadoMdt ||
+          p.certificadoInt
+      );
   }
 
-  // =========================
-  // CERTIFICADOS
-  // =========================
-
-  const certificados = await Certificado.findAll({
-    attributes: ["id", "inscripcionId", "url", "tipo"],
-    raw: true,
-  });
-
-  // =========================
-  // MAPEAR RESULTADOS
-  // =========================
-
-  results = results.map((pago) => {
-    const inscripcion = pago.inscripcion;
-    const user = inscripcion.user;
-
-    const emailKey = String(user.email || "").toLowerCase();
-    const moodleUser = moodleUserMap[emailKey];
-
-    const cursoKey = String(inscripcion.curso || pago.curso || "").toLowerCase();
-
-    const enrolData =
-      moodleUser && enrolMap[String(moodleUser.id)]?.[cursoKey]
-        ? enrolMap[String(moodleUser.id)][cursoKey]
-        : null;
-
-    const gradesObj =
-      enrolData && userCourseGradesMap[String(moodleUser?.id)]
-        ? userCourseGradesMap[String(moodleUser.id)][String(enrolData.courseid)] || {}
-        : {};
-
-    const notaFinal = gradesObj["Nota Final"] || null;
-
-    const activityData =
-      enrolData && userCourseTimeMap[String(moodleUser?.id)]
-        ? userCourseTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
-        : null;
-
-    const tiempoActividadSegundos = Number(activityData?.totalSeconds || 0);
-
-    const actividadHoras = Math.floor(tiempoActividadSegundos / 3600);
-    const actividadMinutos = Math.floor((tiempoActividadSegundos % 3600) / 60);
-    const actividadSegundos = tiempoActividadSegundos % 60;
-
-    const tiempoActividadMinutos = Math.floor(tiempoActividadSegundos / 60);
-
-    const tiempoActividadCurso = `${String(actividadHoras).padStart(2, "0")}:${String(
-      actividadMinutos
-    ).padStart(2, "0")}:${String(actividadSegundos).padStart(2, "0")}`;
-
-
-
-
-    const zoomData =
-      enrolData && userCourseZoomTimeMap[String(moodleUser?.id)]
-        ? userCourseZoomTimeMap[String(moodleUser.id)][String(enrolData.courseid)]
-        : null;
-
-    // ======================
-    // ZOOM (Zoom entrega SEGUNDOS)
-    // ======================
-    const tiempoZoomSegundos = Number(zoomData?.totalMinutes || 0);
-
-    const zoomHoras = Math.floor(tiempoZoomSegundos / 3600);
-    const zoomMinutos = Math.floor((tiempoZoomSegundos % 3600) / 60);
-    const zoomSegundos = tiempoZoomSegundos % 60;
-
-    const tiempoZoomMinutos = Math.floor(tiempoZoomSegundos / 60);
-
-    const tiempoZoomCurso = `${String(zoomHoras).padStart(2, "0")}:${String(
-      zoomMinutos
-    ).padStart(2, "0")}:${String(zoomSegundos).padStart(2, "0")}`;
-
-    // ======================
-    // TOTAL
-    // ======================
-    const tiempoTotalSegundos =
-      tiempoActividadSegundos + tiempoZoomSegundos;
-
-    const tiempoTotalMinutos = Math.floor(tiempoTotalSegundos / 60);
-
-    const totalHoras = Math.floor(tiempoTotalSegundos / 3600);
-    const totalMinutos = Math.floor((tiempoTotalSegundos % 3600) / 60);
-    const totalSegundos = tiempoTotalSegundos % 60;
-
-    const tiempoTotalCurso = `${String(totalHoras).padStart(2, "0")}:${String(
-      totalMinutos
-    ).padStart(2, "0")}:${String(totalSegundos).padStart(2, "0")}`;
-
-    const certEmp =
-      pago.cert_emp === true || pago.cert_emp === "true"
-        ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_emp"
-        ) || null
-        : null;
-
-    const certMdt =
-      pago.cert_mdt === true || pago.cert_mdt === "true"
-        ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_mdt"
-        ) || null
-        : null;
-
-    const certInt =
-      pago.cert_int === true || pago.cert_int === "true"
-        ? certificados.find(
-          (c) =>
-            c.inscripcionId === inscripcion.id &&
-            c.tipo === "cert_int"
-        ) || null
-        : null;
-
-    return {
-      ...pago.toJSON(),
-
-      notaFinal,
-
-      tiempoActividadSegundos,
-      tiempoActividadMinutos,
-      tiempoActividadCurso,
-
-      tiempoZoomMinutos,
-      tiempoZoomCurso,
-
-      tiempoTotalMinutos,
-      tiempoTotalCurso,
-
-      certificadoEmp: !!certEmp,
-      certificadoMdt: !!certMdt,
-      certificadoInt: !!certInt,
-
-      urlCertificadoEmp: certEmp ? certEmp.url : null,
-      urlCertificadoMdt: certMdt ? certMdt.url : null,
-      urlCertificadoInt: certInt ? certInt.url : null,
-    };
-  });
-
-  if (certificado === "true") {
-    results = results.filter(
-      (p) => p.certificadoEmp || p.certificadoMdt || p.certificadoInt
-    );
+  if (
+    certificado ===
+    "false"
+  ) {
+    results =
+      results.filter(
+        (p) =>
+          !p.certificadoEmp &&
+          !p.certificadoMdt &&
+          !p.certificadoInt
+      );
   }
 
-  if (certificado === "false") {
-    results = results.filter(
-      (p) => !p.certificadoEmp && !p.certificadoMdt && !p.certificadoInt
-    );
-  }
+  /* =========================================================
+     RESPUESTA
+  ========================================================= */
 
-  return res.json(results);
+  return res.json(
+    results
+  );
 });
 
 

@@ -4,6 +4,9 @@ const {
   rgb,
 } = require("pdf-lib");
 
+const fs = require("fs");
+const path = require("path");
+
 const PsychometricEvaluation = require(
   "../models/PsychometricEvaluation"
 );
@@ -25,20 +28,62 @@ const Course = require(
 );
 
 /* =========================================================
-   CONSTANTES VISUALES
+   DOCUMENTO
+========================================================= */
+
+const PAGE_WIDTH = 595.28;
+const PAGE_HEIGHT = 841.89;
+
+const MARGIN = 42;
+
+/* =========================================================
+   MARCA
+========================================================= */
+
+const BRAND = {
+  logoUrl:
+    "https://idrmind.com/images/test_logo.png",
+
+  website:
+    "www.idrmind.com",
+
+  city:
+    "Quito, Ecuador",
+
+  email:
+    "idrmind@gmail.com",
+
+  phone:
+    "097 900 2223 / 096 279 9793",
+};
+
+/* =========================================================
+   COLORES
 ========================================================= */
 
 const COLORS = {
   navy: rgb(
-    7 / 255,
-    27 / 255,
-    63 / 255
+    8 / 255,
+    34 / 255,
+    76 / 255
   ),
 
   blue: rgb(
-    23 / 255,
-    58 / 255,
-    138 / 255
+    30 / 255,
+    83 / 255,
+    157 / 255
+  ),
+
+  blueLight: rgb(
+    64 / 255,
+    170 / 255,
+    222 / 255
+  ),
+
+  blueSoft: rgb(
+    238 / 255,
+    244 / 255,
+    252 / 255
   ),
 
   cyan: rgb(
@@ -48,40 +93,116 @@ const COLORS = {
   ),
 
   text: rgb(
-    16 / 255,
-    24 / 255,
-    40 / 255
+    22 / 255,
+    29 / 255,
+    42 / 255
+  ),
+
+  textSoft: rgb(
+    63 / 255,
+    72 / 255,
+    88 / 255
   ),
 
   muted: rgb(
-    102 / 255,
-    112 / 255,
-    133 / 255
+    105 / 255,
+    115 / 255,
+    132 / 255
   ),
 
   border: rgb(
-    218 / 255,
+    220 / 255,
     225 / 255,
-    235 / 255
+    232 / 255
   ),
 
   soft: rgb(
-    245 / 255,
-    247 / 255,
-    251 / 255
+    248 / 255,
+    250 / 255,
+    252 / 255
   ),
 
-  white: rgb(1, 1, 1),
+  white: rgb(
+    1,
+    1,
+    1
+  ),
 
-  success: rgb(
-    18 / 255,
-    183 / 255,
-    106 / 255
+  grayShape: rgb(
+    215 / 255,
+    218 / 255,
+    223 / 255
+  ),
+
+  green: rgb(
+    12 / 255,
+    133 / 255,
+    78 / 255
+  ),
+
+  yellow: rgb(
+    244 / 255,
+    196 / 255,
+    0 / 255
+  ),
+
+  red: rgb(
+    215 / 255,
+    58 / 255,
+    48 / 255
   ),
 };
 
 /* =========================================================
-   HELPERS
+   REPARAR MOJIBAKE
+========================================================= */
+
+const repairMojibake = (
+  value
+) => {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return "";
+  }
+
+  let text =
+    String(value);
+
+  if (
+    /Ã.|Â.|â.|ðŸ/.test(
+      text
+    )
+  ) {
+    try {
+      const repaired =
+        Buffer.from(
+          text,
+          "latin1"
+        ).toString(
+          "utf8"
+        );
+
+      if (
+        repaired &&
+        !repaired.includes(
+          "\uFFFD"
+        )
+      ) {
+        text =
+          repaired;
+      }
+    } catch {
+      // Mantener original
+    }
+  }
+
+  return text;
+};
+
+/* =========================================================
+   NORMALIZAR TEXTO
 ========================================================= */
 
 const normalizeText = (
@@ -96,45 +217,116 @@ const normalizeText = (
     return fallback;
   }
 
-  return String(value).trim();
+  return repairMojibake(
+    value
+  )
+    .normalize("NFC")
+    .replace(
+      /\uFFFD/g,
+      ""
+    )
+    .replace(
+      /[“”]/g,
+      '"'
+    )
+    .replace(
+      /[‘’]/g,
+      "'"
+    )
+    .replace(
+      /[–—]/g,
+      "-"
+    )
+    .replace(
+      /\u00A0/g,
+      " "
+    )
+    .replace(
+      /[•●▪]/g,
+      "-"
+    )
+    .replace(
+      /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,
+      ""
+    )
+    .trim();
 };
 
-const formatDate = (value) => {
+const prettyText = (
+  value,
+  fallback = "-"
+) => {
+  return normalizeText(
+    value,
+    fallback
+  )
+    .replace(
+      /_/g,
+      " "
+    )
+    .trim();
+};
+
+/* =========================================================
+   FECHA
+========================================================= */
+
+const formatDate = (
+  value
+) => {
   if (!value) {
     return "-";
   }
 
-  return new Intl.DateTimeFormat(
-    "es-EC",
-    {
-      timeZone:
-        "America/Guayaquil",
+  try {
+    return new Intl.DateTimeFormat(
+      "es-EC",
+      {
+        timeZone:
+          "America/Guayaquil",
 
-      year: "numeric",
-      month: "long",
-      day: "2-digit",
-    }
-  ).format(
-    new Date(value)
-  );
+        day:
+          "2-digit",
+
+        month:
+          "long",
+
+        year:
+          "numeric",
+      }
+    ).format(
+      new Date(value)
+    );
+  } catch {
+    return "-";
+  }
 };
+
+/* =========================================================
+   PORCENTAJE
+========================================================= */
 
 const formatPercent = (
   value
 ) => {
-  const number = Number(value);
+  const number =
+    Number(value);
 
   if (
-    !Number.isFinite(number)
+    !Number.isFinite(
+      number
+    )
   ) {
     return "0%";
   }
 
-  return `${number.toFixed(1)}%`;
+  return `${Math.round(
+    number
+  )}%`;
 };
 
 /* =========================================================
-   AJUSTAR TEXTO A ANCHO
+   WRAP TEXTO
 ========================================================= */
 
 const wrapText = ({
@@ -143,45 +335,68 @@ const wrapText = ({
   fontSize,
   maxWidth,
 }) => {
-  const words = normalizeText(
-    text,
-    ""
-  ).split(/\s+/);
+  const safe =
+    normalizeText(
+      text,
+      ""
+    );
+
+  if (!safe) {
+    return [];
+  }
+
+  const words =
+    safe.split(
+      /\s+/
+    );
 
   const lines = [];
 
-  let currentLine = "";
+  let current = "";
 
-  for (const word of words) {
-    const testLine =
-      currentLine
-        ? `${currentLine} ${word}`
+  for (
+    const word of
+    words
+  ) {
+    const candidate =
+      current
+        ? `${current} ${word}`
         : word;
 
-    const width =
-      font.widthOfTextAtSize(
-        testLine,
-        fontSize
-      );
+    let width;
+
+    try {
+      width =
+        font.widthOfTextAtSize(
+          candidate,
+          fontSize
+        );
+    } catch {
+      continue;
+    }
 
     if (
-      width <= maxWidth
+      width <=
+      maxWidth
     ) {
-      currentLine =
-        testLine;
+      current =
+        candidate;
     } else {
-      if (currentLine) {
+      if (current) {
         lines.push(
-          currentLine
+          current
         );
       }
 
-      currentLine = word;
+      current =
+        word;
     }
   }
 
-  if (currentLine) {
-    lines.push(currentLine);
+  if (current) {
+    lines.push(
+      current
+    );
   }
 
   return lines;
@@ -199,26 +414,62 @@ const drawWrappedText = ({
   maxWidth,
   font,
   size = 10,
-  color = COLORS.text,
   lineHeight = 14,
+  color = COLORS.text,
+  maxLines = null,
 }) => {
-  const lines = wrapText({
-    text,
-    font,
-    fontSize: size,
-    maxWidth,
-  });
-
-  let currentY = y;
-
-  for (const line of lines) {
-    page.drawText(line, {
-      x,
-      y: currentY,
-      size,
+  let lines =
+    wrapText({
+      text,
       font,
-      color,
+      fontSize:
+        size,
+      maxWidth,
     });
+
+  if (
+    maxLines &&
+    lines.length >
+      maxLines
+  ) {
+    lines =
+      lines.slice(
+        0,
+        maxLines
+      );
+
+    if (
+      lines.length
+    ) {
+      lines[
+        lines.length -
+          1
+      ] += "...";
+    }
+  }
+
+  let currentY =
+    y;
+
+  for (
+    const line of
+    lines
+  ) {
+    page.drawText(
+      normalizeText(
+        line,
+        ""
+      ),
+      {
+        x,
+        y:
+          currentY,
+
+        font,
+        size,
+        color,
+      }
+    );
 
     currentY -=
       lineHeight;
@@ -228,133 +479,1033 @@ const drawWrappedText = ({
 };
 
 /* =========================================================
-   ENCABEZADO INTERNO
+   CENTRAR TEXTO
 ========================================================= */
 
-const drawHeader = ({
+const drawCenteredText = ({
   page,
-  title,
-  subtitle,
-  boldFont,
-  regularFont,
+  text,
+  y,
+  font,
+  size,
+  color = COLORS.text,
 }) => {
-  const {
-    width,
-    height,
-  } = page.getSize();
-
-  page.drawRectangle({
-    x: 0,
-    y: height - 84,
-    width,
-    height: 84,
-    color: COLORS.navy,
-  });
-
-  page.drawRectangle({
-    x: 0,
-    y: height - 88,
-    width,
-    height: 4,
-    color: COLORS.cyan,
-  });
-
-  page.drawText(
-    "PROYECTO PENSAR",
-    {
-      x: 42,
-      y: height - 38,
-      font: boldFont,
-      size: 10,
-      color: COLORS.cyan,
-    }
-  );
-
-  page.drawText(
-    title,
-    {
-      x: 42,
-      y: height - 60,
-      font: boldFont,
-      size: 18,
-      color: COLORS.white,
-    }
-  );
-
-  if (subtitle) {
-    page.drawText(
-      subtitle,
-      {
-        x: 42,
-        y: height - 76,
-        font: regularFont,
-        size: 8,
-        color: rgb(
-          210 / 255,
-          222 / 255,
-          240 / 255
-        ),
-      }
+  const safe =
+    normalizeText(
+      text,
+      ""
     );
-  }
+
+  const width =
+    font.widthOfTextAtSize(
+      safe,
+      size
+    );
+
+  page.drawText(
+    safe,
+    {
+      x:
+        (
+          PAGE_WIDTH -
+          width
+        ) /
+        2,
+
+      y,
+
+      font,
+      size,
+      color,
+    }
+  );
 };
 
 /* =========================================================
-   PIE DE PÁGINA
+   TEXTO CENTRADO EN BLOQUE
+========================================================= */
+
+const drawCenteredWrappedText = ({
+  page,
+  text,
+  centerX,
+  y,
+  maxWidth,
+  font,
+  size,
+  lineHeight,
+  color,
+  maxLines,
+}) => {
+  let lines =
+    wrapText({
+      text,
+      font,
+      fontSize:
+        size,
+      maxWidth,
+    });
+
+  if (
+    maxLines &&
+    lines.length >
+      maxLines
+  ) {
+    lines =
+      lines.slice(
+        0,
+        maxLines
+      );
+  }
+
+  let currentY =
+    y;
+
+  for (
+    const line of
+    lines
+  ) {
+    const width =
+      font.widthOfTextAtSize(
+        line,
+        size
+      );
+
+    page.drawText(
+      line,
+      {
+        x:
+          centerX -
+          width / 2,
+
+        y:
+          currentY,
+
+        font,
+        size,
+        color,
+      }
+    );
+
+    currentY -=
+      lineHeight;
+  }
+
+  return currentY;
+};
+
+/* =========================================================
+   PIE
 ========================================================= */
 
 const drawFooter = ({
   page,
-  pageNumber,
+  number,
   regularFont,
 }) => {
-  const {
-    width,
-  } = page.getSize();
-
   page.drawLine({
     start: {
-      x: 42,
-      y: 35,
+      x:
+        MARGIN,
+
+      y: 32,
     },
 
     end: {
-      x: width - 42,
-      y: 35,
+      x:
+        PAGE_WIDTH -
+        MARGIN,
+
+      y: 32,
     },
 
-    thickness: 0.7,
-    color: COLORS.border,
+    thickness:
+      0.5,
+
+    color:
+      COLORS.border,
   });
 
   page.drawText(
     "iDr.Mind - Informe confidencial de resultados",
     {
-      x: 42,
-      y: 21,
-      size: 7.5,
-      font: regularFont,
-      color: COLORS.muted,
+      x:
+        MARGIN,
+
+      y: 18,
+
+      font:
+        regularFont,
+
+      size:
+        6.5,
+
+      color:
+        COLORS.muted,
     }
   );
 
   page.drawText(
-    `Página ${pageNumber}`,
+    `Página ${number}`,
     {
-      x: width - 82,
-      y: 21,
-      size: 7.5,
-      font: regularFont,
-      color: COLORS.muted,
+      x:
+        PAGE_WIDTH -
+        MARGIN -
+        38,
+
+      y: 18,
+
+      font:
+        regularFont,
+
+      size:
+        6.5,
+
+      color:
+        COLORS.muted,
     }
   );
 };
 
 /* =========================================================
-   TARJETA SIMPLE
+   RESOLVER UBICACIONES DE IMAGEN
 ========================================================= */
 
-const drawCard = ({
+const getImageCandidates = (
+  imageUrl
+) => {
+  if (!imageUrl) {
+    return [];
+  }
+
+  const raw =
+    String(
+      imageUrl
+    )
+      .trim()
+      .replace(
+        /\\/g,
+        "/"
+      );
+
+  const candidates =
+    [];
+
+  const addRemote = (
+    value
+  ) => {
+    if (
+      value &&
+      !candidates.some(
+        (c) =>
+          c.type ===
+            "remote" &&
+          c.value ===
+            value
+      )
+    ) {
+      candidates.push({
+        type:
+          "remote",
+
+        value,
+      });
+    }
+  };
+
+  const addLocal = (
+    value
+  ) => {
+    if (
+      value &&
+      !candidates.some(
+        (c) =>
+          c.type ===
+            "local" &&
+          c.value ===
+            value
+      )
+    ) {
+      candidates.push({
+        type:
+          "local",
+
+        value,
+      });
+    }
+  };
+
+  /* =====================================================
+     URL ABSOLUTA
+  ===================================================== */
+
+  if (
+    /^https?:\/\//i.test(
+      raw
+    )
+  ) {
+    addRemote(
+      raw
+    );
+
+    if (
+      raw.startsWith(
+        "http://"
+      )
+    ) {
+      addRemote(
+        raw.replace(
+          /^http:\/\//i,
+          "https://"
+        )
+      );
+    }
+
+    try {
+      const parsed =
+        new URL(raw);
+
+      const pathname =
+        decodeURIComponent(
+          parsed.pathname
+        );
+
+      addLocal(
+        path.resolve(
+          process.cwd(),
+          pathname.replace(
+            /^\/+/,
+            ""
+          )
+        )
+      );
+    } catch {
+      // ignore
+    }
+
+    return candidates;
+  }
+
+  /* =====================================================
+     RUTA LOCAL ABSOLUTA
+  ===================================================== */
+
+  if (
+    path.isAbsolute(
+      raw
+    )
+  ) {
+    addLocal(
+      raw
+    );
+  }
+
+  const relative =
+    raw.replace(
+      /^\/+/,
+      ""
+    );
+
+  /* =====================================================
+     BACK
+  ===================================================== */
+
+  addLocal(
+    path.resolve(
+      process.cwd(),
+      relative
+    )
+  );
+
+  addLocal(
+    path.resolve(
+      __dirname,
+      "..",
+      relative
+    )
+  );
+
+  addLocal(
+    path.resolve(
+      __dirname,
+      "..",
+      "..",
+      relative
+    )
+  );
+
+  /* =====================================================
+     FRONT
+  ===================================================== */
+
+  const FRONTEND_URL =
+    (
+      process.env
+        .FRONTEND_URL ||
+      "https://idrmind.com"
+    ).replace(
+      /\/+$/,
+      ""
+    );
+
+  addRemote(
+    `${FRONTEND_URL}/${relative}`
+  );
+
+  /* =====================================================
+     API
+  ===================================================== */
+
+  const API_PUBLIC_URL =
+    (
+      process.env
+        .API_PUBLIC_URL ||
+      process.env
+        .BACKEND_URL ||
+      "https://api.idrmind.com"
+    ).replace(
+      /\/+$/,
+      ""
+    );
+
+  addRemote(
+    `${API_PUBLIC_URL}/${relative}`
+  );
+
+  return candidates;
+};
+
+/* =========================================================
+   EMBEBER BYTES COMO PNG/JPG
+========================================================= */
+
+const embedImage = async ({
+  pdfDoc,
+  bytes,
+  source,
+  contentType = "",
+}) => {
+  const extension =
+    String(
+      source
+    ).toLowerCase();
+
+  const type =
+    String(
+      contentType
+    ).toLowerCase();
+
+  if (
+    type.includes(
+      "png"
+    ) ||
+    extension.endsWith(
+      ".png"
+    )
+  ) {
+    try {
+      return await pdfDoc.embedPng(
+        bytes
+      );
+    } catch {
+      // continúa
+    }
+  }
+
+  if (
+    type.includes(
+      "jpeg"
+    ) ||
+    type.includes(
+      "jpg"
+    ) ||
+    extension.endsWith(
+      ".jpg"
+    ) ||
+    extension.endsWith(
+      ".jpeg"
+    )
+  ) {
+    try {
+      return await pdfDoc.embedJpg(
+        bytes
+      );
+    } catch {
+      // continúa
+    }
+  }
+
+  try {
+    return await pdfDoc.embedPng(
+      bytes
+    );
+  } catch {
+    // continúa
+  }
+
+  try {
+    return await pdfDoc.embedJpg(
+      bytes
+    );
+  } catch {
+    return null;
+  }
+};
+
+/* =========================================================
+   CARGAR IMAGEN
+========================================================= */
+
+const loadPdfImage =
+  async ({
+    pdfDoc,
+    imageUrl,
+    label =
+      "imagen",
+  }) => {
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      `🖼️ CARGANDO ${label.toUpperCase()}`
+    );
+
+    console.log(
+      "Origen:",
+      imageUrl
+    );
+
+    const candidates =
+      getImageCandidates(
+        imageUrl
+      );
+
+    if (
+      !candidates.length
+    ) {
+      console.log(
+        "❌ No hay candidatos."
+      );
+
+      console.log(
+        "======================================"
+      );
+
+      return null;
+    }
+
+    for (
+      const candidate of
+      candidates
+    ) {
+      console.log(
+        `🔎 ${candidate.type}:`,
+        candidate.value
+      );
+
+      try {
+        /* =================================================
+           LOCAL
+        ================================================= */
+
+        if (
+          candidate.type ===
+          "local"
+        ) {
+          if (
+            !fs.existsSync(
+              candidate.value
+            )
+          ) {
+            console.log(
+              "   ↳ no existe"
+            );
+
+            continue;
+          }
+
+          const bytes =
+            await fs.promises.readFile(
+              candidate.value
+            );
+
+          const image =
+            await embedImage({
+              pdfDoc,
+              bytes,
+
+              source:
+                candidate.value,
+            });
+
+          if (image) {
+            console.log(
+              `✅ ${label} cargada localmente`
+            );
+
+            console.log(
+              candidate.value
+            );
+
+            console.log(
+              "======================================"
+            );
+
+            return image;
+          }
+
+          continue;
+        }
+
+        /* =================================================
+           REMOTA
+        ================================================= */
+
+        const response =
+          await fetch(
+            candidate.value,
+            {
+              redirect:
+                "follow",
+
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 iDrMind-PDF",
+              },
+            }
+          );
+
+        console.log(
+          "   ↳ HTTP",
+          response.status
+        );
+
+        if (
+          !response.ok
+        ) {
+          continue;
+        }
+
+        const contentType =
+          response.headers.get(
+            "content-type"
+          ) || "";
+
+        console.log(
+          "   ↳",
+          contentType
+        );
+
+        if (
+          contentType.includes(
+            "text/html"
+          )
+        ) {
+          console.log(
+            "   ↳ descartado: devolvió HTML"
+          );
+
+          continue;
+        }
+
+        const bytes =
+          await response.arrayBuffer();
+
+        const image =
+          await embedImage({
+            pdfDoc,
+            bytes,
+
+            source:
+              candidate.value,
+
+            contentType,
+          });
+
+        if (image) {
+          console.log(
+            `✅ ${label} cargada remotamente`
+          );
+
+          console.log(
+            candidate.value
+          );
+
+          console.log(
+            "======================================"
+          );
+
+          return image;
+        }
+      } catch (
+        error
+      ) {
+        console.log(
+          "   ↳ ERROR:",
+          error.message
+        );
+      }
+    }
+
+    console.log(
+      `❌ No fue posible cargar ${label}`
+    );
+
+    console.log(
+      "======================================"
+    );
+
+    return null;
+  };
+
+/* =========================================================
+   IMAGEN CONTENIDA
+========================================================= */
+
+const drawContainedImage = ({
+  page,
+  image,
+  x,
+  y,
+  width,
+  height,
+  padding = 8,
+  background =
+    COLORS.white,
+}) => {
+  page.drawRectangle({
+    x,
+    y,
+    width,
+    height,
+
+    color:
+      background,
+  });
+
+  if (!image) {
+    page.drawRectangle({
+      x:
+        x +
+        padding,
+
+      y:
+        y +
+        padding,
+
+      width:
+        width -
+        padding * 2,
+
+      height:
+        height -
+        padding * 2,
+
+      color:
+        COLORS.soft,
+    });
+
+    return;
+  }
+
+  const scale =
+    Math.min(
+      (
+        width -
+        padding * 2
+      ) /
+        image.width,
+
+      (
+        height -
+        padding * 2
+      ) /
+        image.height
+    );
+
+  const finalWidth =
+    image.width *
+    scale;
+
+  const finalHeight =
+    image.height *
+    scale;
+
+  page.drawImage(
+    image,
+    {
+      x:
+        x +
+        (
+          width -
+          finalWidth
+        ) /
+          2,
+
+      y:
+        y +
+        (
+          height -
+          finalHeight
+        ) /
+          2,
+
+      width:
+        finalWidth,
+
+      height:
+        finalHeight,
+    }
+  );
+};
+
+/* =========================================================
+   HEADER CORPORATIVO
+========================================================= */
+
+const drawCorporateHeader = ({
+  page,
+  fullName,
+  logoImage,
+  boldFont,
+  regularFont,
+}) => {
+  /* =====================================================
+     LOGO
+  ===================================================== */
+
+  if (
+    logoImage
+  ) {
+    drawContainedImage({
+      page,
+
+      image:
+        logoImage,
+
+      x: 42,
+      y: 765,
+
+      width: 205,
+      height: 62,
+
+      padding: 0,
+    });
+  } else {
+    page.drawText(
+      "iDr.Mind",
+      {
+        x: 42,
+        y: 798,
+
+        size: 17,
+
+        font:
+          boldFont,
+
+        color:
+          COLORS.navy,
+      }
+    );
+  }
+
+  /* =====================================================
+     CONTACTO
+  ===================================================== */
+
+  const contactX =
+    335;
+
+  page.drawText(
+    BRAND.city,
+    {
+      x:
+        contactX,
+
+      y: 806,
+
+      size:
+        7.2,
+
+      font:
+        regularFont,
+
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.phone,
+    {
+      x:
+        contactX,
+
+      y: 791,
+
+      size:
+        7.2,
+
+      font:
+        regularFont,
+
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.email,
+    {
+      x:
+        contactX,
+
+      y: 776,
+
+      size:
+        7.2,
+
+      font:
+        regularFont,
+
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.website,
+    {
+      x:
+        contactX,
+
+      y: 761,
+
+      size:
+        7.2,
+
+      font:
+        regularFont,
+
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  /* =====================================================
+     LÍNEA CORPORATIVA
+  ===================================================== */
+
+  const lineY =
+    744;
+
+  const lineWidth =
+    128;
+
+  page.drawRectangle({
+    x: 42,
+    y:
+      lineY,
+
+    width:
+      lineWidth,
+
+    height: 2,
+
+    color:
+      COLORS.blue,
+  });
+
+  page.drawRectangle({
+    x: 170,
+    y:
+      lineY,
+
+    width:
+      lineWidth,
+
+    height: 2,
+
+    color:
+      COLORS.yellow,
+  });
+
+  page.drawRectangle({
+    x: 298,
+    y:
+      lineY,
+
+    width:
+      lineWidth,
+
+    height: 2,
+
+    color:
+      COLORS.green,
+  });
+
+  page.drawRectangle({
+    x: 426,
+    y:
+      lineY,
+
+    width: 127,
+
+    height: 2,
+
+    color:
+      COLORS.red,
+  });
+
+  /* =====================================================
+     NOMBRE PARTICIPANTE
+  ===================================================== */
+
+  if (
+    fullName
+  ) {
+    drawCenteredWrappedText({
+      page,
+
+      text:
+        normalizeText(
+          fullName
+        ).toUpperCase(),
+
+      centerX:
+        PAGE_WIDTH /
+        2,
+
+      y: 708,
+
+      maxWidth: 500,
+
+      font:
+        boldFont,
+
+      size:
+        fullName.length >
+        40
+          ? 11.5
+          : 13.5,
+
+      lineHeight:
+        15,
+
+      color:
+        COLORS.blue,
+
+      maxLines: 2,
+    });
+  }
+};
+
+/* =========================================================
+   TARJETA RESULTADO GENERAL
+========================================================= */
+
+const drawResultCard = ({
   page,
   x,
   y,
@@ -362,109 +1513,468 @@ const drawCard = ({
   height,
   title,
   value,
-  label,
-  boldFont,
+  subtitle,
   regularFont,
+  boldFont,
+  active = false,
 }) => {
   page.drawRectangle({
     x,
     y,
     width,
     height,
+
+    color:
+      active
+        ? COLORS.blueSoft
+        : COLORS.soft,
+
     borderColor:
-      COLORS.border,
-    borderWidth: 1,
-    color: COLORS.soft,
+      active
+        ? COLORS.blue
+        : COLORS.border,
+
+    borderWidth:
+      active
+        ? 1.4
+        : 1,
   });
 
   page.drawText(
-    title,
+    normalizeText(
+      title,
+      ""
+    ),
     {
-      x: x + 14,
+      x:
+        x + 12,
+
       y:
         y +
         height -
         20,
 
-      size: 8,
-      font: regularFont,
-      color: COLORS.muted,
+      size:
+        7,
+
+      font:
+        boldFont,
+
+      color:
+        COLORS.muted,
     }
   );
 
-  page.drawText(
-    normalizeText(value),
-    {
-      x: x + 14,
+  drawWrappedText({
+    page,
+
+    text:
+      value,
+
+    x:
+      x + 12,
+
+    y:
+      y +
+      height -
+      44,
+
+    maxWidth:
+      width -
+      24,
+
+    font:
+      boldFont,
+
+    size:
+      String(
+        value ||
+        ""
+      ).length >
+      20
+        ? 9
+        : 13,
+
+    lineHeight:
+      13,
+
+    color:
+      COLORS.navy,
+
+    maxLines: 3,
+  });
+
+  if (
+    subtitle
+  ) {
+    drawWrappedText({
+      page,
+
+      text:
+        subtitle,
+
+      x:
+        x + 12,
+
       y:
-        y +
-        height -
-        43,
+        y + 14,
 
-      size: 15,
-      font: boldFont,
-      color: COLORS.navy,
-    }
-  );
+      maxWidth:
+        width -
+        24,
 
-  if (label) {
-    page.drawText(
-      label,
-      {
-        x: x + 14,
-        y: y + 12,
-        size: 7.5,
-        font: regularFont,
-        color: COLORS.muted,
-      }
-    );
+      font:
+        regularFont,
+
+      size:
+        7,
+
+      lineHeight:
+        9,
+
+      color:
+        COLORS.muted,
+
+      maxLines: 2,
+    });
   }
 };
 
 /* =========================================================
-   BARRA PORCENTUAL
+   RESULTADO EJECUTIVO
+   SIN MARCO PESADO
 ========================================================= */
 
-const drawPercentageBar = ({
+const drawExecutiveResult = ({
+  page,
+  x,
+  y,
+  width,
+  title,
+  value,
+  subtitle,
+  accentColor =
+    COLORS.blue,
+  regularFont,
+  boldFont,
+}) => {
+  const safeTitle =
+    normalizeText(
+      title,
+      ""
+    );
+
+  const safeValue =
+    normalizeText(
+      value,
+      "-"
+    );
+
+  const safeSubtitle =
+    normalizeText(
+      subtitle,
+      ""
+    );
+
+  /*
+   * Acento visual.
+   */
+  page.drawRectangle({
+    x,
+    y:
+      y + 4,
+
+    width: 34,
+    height: 3,
+
+    color:
+      accentColor,
+  });
+
+  /*
+   * Título pequeño.
+   */
+  page.drawText(
+    safeTitle,
+    {
+      x,
+      y:
+        y - 16,
+
+      size: 7.4,
+
+      font:
+        boldFont,
+
+      color:
+        COLORS.muted,
+    }
+  );
+
+  /*
+   * Valor principal.
+   */
+  const valueSize =
+    safeValue.length >
+    25
+      ? 10
+      : safeValue.length >
+          16
+        ? 11.5
+        : 15;
+
+  drawWrappedText({
+    page,
+
+    text:
+      safeValue,
+
+    x,
+    y:
+      y - 44,
+
+    maxWidth:
+      width,
+
+    font:
+      boldFont,
+
+    size:
+      valueSize,
+
+    lineHeight:
+      valueSize +
+      3,
+
+    color:
+      COLORS.navy,
+
+    maxLines: 3,
+  });
+
+  /*
+   * Detalle.
+   */
+  if (
+    safeSubtitle
+  ) {
+    drawWrappedText({
+      page,
+
+      text:
+        safeSubtitle,
+
+      x,
+      y:
+        y - 88,
+
+      maxWidth:
+        width,
+
+      font:
+        regularFont,
+
+      size: 7.2,
+
+      lineHeight:
+        9.5,
+
+      color:
+        COLORS.textSoft,
+
+      maxLines: 3,
+    });
+  }
+};
+
+/* =========================================================
+   COLOR EJECUTIVO SEGÚN RESULTADO
+========================================================= */
+
+const getExecutiveColor = (
+  type,
+  value
+) => {
+  const normalized =
+    String(
+      value ||
+      ""
+    ).toUpperCase();
+
+  if (
+    type ===
+    "communication"
+  ) {
+    if (
+      normalized.includes(
+        "ROJO"
+      )
+    ) {
+      return COLORS.red;
+    }
+
+    if (
+      normalized.includes(
+        "VERDE"
+      )
+    ) {
+      return COLORS.green;
+    }
+
+    if (
+      normalized.includes(
+        "AMARILLO"
+      )
+    ) {
+      return COLORS.yellow;
+    }
+
+    return COLORS.blue;
+  }
+
+  if (
+    type ===
+    "persistence"
+  ) {
+    if (
+      normalized ===
+      "SI"
+    ) {
+      return COLORS.green;
+    }
+
+    if (
+      normalized ===
+      "NO"
+    ) {
+      return COLORS.red;
+    }
+
+    return COLORS.yellow;
+  }
+
+  if (
+    type ===
+    "negotiation"
+  ) {
+    if (
+      normalized.includes(
+        "BAJO"
+      )
+    ) {
+      return COLORS.red;
+    }
+
+    if (
+      normalized.includes(
+        "ALTO"
+      )
+    ) {
+      return COLORS.green;
+    }
+
+    return COLORS.yellow;
+  }
+
+  if (
+    type ===
+    "vak"
+  ) {
+    return COLORS.cyan;
+  }
+
+  if (
+    type ===
+    "brain"
+  ) {
+    return COLORS.blue;
+  }
+
+  if (
+    type ===
+    "animodo"
+  ) {
+    return COLORS.green;
+  }
+
+  return COLORS.blue;
+};
+
+/* =========================================================
+   BARRA
+========================================================= */
+
+const drawBar = ({
   page,
   x,
   y,
   width,
   label,
   value,
-  font,
   boldFont,
+  regularFont,
 }) => {
   const percentage =
-    Math.min(
-      Math.max(
-        Number(value) || 0,
-        0
-      ),
-      100
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Number(value) ||
+          0
+      )
     );
 
   page.drawText(
-    label,
+    normalizeText(
+      label,
+      ""
+    ),
     {
       x,
-      y: y + 10,
-      size: 9,
-      font: boldFont,
-      color: COLORS.text,
+      y:
+        y + 13,
+
+      size:
+        8,
+
+      font:
+        boldFont,
+
+      color:
+        COLORS.text,
     }
   );
 
-  page.drawText(
+  const valueText =
     formatPercent(
       percentage
-    ),
+    );
+
+  const textWidth =
+    regularFont.widthOfTextAtSize(
+      valueText,
+      7.5
+    );
+
+  page.drawText(
+    valueText,
     {
-      x: x + width - 38,
-      y: y + 10,
-      size: 8,
-      font,
-      color: COLORS.muted,
+      x:
+        x +
+        width -
+        textWidth,
+
+      y:
+        y + 13,
+
+      size:
+        7.5,
+
+      font:
+        regularFont,
+
+      color:
+        COLORS.muted,
     }
   );
 
@@ -473,174 +1983,183 @@ const drawPercentageBar = ({
     y,
     width,
     height: 7,
-    color: COLORS.border,
+
+    color:
+      COLORS.border,
   });
 
   page.drawRectangle({
     x,
     y,
+
     width:
       width *
-      (percentage / 100),
+      percentage /
+      100,
+
     height: 7,
-    color: COLORS.blue,
+
+    color:
+      COLORS.blue,
   });
 };
 
 /* =========================================================
-   CARGAR IMAGEN REMOTA DE PERSONALIDAD
+   TITULO DE BLOQUE
 ========================================================= */
 
-const loadRemoteImage = async ({
-  pdfDoc,
-  url,
+const drawBlockTitle = ({
+  page,
+  title,
+  x,
+  y,
+  boldFont,
+  size = 12,
 }) => {
-  if (!url) {
-    return null;
-  }
+  page.drawText(
+    normalizeText(
+      title,
+      ""
+    ),
+    {
+      x,
+      y,
 
-  try {
-    const response =
-      await fetch(url);
+      size,
 
-    if (!response.ok) {
-      return null;
+      font:
+        boldFont,
+
+      color:
+        COLORS.text,
     }
+  );
+};
 
-    const bytes =
-      await response.arrayBuffer();
+/* =========================================================
+   OBTENER DATOS
+========================================================= */
 
-    const contentType =
-      response.headers.get(
-        "content-type"
-      ) || "";
+const getReportData =
+  async (
+    evaluationId
+  ) => {
+    const evaluation =
+      await PsychometricEvaluation.findByPk(
+        evaluationId,
+        {
+          include: [
+            {
+              model:
+                Inscripcion,
+
+              as:
+                "inscripcion",
+
+              include: [
+                {
+                  model:
+                    User,
+
+                  as:
+                    "user",
+                },
+
+                {
+                  model:
+                    Course,
+
+                  as:
+                    "course",
+                },
+              ],
+            },
+
+            {
+              model:
+                PsychometricPersonality,
+
+              as:
+                "personality",
+            },
+          ],
+        }
+      );
 
     if (
-      contentType.includes(
-        "png"
-      )
+      !evaluation
     ) {
-      return await pdfDoc.embedPng(
-        bytes
-      );
+      const error =
+        new Error(
+          "La evaluación psicométrica no existe."
+        );
+
+      error.statusCode =
+        404;
+
+      throw error;
     }
 
-    return await pdfDoc.embedJpg(
-      bytes
-    );
-  } catch (error) {
-    console.error(
-      "No se pudo cargar imagen de personalidad:",
-      error.message
-    );
+    if (
+      evaluation.estado !==
+      "completada"
+    ) {
+      const error =
+        new Error(
+          "La evaluación todavía no está completada."
+        );
 
-    return null;
-  }
-};
+      error.statusCode =
+        409;
 
-/* =========================================================
-   OBTENER DATOS COMPLETOS
-========================================================= */
+      throw error;
+    }
 
-const getReportData = async (
-  evaluationId
-) => {
-  const evaluation =
-    await PsychometricEvaluation.findByPk(
-      evaluationId,
-      {
-        include: [
-          {
-            model:
-              Inscripcion,
+    if (
+      !evaluation.resultado
+    ) {
+      const error =
+        new Error(
+          "La evaluación no tiene resultados calculados."
+        );
 
-            as: "inscripcion",
+      error.statusCode =
+        409;
 
-            include: [
-              {
-                model: User,
-                as: "user",
-              },
+      throw error;
+    }
 
-              {
-                model: Course,
-                as: "course",
-              },
-            ],
-          },
+    return {
+      evaluation,
 
-          {
-            model:
-              PsychometricPersonality,
+      user:
+        evaluation
+          .inscripcion
+          ?.user ||
+        {},
 
-            as:
-              "personality",
-          },
-        ],
-      }
-    );
+      course:
+        evaluation
+          .inscripcion
+          ?.course ||
+        {},
 
-  if (!evaluation) {
-    const error =
-      new Error(
-        "La evaluación psicométrica no existe."
-      );
+      personality:
+        evaluation
+          .personality ||
+        evaluation
+          .resultado
+          ?.personality ||
+        {},
 
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  if (
-    evaluation.estado !==
-    "completada"
-  ) {
-    const error =
-      new Error(
-        "La evaluación todavía no está completada."
-      );
-
-    error.statusCode = 409;
-
-    throw error;
-  }
-
-  if (
-    !evaluation.resultado
-  ) {
-    const error =
-      new Error(
-        "La evaluación no tiene resultados calculados."
-      );
-
-    error.statusCode = 409;
-
-    throw error;
-  }
-
-  const user =
-    evaluation.inscripcion
-      ?.user;
-
-  const course =
-    evaluation.inscripcion
-      ?.course;
-
-  return {
-    evaluation,
-    user,
-    course,
-
-    personality:
-      evaluation.personality,
-
-    result:
-      evaluation.resultado,
+      result:
+        evaluation
+          .resultado,
+    };
   };
-};
 
 /* =========================================================
-   GENERAR INFORME
+   GENERADOR PRINCIPAL
 ========================================================= */
 
 const generarInformePsicometrico =
@@ -653,9 +2172,10 @@ const generarInformePsicometrico =
       course,
       personality,
       result,
-    } = await getReportData(
-      evaluationId
-    );
+    } =
+      await getReportData(
+        evaluationId
+      );
 
     const pdfDoc =
       await PDFDocument.create();
@@ -671,124 +2191,443 @@ const generarInformePsicometrico =
       );
 
     /* =====================================================
-       INFORMACIÓN NORMALIZADA
+       RESULTADOS
     ===================================================== */
 
-    const nombreCompleto = [
-      user?.firstName,
-      user?.lastName,
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const resultPersonality =
+      result?.personality ||
+      {};
 
     const animodo =
-      result?.animodo || {};
+      result?.animodo ||
+      {};
 
     const communication =
-      result?.communication ||
+      result
+        ?.communication ||
       {};
 
     const brain =
-      result?.brain || {};
+      result?.brain ||
+      {};
 
     const negotiation =
-      result?.negotiation || {};
+      result
+        ?.negotiation ||
+      {};
 
     const vak =
-      result?.vak || {};
+      result?.vak ||
+      {};
 
     const persistence =
-      result?.persistence || {};
+      result
+        ?.persistence ||
+      {};
+
+    const fullName =
+      [
+        user?.grado,
+        user?.firstName,
+        user?.lastName,
+      ]
+        .filter(Boolean)
+        .map(
+          repairMojibake
+        )
+        .join(" ");
+
+    const animodoResult =
+      animodo?.animal ||
+      resultPersonality
+        ?.resultadoAnimodo ||
+      personality?.animal ||
+      "-";
+
+    const animal =
+      resultPersonality
+        ?.animal ||
+      personality?.animal ||
+      "-";
+
+    const communicationType =
+      communication
+        ?.communicationType ||
+      resultPersonality
+        ?.tipoComunicacion ||
+      personality
+        ?.tipoComunicacion ||
+      "-";
+
+    const chestColor =
+      communication
+        ?.dominantColor ||
+      resultPersonality
+        ?.colorPecho ||
+      personality
+        ?.colorPecho ||
+      "-";
+
+    const brainCategory =
+      brain
+        ?.brainCategory ||
+      resultPersonality
+        ?.categoriaCerebro ||
+      "-";
+
+    const brainType =
+      brain
+        ?.brainType ||
+      resultPersonality
+        ?.tipoCerebro ||
+      personality
+        ?.tipoCerebro ||
+      "-";
+
+    const headColor =
+      brain
+        ?.headColor ||
+      resultPersonality
+        ?.colorCabeza ||
+      personality
+        ?.colorCabeza ||
+      "-";
+
+    const imageUrl =
+      personality
+        ?.imagenUrl ||
+      resultPersonality
+        ?.imagenUrl ||
+      null;
 
     /* =====================================================
-       PÁGINA 1 - PORTADA
+       LOG
+    ===================================================== */
+
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      "PDF PROYECTO PENSAR"
+    );
+
+    console.log(
+      "evaluationId:",
+      evaluationId
+    );
+
+    console.log(
+      "personalityId:",
+      evaluation
+        ?.personalityId
+    );
+
+    console.log(
+      "animal:",
+      animal
+    );
+
+    console.log(
+      "imagenUrl personalidad:",
+      imageUrl
+    );
+
+    console.log(
+      "logo:",
+      BRAND.logoUrl
+    );
+
+    console.log(
+      "======================================"
+    );
+
+    /* =====================================================
+       IMÁGENES
+    ===================================================== */
+
+    const logoImage =
+      await loadPdfImage({
+        pdfDoc,
+
+        imageUrl:
+          BRAND.logoUrl,
+
+        label:
+          "logo institucional",
+      });
+
+    const personalityImage =
+      await loadPdfImage({
+        pdfDoc,
+
+        imageUrl,
+
+        label:
+          "imagen personalidad",
+      });
+
+    /* =====================================================
+       PÁGINA 1
+       PORTADA
     ===================================================== */
 
     {
       const page =
         pdfDoc.addPage([
-          595.28,
-          841.89,
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
         ]);
-
-      const {
-        width,
-        height,
-      } = page.getSize();
 
       page.drawRectangle({
         x: 0,
         y: 0,
-        width,
-        height,
+
+        width:
+          PAGE_WIDTH,
+
+        height:
+          PAGE_HEIGHT,
+
         color:
           COLORS.white,
       });
 
+      /* =================================================
+         FORMAS DECORATIVAS
+      ================================================= */
+
       page.drawRectangle({
-        x: 0,
-        y:
-          height -
-          300,
-        width,
-        height: 300,
+        x: 465,
+        y: 710,
+
+        width: 130,
+        height: 132,
+
         color:
-          COLORS.navy,
+          COLORS.blue,
+      });
+
+      page.drawRectangle({
+        x: 410,
+        y: 665,
+
+        width: 105,
+        height: 105,
+
+        color:
+          COLORS.blueLight,
       });
 
       page.drawRectangle({
         x: 0,
-        y:
-          height -
-          306,
-        width,
-        height: 6,
+        y: 0,
+
+        width: 100,
+        height: 115,
+
         color:
-          COLORS.cyan,
+          COLORS.blue,
       });
 
-      page.drawText(
-        "iDr.Mind",
-        {
-          x: 50,
-          y:
-            height -
-            75,
+      page.drawRectangle({
+        x: 78,
+        y: 45,
 
-          font: boldFont,
-          size: 13,
-          color:
-            COLORS.cyan,
+        width: 105,
+        height: 105,
+
+        color:
+          COLORS.blueLight,
+      });
+
+      for (
+        let row = 0;
+        row < 4;
+        row++
+      ) {
+        for (
+          let col = 0;
+          col < 6;
+          col++
+        ) {
+          page.drawCircle({
+            x:
+              24 +
+              col * 18,
+
+            y:
+              818 -
+              row * 18,
+
+            size: 2,
+
+            color:
+              COLORS.blue,
+          });
         }
-      );
+      }
+
+      /* =================================================
+         LOGO
+      ================================================= */
+
+      if (
+        logoImage
+      ) {
+        drawContainedImage({
+          page,
+
+          image:
+            logoImage,
+
+          x: 172,
+          y: 615,
+
+          width: 250,
+          height: 105,
+
+          padding: 0,
+        });
+      } else {
+        drawCenteredText({
+          page,
+
+          text:
+            "iDr. MIND",
+
+          y: 655,
+
+          font:
+            boldFont,
+
+          size: 24,
+
+          color:
+            COLORS.navy,
+        });
+      }
+
+      /* =================================================
+         TÍTULO
+      ================================================= */
+
+      drawCenteredText({
+        page,
+
+        text:
+          "INFORME DE",
+
+        y: 515,
+
+        font:
+          boldFont,
+
+        size: 36,
+
+        color:
+          COLORS.blue,
+      });
+
+      drawCenteredText({
+        page,
+
+        text:
+          "RESULTADOS",
+
+        y: 466,
+
+        font:
+          boldFont,
+
+        size: 42,
+
+        color:
+          COLORS.blue,
+      });
+
+      drawCenteredText({
+        page,
+
+        text:
+          "OBTENIDOS DEL TEST",
+
+        y: 408,
+
+        font:
+          boldFont,
+
+        size: 12,
+
+        color:
+          COLORS.text,
+      });
+
+      drawCenteredText({
+        page,
+
+        text:
+          "PROYECTO PENSAR",
+
+        y: 388,
+
+        font:
+          boldFont,
+
+        size: 12,
+
+        color:
+          COLORS.text,
+      });
+
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          normalizeText(
+            course?.nombre,
+            "Test Psicotécnico de Personalidad"
+          ),
+
+        centerX:
+          PAGE_WIDTH /
+          2,
+
+        y: 348,
+
+        maxWidth: 400,
+
+        font:
+          regularFont,
+
+        size: 9,
+
+        lineHeight: 12,
+
+        color:
+          COLORS.muted,
+
+        maxLines: 2,
+      });
+
+      /* =================================================
+         PARTICIPANTE
+      ================================================= */
 
       page.drawText(
-        "INFORME DE RESULTADOS",
+        "PARTICIPANTE",
         {
-          x: 50,
-          y:
-            height -
-            135,
+          x: 68,
+          y: 288,
 
-          font: boldFont,
-          size: 27,
+          size:
+            7,
+
+          font:
+            boldFont,
+
           color:
-            COLORS.white,
-        }
-      );
-
-      page.drawText(
-        "PROYECTO PENSAR",
-        {
-          x: 50,
-          y:
-            height -
-            170,
-
-          font: boldFont,
-          size: 22,
-          color:
-            COLORS.white,
+            COLORS.muted,
         }
       );
 
@@ -796,52 +2635,100 @@ const generarInformePsicometrico =
         page,
 
         text:
-          "Evaluación integral de habilidades, estilos de pensamiento, comunicación, aprendizaje y negociación.",
+          fullName,
 
-        x: 50,
-        y:
-          height -
-          210,
+        x: 68,
+        y: 261,
 
-        maxWidth: 410,
+        maxWidth: 460,
 
         font:
-          regularFont,
+          boldFont,
 
-        size: 10,
+        size:
+          fullName.length >
+          45
+            ? 13
+            : 16,
 
-        lineHeight: 15,
+        lineHeight:
+          19,
 
-        color: rgb(
-          215 / 255,
-          225 / 255,
-          240 / 255
-        ),
+        color:
+          COLORS.navy,
+
+        maxLines: 2,
+      });
+
+      /* =================================================
+         DATOS
+      ================================================= */
+
+      page.drawRectangle({
+        x: 68,
+        y: 168,
+
+        width: 460,
+        height: 62,
+
+        color:
+          COLORS.soft,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 1,
       });
 
       page.drawText(
-        normalizeText(
-          nombreCompleto,
-          "Participante"
-        ),
+        "EVALUACIÓN",
         {
-          x: 50,
-          y: 440,
-          font: boldFont,
-          size: 20,
+          x: 88,
+          y: 205,
+
+          size:
+            6.5,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        `N. ${normalizeText(
+          evaluation
+            ?.numeroEvaluacion
+        )}`,
+        {
+          x: 88,
+          y: 185,
+
+          size:
+            9,
+
+          font:
+            boldFont,
+
           color:
             COLORS.navy,
         }
       );
 
       page.drawText(
-        `Evaluación N.º ${evaluation.numeroEvaluacion}`,
+        "FECHA",
         {
-          x: 50,
-          y: 410,
+          x: 245,
+          y: 205,
+
+          size:
+            6.5,
+
           font:
-            regularFont,
-          size: 10,
+            boldFont,
+
           color:
             COLORS.muted,
         }
@@ -849,229 +2736,729 @@ const generarInformePsicometrico =
 
       page.drawText(
         formatDate(
-          evaluation.fechaFinalizacion
+          evaluation
+            ?.fechaFinalizacion
         ),
         {
-          x: 50,
-          y: 392,
+          x: 245,
+          y: 185,
+
+          size:
+            8,
+
           font:
-            regularFont,
-          size: 9,
+            boldFont,
+
+          color:
+            COLORS.navy,
+        }
+      );
+
+      page.drawText(
+        "ESTADO",
+        {
+          x: 430,
+          y: 205,
+
+          size:
+            6.5,
+
+          font:
+            boldFont,
+
           color:
             COLORS.muted,
         }
       );
 
-      page.drawRectangle({
-        x: 50,
-        y: 270,
-        width: 495,
-        height: 80,
-        borderColor:
-          COLORS.border,
-        borderWidth: 1,
+      page.drawText(
+        "FINALIZADO",
+        {
+          x: 430,
+          y: 185,
+
+          size:
+            8,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.green,
+        }
+      );
+
+      drawCenteredText({
+        page,
+
+        text:
+          "Documento personal y confidencial",
+
+        y: 90,
+
+        font:
+          regularFont,
+
+        size: 7,
+
         color:
-          COLORS.soft,
+          COLORS.muted,
+      });
+    }
+
+    /* =====================================================
+       PÁGINA 2
+       DIAGNÓSTICO EJECUTIVO MEJORADO
+    ===================================================== */
+
+    {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
+
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
       });
 
-      page.drawText(
-        "PERFIL INTEGRAL",
-        {
-          x: 68,
-          y: 324,
-          size: 8,
-          font:
-            regularFont,
-          color:
-            COLORS.muted,
-        }
-      );
+      /* =================================================
+         TÍTULO
+      ================================================= */
 
       page.drawText(
-        normalizeText(
-          personality?.nombre,
-          "Resultado psicométrico"
-        ),
+        "DIAGNÓSTICO EJECUTIVO",
         {
-          x: 68,
-          y: 296,
-          size: 17,
-          font: boldFont,
+          x: MARGIN,
+          y: 660,
+
+          size: 8.5,
+
+          font:
+            boldFont,
+
           color:
             COLORS.blue,
         }
       );
 
       page.drawText(
-        normalizeText(
-          course?.nombre,
-          "Proyecto Pensar"
-        ),
+        "Síntesis general",
         {
-          x: 50,
-          y: 92,
-          size: 9,
+          x: MARGIN,
+          y: 631,
+
+          size: 21,
+
           font:
-            regularFont,
+            boldFont,
+
           color:
-            COLORS.muted,
+            COLORS.navy,
         }
       );
 
       page.drawText(
-        "Documento personal y confidencial",
+        "de resultados",
         {
-          x: 50,
-          y: 72,
-          size: 8,
+          x: MARGIN,
+          y: 605,
+
+          size: 21,
+
           font:
-            regularFont,
+            boldFont,
+
           color:
-            COLORS.muted,
+            COLORS.navy,
         }
       );
+
+      /*
+       * Firma gráfica del título.
+       */
+      page.drawRectangle({
+        x:
+          MARGIN,
+
+        y: 584,
+
+        width: 74,
+
+        height: 3,
+
+        color:
+          COLORS.blue,
+      });
+
+      page.drawRectangle({
+        x:
+          MARGIN +
+          74,
+
+        y: 584,
+
+        width: 28,
+
+        height: 3,
+
+        color:
+          COLORS.yellow,
+      });
+
+      /* =================================================
+         PERSISTENCIA SUPERIOR
+      ================================================= */
+
+      drawExecutiveResult({
+        page,
+
+        x: 250,
+        y: 563,
+
+        width: 105,
+
+        title:
+          "PERSISTENCIA",
+
+        value:
+          persistence
+            ?.level,
+
+        subtitle:
+          `Índice ${normalizeText(
+            persistence
+              ?.score
+          )} / 4`,
+
+        accentColor:
+          getExecutiveColor(
+            "persistence",
+            persistence
+              ?.level
+          ),
+
+        regularFont,
+        boldFont,
+      });
+
+      /* =================================================
+         COMUNICACIÓN
+      ================================================= */
+
+      drawExecutiveResult({
+        page,
+
+        x: 40,
+        y: 500,
+
+        width: 135,
+
+        title:
+          "COMUNICACIÓN",
+
+        value:
+          communicationType,
+
+        subtitle:
+          `Color dominante: ${chestColor}`,
+
+        accentColor:
+          getExecutiveColor(
+            "communication",
+            chestColor
+          ),
+
+        regularFont,
+        boldFont,
+      });
+
+      /* =================================================
+         VAK
+      ================================================= */
+
+      drawExecutiveResult({
+        page,
+
+        x: 420,
+        y: 500,
+
+        width: 135,
+
+        title:
+          "SISTEMA VAK",
+
+        value:
+          prettyText(
+            vak
+              ?.dominantStyle
+          ),
+
+        subtitle:
+          "Canal predominante",
+
+        accentColor:
+          getExecutiveColor(
+            "vak",
+            vak
+              ?.dominantStyle
+          ),
+
+        regularFont,
+        boldFont,
+      });
+
+      /* =================================================
+         HALO CENTRAL
+      ================================================= */
+
+      page.drawCircle({
+        x: 298,
+        y: 376,
+
+        size: 112,
+
+        color:
+          COLORS.soft,
+      });
+
+      page.drawCircle({
+        x: 298,
+        y: 376,
+
+        size: 99,
+
+        color:
+          COLORS.white,
+      });
+
+      /* =================================================
+         PERSONAJE
+      ================================================= */
+
+      drawContainedImage({
+        page,
+
+        image:
+          personalityImage,
+
+        x: 195,
+        y: 277,
+
+        width: 206,
+        height: 220,
+
+        padding: 0,
+
+        background:
+          COLORS.white,
+      });
+
+      /*
+       * Nombre animal.
+       */
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          animal,
+
+        centerX: 298,
+
+        y: 263,
+
+        maxWidth: 200,
+
+        font:
+          boldFont,
+
+        size: 13,
+
+        lineHeight: 15,
+
+        color:
+          COLORS.navy,
+
+        maxLines: 2,
+      });
+
+      /*
+       * Nombre completo del perfil.
+       */
+      const executivePersonalityName =
+        personality
+          ?.nombre ||
+        resultPersonality
+          ?.nombre ||
+        "";
+
+      if (
+        executivePersonalityName &&
+        executivePersonalityName
+          .toUpperCase() !==
+          String(
+            animal
+          ).toUpperCase()
+      ) {
+        drawCenteredWrappedText({
+          page,
+
+          text:
+            executivePersonalityName,
+
+          centerX: 298,
+
+          y: 242,
+
+          maxWidth: 220,
+
+          font:
+            regularFont,
+
+          size: 7.5,
+
+          lineHeight: 10,
+
+          color:
+            COLORS.muted,
+
+          maxLines: 2,
+        });
+      }
+
+      /* =================================================
+         NEGOCIACIÓN
+      ================================================= */
+
+      drawExecutiveResult({
+        page,
+
+        x: 40,
+        y: 350,
+
+        width: 135,
+
+        title:
+          "NEGOCIACIÓN",
+
+        value:
+          negotiation
+            ?.classification,
+
+        subtitle:
+          `Puntaje ${normalizeText(
+            negotiation
+              ?.totalScore
+          )} / 90`,
+
+        accentColor:
+          getExecutiveColor(
+            "negotiation",
+            negotiation
+              ?.classification
+          ),
+
+        regularFont,
+        boldFont,
+      });
+
+      /* =================================================
+         CEREBRO
+      ================================================= */
+
+      drawExecutiveResult({
+        page,
+
+        x: 420,
+        y: 350,
+
+        width: 135,
+
+        title:
+          "TIPO DE CEREBRO",
+
+        value:
+          brainCategory,
+
+        subtitle:
+          brainType,
+
+        accentColor:
+          getExecutiveColor(
+            "brain",
+            brainCategory
+          ),
+
+        regularFont,
+        boldFont,
+      });
+
+      /* =================================================
+         ANIMODO
+      ================================================= */
+
+      page.drawLine({
+        start: {
+          x: 150,
+          y: 178,
+        },
+
+        end: {
+          x: 445,
+          y: 178,
+        },
+
+        thickness:
+          0.7,
+
+        color:
+          COLORS.border,
+      });
+
+      drawCenteredText({
+        page,
+
+        text:
+          "ANIMODO",
+
+        y: 151,
+
+        font:
+          boldFont,
+
+        size: 7.5,
+
+        color:
+          COLORS.muted,
+      });
+
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          animodoResult,
+
+        centerX: 298,
+
+        y: 126,
+
+        maxWidth: 300,
+
+        font:
+          boldFont,
+
+        size:
+          String(
+            animodoResult ||
+            ""
+          ).length >
+          25
+            ? 11.5
+            : 14.5,
+
+        lineHeight: 16,
+
+        color:
+          COLORS.navy,
+
+        maxLines: 2,
+      });
+
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          `Sentir / Pensar ${normalizeText(
+            animodo
+              ?.axes
+              ?.sentirPensar
+          )}   -   Actuar / Observar ${normalizeText(
+            animodo
+              ?.axes
+              ?.actuarObservar
+          )}`,
+
+        centerX: 298,
+
+        y: 88,
+
+        maxWidth: 330,
+
+        font:
+          regularFont,
+
+        size: 7.5,
+
+        lineHeight: 10,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 2,
+      });
+
+      page.drawRectangle({
+        x: 264,
+        y: 65,
+
+        width: 68,
+        height: 3,
+
+        color:
+          getExecutiveColor(
+            "animodo",
+            animodoResult
+          ),
+      });
+
+      drawFooter({
+        page,
+        number: 2,
+        regularFont,
+      });
     }
 
     /* =====================================================
-       PÁGINA 2 - RESUMEN EJECUTIVO
+       PÁGINA 3
+       TIPO DE CEREBRO + VAK
     ===================================================== */
 
     {
       const page =
         pdfDoc.addPage([
-          595.28,
-          841.89,
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
         ]);
 
-      drawHeader({
+      drawCorporateHeader({
         page,
-        title:
-          "Resumen ejecutivo",
-
-        subtitle:
-          normalizeText(
-            nombreCompleto
-          ),
-
+        fullName,
+        logoImage,
         boldFont,
         regularFont,
       });
 
-      drawCard({
-        page,
-        x: 42,
-        y: 620,
-        width: 155,
-        height: 85,
-        title: "ANIMODO",
-        value:
-          animodo.animal,
-        label:
-          "Perfil conductual",
-        boldFont,
-        regularFont,
-      });
+      /* =================================================
+         CEREBRO
+      ================================================= */
 
-      drawCard({
+      drawBlockTitle({
         page,
-        x: 220,
-        y: 620,
-        width: 155,
-        height: 85,
+
         title:
           "TIPO DE CEREBRO",
-        value:
-          brain.brainType,
-        label:
-          brain.headColor
-            ? `Color ${brain.headColor}`
-            : null,
+
+        x: 60,
+        y: 665,
+
         boldFont,
-        regularFont,
       });
 
-      drawCard({
+      const brainScores =
+        brain?.scores ||
+        {};
+
+      drawResultCard({
         page,
-        x: 398,
-        y: 620,
-        width: 155,
-        height: 85,
+
+        x: 45,
+        y: 525,
+
+        width: 145,
+        height: 105,
+
         title:
-          "COMUNICACIÓN",
+          "IZQUIERDO",
+
         value:
-          communication
-            .communicationType,
-        label:
-          communication
-            .dominantColor
-            ? `Color ${communication.dominantColor}`
-            : null,
-        boldFont,
+          brainScores
+            ?.IZQUIERDO ??
+          0,
+
+        subtitle:
+          "Pensar / Visual",
+
         regularFont,
+        boldFont,
+
+        active:
+          brainCategory ===
+          "IZQUIERDO",
       });
 
-      drawCard({
+      drawResultCard({
         page,
-        x: 42,
-        y: 510,
-        width: 155,
-        height: 85,
-        title: "VAK",
-        value:
-          vak.dominantStyle,
-        label:
-          "Estilo predominante",
-        boldFont,
-        regularFont,
-      });
 
-      drawCard({
-        page,
-        x: 220,
-        y: 510,
-        width: 155,
-        height: 85,
+        x: 205,
+        y: 525,
+
+        width: 145,
+        height: 105,
+
         title:
-          "NEGOCIACIÓN",
+          "CENTRAL",
+
         value:
-          negotiation
-            .classification,
-        label:
-          `Puntaje ${normalizeText(
-            negotiation
-              .totalScore
-          )}`,
-        boldFont,
+          brainScores
+            ?.CENTRAL ??
+          0,
+
+        subtitle:
+          "Hacer / Auditivo",
+
         regularFont,
+        boldFont,
+
+        active:
+          brainCategory ===
+          "CENTRAL",
       });
 
-      drawCard({
+      drawResultCard({
         page,
-        x: 398,
-        y: 510,
-        width: 155,
-        height: 85,
+
+        x: 365,
+        y: 525,
+
+        width: 145,
+        height: 105,
+
         title:
-          "PERSISTENCIA",
+          "DERECHO",
+
         value:
-          persistence.level,
-        label:
-          `Índice ${normalizeText(
-            persistence.score
-          )}`,
-        boldFont,
+          brainScores
+            ?.DERECHO ??
+          0,
+
+        subtitle:
+          "Sentir / Kinestésico",
+
         regularFont,
+        boldFont,
+
+        active:
+          brainCategory ===
+          "DERECHO",
       });
 
       page.drawText(
-        "Perfil de personalidad",
+        "RESULTADO",
         {
-          x: 42,
-          y: 465,
-          font: boldFont,
-          size: 15,
+          x: 55,
+          y: 490,
+
+          size: 7,
+
+          font:
+            boldFont,
+
           color:
-            COLORS.navy,
+            COLORS.muted,
         }
       );
 
@@ -1079,889 +3466,1278 @@ const generarInformePsicometrico =
         page,
 
         text:
-          personality?.descripcion ||
-          "La interpretación detallada del perfil se construye a partir de la combinación de Animodo, tipo de cerebro y estilo de comunicación.",
+          brainType,
 
-        x: 42,
-        y: 438,
+        x: 55,
+        y: 470,
 
-        maxWidth: 510,
+        maxWidth: 475,
+
+        font:
+          boldFont,
+
+        size: 11,
+
+        lineHeight: 13,
+
+        color:
+          COLORS.blue,
+
+        maxLines: 2,
+      });
+
+      drawWrappedText({
+        page,
+
+        text:
+          `Categoría: ${brainCategory}. Color asociado: ${headColor}. ${normalizeText(
+            personality
+              ?.formaPensar ||
+            resultPersonality
+              ?.formaPensar ||
+            ""
+          )}`,
+
+        x: 55,
+        y: 435,
+
+        maxWidth: 475,
 
         font:
           regularFont,
 
-        size: 10,
+        size: 8.7,
 
-        lineHeight: 15,
+        lineHeight: 12.5,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 7,
+      });
+
+      /* =================================================
+         DIVISOR
+      ================================================= */
+
+      page.drawLine({
+        start: {
+          x: MARGIN,
+          y: 355,
+        },
+
+        end: {
+          x:
+            PAGE_WIDTH -
+            MARGIN,
+
+          y: 355,
+        },
+
+        thickness: 1,
+
+        color:
+          COLORS.border,
+      });
+
+      /* =================================================
+         VAK
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "SISTEMA REPRESENTACIONAL VAK",
+
+        x: 60,
+        y: 320,
+
+        boldFont,
+      });
+
+      const vakScores =
+        vak?.scores ||
+        {};
+
+      drawResultCard({
+        page,
+
+        x: 45,
+        y: 180,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "VISUAL",
+
+        value:
+          vakScores
+            ?.VISUAL ??
+          0,
+
+        subtitle:
+          "Cantidad",
+
+        regularFont,
+        boldFont,
+
+        active:
+          vak
+            ?.dominantStyle ===
+          "VISUAL",
+      });
+
+      drawResultCard({
+        page,
+
+        x: 205,
+        y: 180,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "AUDITIVO",
+
+        value:
+          vakScores
+            ?.AUDITIVO ??
+          0,
+
+        subtitle:
+          "Cantidad",
+
+        regularFont,
+        boldFont,
+
+        active:
+          vak
+            ?.dominantStyle ===
+          "AUDITIVO",
+      });
+
+      drawResultCard({
+        page,
+
+        x: 365,
+        y: 180,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "KINESTÉSICO",
+
+        value:
+          vakScores
+            ?.KINESTESICO ??
+          0,
+
+        subtitle:
+          "Cantidad",
+
+        regularFont,
+        boldFont,
+
+        active:
+          vak
+            ?.dominantStyle ===
+          "KINESTESICO",
+      });
+
+      drawWrappedText({
+        page,
+
+        text:
+          `Canal predominante: ${prettyText(
+            vak
+              ?.dominantStyle
+          )}. ${normalizeText(
+            personality
+              ?.formaAprender ||
+            resultPersonality
+              ?.formaAprender ||
+            ""
+          )}`,
+
+        x: 55,
+        y: 145,
+
+        maxWidth: 475,
+
+        font:
+          regularFont,
+
+        size: 8.7,
+
+        lineHeight: 12.5,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 6,
+      });
+
+      drawFooter({
+        page,
+        number: 3,
+        regularFont,
+      });
+    }
+
+    /* =====================================================
+       PÁGINA 4
+       NEGOCIACIÓN + COMUNICACIÓN
+    ===================================================== */
+
+    {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
+
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
+
+      /* =================================================
+         NEGOCIACIÓN
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "NIVEL DE NEGOCIACIÓN",
+
+        x: 60,
+        y: 665,
+
+        boldFont,
+      });
+
+      page.drawRectangle({
+        x: 78,
+        y: 505,
+
+        width: 125,
+        height: 125,
+
+        color:
+          COLORS.blue,
+      });
+
+      const negotiationScoreText =
+        normalizeText(
+          negotiation
+            ?.totalScore
+        );
+
+      const negotiationScoreWidth =
+        boldFont.widthOfTextAtSize(
+          negotiationScoreText,
+          32
+        );
+
+      page.drawText(
+        negotiationScoreText,
+        {
+          x:
+            78 +
+            (
+              125 -
+              negotiationScoreWidth
+            ) /
+              2,
+
+          y: 550,
+
+          size: 32,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.white,
+        }
+      );
+
+      page.drawText(
+        "de 90",
+        {
+          x: 120,
+          y: 530,
+
+          size: 7,
+
+          font:
+            regularFont,
+
+          color:
+            COLORS.white,
+        }
+      );
+
+      page.drawText(
+        "CLASIFICACIÓN",
+        {
+          x: 280,
+          y: 615,
+
+          size: 7,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        normalizeText(
+          negotiation
+            ?.classification
+        ),
+        {
+          x: 280,
+          y: 590,
+
+          size: 15,
+
+          font:
+            boldFont,
+
+          color:
+            getExecutiveColor(
+              "negotiation",
+              negotiation
+                ?.classification
+            ),
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          negotiation
+            ?.quality ||
+          "Resultado correspondiente a la forma negociadora.",
+
+        x: 280,
+        y: 555,
+
+        maxWidth: 255,
+
+        font:
+          regularFont,
+
+        size: 9,
+
+        lineHeight: 13,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 8,
+      });
+
+      /* =================================================
+         DIVISOR
+      ================================================= */
+
+      page.drawLine({
+        start: {
+          x: MARGIN,
+          y: 430,
+        },
+
+        end: {
+          x:
+            PAGE_WIDTH -
+            MARGIN,
+
+          y: 430,
+        },
+
+        thickness: 1,
+
+        color:
+          COLORS.border,
+      });
+
+      /* =================================================
+         COMUNICACIÓN
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "COLORES DE LA COMUNICACIÓN",
+
+        x: 60,
+        y: 395,
+
+        boldFont,
+      });
+
+      const percentages =
+        communication
+          ?.percentages ||
+        {};
+
+      drawBar({
+        page,
+
+        x: 60,
+        y: 338,
+
+        width: 210,
+
+        label:
+          "Amarillo",
+
+        value:
+          percentages
+            ?.AMARILLO,
+
+        regularFont,
+        boldFont,
+      });
+
+      drawBar({
+        page,
+
+        x: 60,
+        y: 295,
+
+        width: 210,
+
+        label:
+          "Rojo",
+
+        value:
+          percentages
+            ?.ROJO,
+
+        regularFont,
+        boldFont,
+      });
+
+      drawBar({
+        page,
+
+        x: 315,
+        y: 338,
+
+        width: 210,
+
+        label:
+          "Azul",
+
+        value:
+          percentages
+            ?.AZUL,
+
+        regularFont,
+        boldFont,
+      });
+
+      drawBar({
+        page,
+
+        x: 315,
+        y: 295,
+
+        width: 210,
+
+        label:
+          "Verde",
+
+        value:
+          percentages
+            ?.VERDE,
+
+        regularFont,
+        boldFont,
+      });
+
+      page.drawText(
+        "RESULTADO",
+        {
+          x: 60,
+          y: 250,
+
+          size: 7,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        `${normalizeText(
+          communicationType
+        )} - ${normalizeText(
+          chestColor
+        )}`,
+        {
+          x: 60,
+          y: 228,
+
+          size: 12,
+
+          font:
+            boldFont,
+
+          color:
+            getExecutiveColor(
+              "communication",
+              chestColor
+            ),
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          personality
+            ?.descripcionComunicacion ||
+          resultPersonality
+            ?.descripcionComunicacion ||
+          "Sin descripción específica configurada.",
+
+        x: 60,
+        y: 198,
+
+        maxWidth: 470,
+
+        font:
+          regularFont,
+
+        size: 8.7,
+
+        lineHeight: 12.5,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 9,
+      });
+
+      drawFooter({
+        page,
+        number: 4,
+        regularFont,
+      });
+    }
+
+    /* =====================================================
+       PÁGINA 5
+       PERSISTENCIA + ANIMODO
+    ===================================================== */
+
+    {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
+
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
+
+      /* =================================================
+         PERSISTENCIA
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "NIVEL DE PERSISTENCIA",
+
+        x: 60,
+        y: 665,
+
+        boldFont,
+      });
+
+      const persistenceColor =
+        getExecutiveColor(
+          "persistence",
+          persistence
+            ?.level
+        );
+
+      page.drawRectangle({
+        x: 85,
+        y: 510,
+
+        width: 120,
+        height: 120,
+
+        color:
+          persistenceColor,
+      });
+
+      const persistenceText =
+        normalizeText(
+          persistence
+            ?.level
+        );
+
+      const persistenceWidth =
+        boldFont.widthOfTextAtSize(
+          persistenceText,
+          28
+        );
+
+      page.drawText(
+        persistenceText,
+        {
+          x:
+            85 +
+            (
+              120 -
+              persistenceWidth
+            ) /
+              2,
+
+          y: 552,
+
+          size: 28,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.white,
+        }
+      );
+
+      page.drawText(
+        "INDICADOR INTEGRADO",
+        {
+          x: 280,
+          y: 615,
+
+          size: 7,
+
+          font:
+            boldFont,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        `Índice ${normalizeText(
+          persistence
+            ?.score
+        )} / 4`,
+        {
+          x: 280,
+          y: 588,
+
+          size: 14,
+
+          font:
+            boldFont,
+
+          color:
+            persistenceColor,
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          "El indicador de persistencia integra los resultados obtenidos en Animodo, comunicación, tipo de cerebro y forma negociadora.",
+
+        x: 280,
+        y: 552,
+
+        maxWidth: 245,
+
+        font:
+          regularFont,
+
+        size: 9,
+
+        lineHeight: 13,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 7,
+      });
+
+      /* =================================================
+         DIVISOR
+      ================================================= */
+
+      page.drawLine({
+        start: {
+          x: MARGIN,
+          y: 430,
+        },
+
+        end: {
+          x:
+            PAGE_WIDTH -
+            MARGIN,
+
+          y: 430,
+        },
+
+        thickness: 1,
+
+        color:
+          COLORS.border,
+      });
+
+      /* =================================================
+         ANIMODO
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "ANIMODO",
+
+        x: 60,
+        y: 395,
+
+        boldFont,
+      });
+
+      drawResultCard({
+        page,
+
+        x: 45,
+        y: 255,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "SENTIR / PENSAR",
+
+        value:
+          animodo
+            ?.axes
+            ?.sentirPensar,
+
+        subtitle:
+          "Eje",
+
+        regularFont,
+        boldFont,
+      });
+
+      drawResultCard({
+        page,
+
+        x: 205,
+        y: 255,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "ACTUAR / OBSERVAR",
+
+        value:
+          animodo
+            ?.axes
+            ?.actuarObservar,
+
+        subtitle:
+          "Eje",
+
+        regularFont,
+        boldFont,
+      });
+
+      drawResultCard({
+        page,
+
+        x: 365,
+        y: 255,
+
+        width: 145,
+        height: 105,
+
+        title:
+          "RESULTADO",
+
+        value:
+          animodoResult,
+
+        subtitle:
+          "Perfil conductual",
+
+        regularFont,
+        boldFont,
+
+        active:
+          true,
+      });
+
+      drawWrappedText({
+        page,
+
+        text:
+          personality
+            ?.descripcion ||
+          resultPersonality
+            ?.descripcion ||
+          "Resultado integral del perfil de personalidad.",
+
+        x: 55,
+        y: 215,
+
+        maxWidth: 475,
+
+        font:
+          regularFont,
+
+        size: 8.7,
+
+        lineHeight: 12.5,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 10,
+      });
+
+      drawFooter({
+        page,
+        number: 5,
+        regularFont,
+      });
+    }
+
+    /* =====================================================
+       PÁGINA 6
+       PERFIL INTEGRAL + RECOMENDACIONES
+    ===================================================== */
+
+    {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
+
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
+
+      /* =================================================
+         PERFIL
+      ================================================= */
+
+      drawBlockTitle({
+        page,
+
+        title:
+          "PERFIL INTEGRAL",
+
+        x: 60,
+        y: 665,
+
+        boldFont,
+      });
+
+      /*
+       * Imagen siempre sobre blanco.
+       */
+      page.drawRectangle({
+        x: 58,
+        y: 425,
+
+        width: 185,
+        height: 215,
+
+        color:
+          COLORS.white,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 1,
+      });
+
+      drawContainedImage({
+        page,
+
+        image:
+          personalityImage,
+
+        x: 66,
+        y: 455,
+
+        width: 169,
+        height: 170,
+
+        padding: 3,
+      });
+
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          animal,
+
+        centerX:
+          150,
+
+        y: 438,
+
+        maxWidth: 165,
+
+        font:
+          boldFont,
+
+        size: 11,
+
+        lineHeight: 12,
+
+        color:
+          COLORS.blue,
+
+        maxLines: 2,
+      });
+
+      const personalityName =
+        personality
+          ?.nombre ||
+        resultPersonality
+          ?.nombre ||
+        animal;
+
+      drawWrappedText({
+        page,
+
+        text:
+          personalityName,
+
+        x: 275,
+        y: 630,
+
+        maxWidth: 260,
+
+        font:
+          boldFont,
+
+        size: 13,
+
+        lineHeight: 16,
+
+        color:
+          COLORS.blue,
+
+        maxLines: 3,
+      });
+
+      drawWrappedText({
+        page,
+
+        text:
+          personality
+            ?.descripcion ||
+          resultPersonality
+            ?.descripcion ||
+          "Perfil integral de personalidad.",
+
+        x: 275,
+        y: 575,
+
+        maxWidth: 260,
+
+        font:
+          regularFont,
+
+        size: 8.5,
+
+        lineHeight: 12,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 12,
+      });
+
+      /* =================================================
+         RECOMENDACIONES
+      ================================================= */
+
+      page.drawLine({
+        start: {
+          x: MARGIN,
+          y: 385,
+        },
+
+        end: {
+          x:
+            PAGE_WIDTH -
+            MARGIN,
+
+          y: 385,
+        },
+
+        thickness: 1,
+
+        color:
+          COLORS.border,
+      });
+
+      drawCenteredText({
+        page,
+
+        text:
+          "RECOMENDACIONES",
+
+        y: 345,
+
+        font:
+          boldFont,
+
+        size: 17,
 
         color:
           COLORS.text,
       });
 
-      drawFooter({
-        page,
-        pageNumber: 2,
-        regularFont,
-      });
-    }
+      const recommendations =
+        [];
 
-    /* =====================================================
-       PÁGINA 3 - ANIMODO + PERSONALIDAD
-    ===================================================== */
+      if (
+        persistence
+          ?.level ===
+          "NO" ||
+        persistence
+          ?.level ===
+          "ALERTA"
+      ) {
+        recommendations.push(
+          "Fortalecer la constancia en objetivos de mediano y largo plazo mediante seguimiento periódico y definición clara de metas."
+        );
+      } else {
+        recommendations.push(
+          "Mantener los hábitos que favorecen la constancia y el seguimiento de objetivos, incorporando metas progresivas de mayor complejidad."
+        );
+      }
 
-    {
-      const page =
-        pdfDoc.addPage([
-          595.28,
-          841.89,
-        ]);
+      if (
+        negotiation
+          ?.classification ===
+        "BAJO"
+      ) {
+        recommendations.push(
+          "Desarrollar habilidades de negociación mediante preparación previa, escucha activa, claridad de objetivos y búsqueda de acuerdos equilibrados."
+        );
+      } else {
+        recommendations.push(
+          "Continuar fortaleciendo la negociación, procurando equilibrar objetivos, relación interpersonal y flexibilidad."
+        );
+      }
 
-      drawHeader({
-        page,
-        title:
-          "Animodo y personalidad",
-
-        subtitle:
-          "Cómo tiendes a sentir, pensar, actuar y observar",
-
-        boldFont,
-        regularFont,
-      });
-
-      page.drawText(
-        `Resultado Animodo: ${normalizeText(
-          animodo.animal
-        )}`,
-        {
-          x: 42,
-          y: 700,
-          font: boldFont,
-          size: 17,
-          color:
-            COLORS.navy,
-        }
+      recommendations.push(
+        `Aprovechar el canal ${prettyText(
+          vak
+            ?.dominantStyle
+        )} como apoyo principal para aprender, organizar y recuperar información.`
       );
 
-      const axis =
-        animodo.axes ||
-        {};
-
-      page.drawText(
-        "Eje Sentir - Pensar",
-        {
-          x: 42,
-          y: 660,
-          font: boldFont,
-          size: 10,
-          color:
-            COLORS.text,
-        }
+      recommendations.push(
+        `Reconocer la preferencia cerebral ${brainType} al planificar tareas, tomar decisiones y resolver problemas.`
       );
 
-      page.drawText(
-        normalizeText(
-          axis.sentirPensar
-        ),
-        {
-          x: 455,
-          y: 660,
-          font:
-            regularFont,
-          size: 10,
-          color:
-            COLORS.blue,
-        }
+      recommendations.push(
+        `Adaptar la comunicación considerando el estilo ${communicationType}, manteniendo apertura frente a personas con estilos diferentes.`
       );
 
-      page.drawText(
-        "Eje Actuar - Observar",
-        {
-          x: 42,
-          y: 625,
-          font: boldFont,
-          size: 10,
-          color:
-            COLORS.text,
-        }
+      recommendations.push(
+        `Utilizar el resultado Animodo ${animodoResult} como referencia para reconocer fortalezas conductuales y oportunidades de mayor flexibilidad.`
       );
 
-      page.drawText(
-        normalizeText(
-          axis.actuarObservar
-        ),
-        {
-          x: 455,
-          y: 625,
-          font:
-            regularFont,
-          size: 10,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      page.drawText(
-        "Descripción del perfil",
-        {
-          x: 42,
-          y: 570,
-          font: boldFont,
-          size: 14,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      let currentY =
-        drawWrappedText({
-          page,
-
-          text:
-            personality?.descripcion ||
-            "No existe una descripción configurada para esta personalidad.",
-
-          x: 42,
-          y: 542,
-
-          maxWidth: 510,
-
-          font:
-            regularFont,
-
-          size: 10,
-
-          lineHeight: 15,
-        });
-
-      currentY -= 25;
-
-      page.drawText(
-        "Forma de pensar",
-        {
-          x: 42,
-          y: currentY,
-          font: boldFont,
-          size: 12,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      currentY -= 22;
-
-      currentY =
-        drawWrappedText({
-          page,
-
-          text:
-            personality?.formaPensar ||
-            "Sin descripción disponible.",
-
-          x: 42,
-          y: currentY,
-
-          maxWidth: 510,
-
-          font:
-            regularFont,
-
-          size: 9.5,
-
-          lineHeight: 14,
-        });
-
-      currentY -= 25;
-
-      page.drawText(
-        "Forma de aprender",
-        {
-          x: 42,
-          y: currentY,
-          font: boldFont,
-          size: 12,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      currentY -= 22;
-
-      drawWrappedText({
-        page,
-
-        text:
-          personality?.formaAprender ||
-          "Sin descripción disponible.",
-
-        x: 42,
-        y: currentY,
-
-        maxWidth: 510,
-
-        font:
-          regularFont,
-
-        size: 9.5,
-
-        lineHeight: 14,
-      });
-
-      drawFooter({
-        page,
-        pageNumber: 3,
-        regularFont,
-      });
-    }
-
-    /* =====================================================
-       PÁGINA 4 - CEREBRO + VAK
-    ===================================================== */
-
-    {
-      const page =
-        pdfDoc.addPage([
-          595.28,
-          841.89,
-        ]);
-
-      drawHeader({
-        page,
-        title:
-          "Pensamiento y aprendizaje",
-
-        subtitle:
-          "Tipo de cerebro y sistema representacional VAK",
-
-        boldFont,
-        regularFont,
-      });
-
-      page.drawText(
-        "Tipo de cerebro",
-        {
-          x: 42,
-          y: 700,
-          size: 15,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      page.drawText(
-        normalizeText(
-          brain.brainType
-        ),
-        {
-          x: 42,
-          y: 675,
-          size: 12,
-          font: boldFont,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      const brainPercentages =
-        brain.percentages ||
-        {};
-
-      drawPercentageBar({
-        page,
-        x: 42,
-        y: 625,
-        width: 225,
-        label: "Pensante",
-        value:
-          brainPercentages
-            .PENSANTE,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 42,
-        y: 585,
-        width: 225,
-        label: "Emocional",
-        value:
-          brainPercentages
-            .EMOCIONAL,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 42,
-        y: 545,
-        width: 225,
-        label: "Reptiliano",
-        value:
-          brainPercentages
-            .REPTILIANO,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      page.drawText(
-        "Estilo VAK",
-        {
-          x: 315,
-          y: 700,
-          size: 15,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      page.drawText(
-        normalizeText(
-          vak.dominantStyle
-        ),
-        {
-          x: 315,
-          y: 675,
-          size: 12,
-          font: boldFont,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      const vakPercentages =
-        vak.percentages ||
-        {};
-
-      drawPercentageBar({
-        page,
-        x: 315,
-        y: 625,
-        width: 225,
-        label: "Visual",
-        value:
-          vakPercentages.VISUAL,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 315,
-        y: 585,
-        width: 225,
-        label: "Auditivo",
-        value:
-          vakPercentages.AUDITIVO,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 315,
-        y: 545,
-        width: 225,
-        label:
-          "Kinestésico",
-        value:
-          vakPercentages
-            .KINESTESICO,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      page.drawText(
-        "Interpretación",
-        {
-          x: 42,
-          y: 485,
-          size: 14,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      drawWrappedText({
-        page,
-
-        text:
-          personality?.formaAprender ||
-          "El estilo dominante refleja las vías que tienden a facilitar la adquisición, organización y recuperación de información.",
-
-        x: 42,
-        y: 458,
-
-        maxWidth: 510,
-
-        font:
-          regularFont,
-
-        size: 10,
-
-        lineHeight: 15,
-      });
-
-      drawFooter({
-        page,
-        pageNumber: 4,
-        regularFont,
-      });
-    }
-
-    /* =====================================================
-       PÁGINA 5 - COMUNICACIÓN + NEGOCIACIÓN
-    ===================================================== */
-
-    {
-      const page =
-        pdfDoc.addPage([
-          595.28,
-          841.89,
-        ]);
-
-      drawHeader({
-        page,
-        title:
-          "Comunicación y negociación",
-
-        subtitle:
-          "Preferencias de interacción y comportamiento negociador",
-
-        boldFont,
-        regularFont,
-      });
-
-      page.drawText(
-        "Colores de la comunicación",
-        {
-          x: 42,
-          y: 700,
-          size: 15,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      page.drawText(
-        normalizeText(
-          communication
-            .communicationType
-        ),
-        {
-          x: 42,
-          y: 675,
-          size: 12,
-          font: boldFont,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      const communicationPercentages =
-        communication
-          .percentages ||
-        {};
-
-      drawPercentageBar({
-        page,
-        x: 42,
-        y: 625,
-        width: 225,
-        label: "Amarillo",
-        value:
-          communicationPercentages
-            .AMARILLO,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 42,
-        y: 585,
-        width: 225,
-        label: "Azul",
-        value:
-          communicationPercentages
-            .AZUL,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 315,
-        y: 625,
-        width: 225,
-        label: "Rojo",
-        value:
-          communicationPercentages
-            .ROJO,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      drawPercentageBar({
-        page,
-        x: 315,
-        y: 585,
-        width: 225,
-        label: "Verde",
-        value:
-          communicationPercentages
-            .VERDE,
-        font:
-          regularFont,
-        boldFont,
-      });
-
-      page.drawText(
-        "Forma de comunicación",
-        {
-          x: 42,
-          y: 520,
-          size: 13,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      let currentY =
-        drawWrappedText({
-          page,
-
-          text:
-            personality
-              ?.descripcionComunicacion ||
-            "Sin descripción específica configurada.",
-
-          x: 42,
-          y: 493,
-
-          maxWidth: 510,
-
-          font:
-            regularFont,
-
-          size: 9.5,
-
-          lineHeight: 14,
-        });
-
-      currentY -= 28;
-
-      page.drawText(
-        "Nivel de negociación",
-        {
-          x: 42,
-          y: currentY,
-          size: 13,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      currentY -= 26;
-
-      page.drawText(
-        `Clasificación: ${normalizeText(
-          negotiation
-            .classification
-        )}`,
-        {
-          x: 42,
-          y: currentY,
-          size: 10,
-          font: boldFont,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      currentY -= 20;
-
-      page.drawText(
-        `Puntaje obtenido: ${normalizeText(
-          negotiation.totalScore
-        )}`,
-        {
-          x: 42,
-          y: currentY,
-          size: 9.5,
-          font:
-            regularFont,
-          color:
-            COLORS.text,
-        }
-      );
-
-      drawFooter({
-        page,
-        pageNumber: 5,
-        regularFont,
-      });
-    }
-
-    /* =====================================================
-       PÁGINA 6 - PERSISTENCIA + RECOMENDACIONES
-    ===================================================== */
-
-    {
-      const page =
-        pdfDoc.addPage([
-          595.28,
-          841.89,
-        ]);
-
-      drawHeader({
-        page,
-        title:
-          "Síntesis y recomendaciones",
-
-        subtitle:
-          "Orientaciones para el desarrollo personal",
-
-        boldFont,
-        regularFont,
-      });
-
-      page.drawText(
-        "Nivel de persistencia",
-        {
-          x: 42,
-          y: 700,
-          size: 15,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      page.drawText(
-        normalizeText(
-          persistence.level
-        ),
-        {
-          x: 42,
-          y: 674,
-          size: 14,
-          font: boldFont,
-          color:
-            COLORS.blue,
-        }
-      );
-
-      page.drawText(
-        `Puntaje: ${normalizeText(
-          persistence.score
-        )}`,
-        {
-          x: 42,
-          y: 652,
-          size: 9.5,
-          font:
-            regularFont,
-          color:
-            COLORS.text,
-        }
-      );
-
-      const factors =
-        Array.isArray(
-          persistence.factors
+      let y =
+        302;
+
+      recommendations
+        .slice(
+          0,
+          6
         )
-          ? persistence.factors
-          : [];
+        .forEach(
+          (
+            recommendation,
+            index
+          ) => {
+            page.drawCircle({
+              x: 68,
 
-      if (factors.length) {
-        page.drawText(
-          "Factores observados:",
-          {
-            x: 42,
-            y: 620,
-            size: 10,
-            font: boldFont,
-            color:
-              COLORS.text,
+              y:
+                y + 4,
+
+              size: 9,
+
+              color:
+                COLORS.blue,
+            });
+
+            page.drawText(
+              String(
+                index + 1
+              ),
+              {
+                x:
+                  65,
+
+                y,
+
+                font:
+                  boldFont,
+
+                size: 7,
+
+                color:
+                  COLORS.white,
+              }
+            );
+
+            y =
+              drawWrappedText({
+                page,
+
+                text:
+                  recommendation,
+
+                x: 90,
+
+                y:
+                  y + 4,
+
+                maxWidth: 440,
+
+                font:
+                  regularFont,
+
+                size: 8.5,
+
+                lineHeight: 12,
+
+                color:
+                  COLORS.textSoft,
+
+                maxLines: 3,
+              }) - 13;
           }
         );
 
-        let y = 598;
-
-        for (
-          const factor
-          of factors
-        ) {
-          page.drawText(
-            `• ${normalizeText(
-              factor
-            )
-              .replace(
-                /_/g,
-                " "
-              )
-              .toLowerCase()}`,
-            {
-              x: 55,
-              y,
-              size: 9,
-              font:
-                regularFont,
-              color:
-                COLORS.text,
-            }
-          );
-
-          y -= 18;
-        }
-      }
-
-      page.drawText(
-        "Recomendaciones generales",
-        {
-          x: 42,
-          y: 500,
-          size: 15,
-          font: boldFont,
-          color:
-            COLORS.navy,
-        }
-      );
-
-      const recommendations = [
-        `Aprovecha las fortalezas asociadas a tu perfil ${normalizeText(
-          personality?.nombre,
-          "personal"
-        )}.`,
-
-        `Adapta tu comunicación considerando tu estilo predominante ${normalizeText(
-          communication
-            .communicationType
-        )}.`,
-
-        `Utiliza estrategias de aprendizaje compatibles con tu modalidad ${normalizeText(
-          vak.dominantStyle
-        )}.`,
-
-        `Reconoce las ventajas y límites de tu tipo de cerebro ${normalizeText(
-          brain.brainType
-        )} al tomar decisiones.`,
-
-        `En negociación, revisa tu clasificación ${normalizeText(
-          negotiation
-            .classification
-        )} y busca equilibrar objetivos, relación y flexibilidad.`,
-
-        "Utiliza este informe como una herramienta de autoconocimiento y desarrollo, no como una etiqueta rígida.",
-      ];
-
-      let y = 465;
-
-      recommendations.forEach(
-        (
-          recommendation,
-          index
-        ) => {
-          page.drawCircle({
-            x: 52,
-            y: y + 3,
-            size: 9,
-            color:
-              COLORS.blue,
-          });
-
-          page.drawText(
-            String(index + 1),
-            {
-              x:
-                index + 1 >=
-                10
-                  ? 47
-                  : 49,
-
-              y,
-
-              size: 7,
-              font: boldFont,
-              color:
-                COLORS.white,
-            }
-          );
-
-          y =
-            drawWrappedText({
-              page,
-
-              text:
-                recommendation,
-
-              x: 72,
-              y: y + 4,
-
-              maxWidth:
-                465,
-
-              font:
-                regularFont,
-
-              size: 9.5,
-
-              lineHeight: 14,
-            }) - 19;
-        }
-      );
-
       drawFooter({
         page,
-        pageNumber: 6,
+        number: 6,
         regularFont,
       });
     }
 
     /* =====================================================
-       INSERTAR IMAGEN DE PERSONALIDAD
-
-       Por ahora se carga para verificar que la URL funciona.
-       En el siguiente ajuste la colocamos visualmente
-       en portada/resumen.
+       METADATA
     ===================================================== */
 
-    await loadRemoteImage({
-      pdfDoc,
+    pdfDoc.setTitle(
+      `Informe Proyecto Pensar - ${normalizeText(
+        fullName
+      )}`
+    );
 
-      url:
-        personality
-          ?.imagenUrl ||
-        result
-          ?.personality
-          ?.imagenUrl,
-    });
+    pdfDoc.setAuthor(
+      "iDr.Mind"
+    );
+
+    pdfDoc.setSubject(
+      "Informe de resultados Proyecto Pensar"
+    );
+
+    pdfDoc.setCreator(
+      "iDr.Mind"
+    );
+
+    pdfDoc.setProducer(
+      "iDr.Mind"
+    );
 
     /* =====================================================
-       SERIALIZAR A BUFFER
+       SAVE
     ===================================================== */
 
-    const pdfBytes =
+    const bytes =
       await pdfDoc.save();
 
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      "✅ PDF GENERADO CORRECTAMENTE"
+    );
+
+    console.log(
+      "🏢 Logo institucional:",
+      Boolean(
+        logoImage
+      )
+    );
+
+    console.log(
+      "🧠 Imagen personalidad:",
+      Boolean(
+        personalityImage
+      )
+    );
+
+    console.log(
+      "📦 Tamaño:",
+      bytes.length,
+      "bytes"
+    );
+
+    console.log(
+      "======================================"
+    );
+
     return Buffer.from(
-      pdfBytes
+      bytes
     );
   };
 

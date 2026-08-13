@@ -32,49 +32,113 @@ const PsychometricPersonality = require(
 
 const SECTION_CODES = {
   ANIMODO: "animodo",
-  COMUNICACION: "colores_comunicacion",
-  CEREBRO: "tipos_cerebro",
-  NEGOCIACION: "forma_negociadora",
-  VAK: "vak",
+
+  COMUNICACION:
+    "colores_comunicacion",
+
+  CEREBRO:
+    "tipos_cerebro",
+
+  NEGOCIACION:
+    "forma_negociadora",
+
+  VAK:
+    "vak",
 };
 
 /* =========================================================
-   COLORES DE RESULTADO
+   COLORES DE CABEZA
+
+   Equivalencia utilizada para seleccionar
+   la personalidad final.
+
+   IZQUIERDO / PENSAR / VISUAL -> AMARILLO
+   CENTRAL / HACER / AUDITIVO -> ROJO
+   DERECHO / SENTIR / KINESTÉSICO -> AZUL
 ========================================================= */
 
 const BRAIN_TO_HEAD_COLOR = {
-  PENSANTE: "AMARILLO",
-  EMOCIONAL: "AZUL",
-  REPTILIANO: "ROJO",
-};
+  IZQUIERDO:
+    "AMARILLO",
 
-const COMMUNICATION_TO_CHEST_COLOR = {
-  LOGICO: "AMARILLO",
-  EMOCIONAL: "AZUL",
-  RETADOR: "ROJO",
-  VISIONARIO: "VERDE",
+  CENTRAL:
+    "ROJO",
+
+  DERECHO:
+    "AZUL",
 };
 
 /* =========================================================
-   DISTRIBUCIÓN DE LAS 23 PREGUNTAS DE CEREBRO
+   DESCRIPCIÓN COMPLETA DEL TIPO DE CEREBRO
+   SEGÚN DIAG.FINAL
+========================================================= */
 
-   Esta distribución permite calcular el resultado aunque
-   las preguntas actuales no tengan categoriaResultado
-   dentro de configuracion.
+const BRAIN_TYPE_LABELS = {
+  IZQUIERDO:
+    "IZQUIERDO / PENSAR / VISUAL",
+
+  CENTRAL:
+    "CENTRAL / HACER / AUDITIVO",
+
+  DERECHO:
+    "DERECHO / SENTIR / KINESTÉSICO",
+};
+
+/* =========================================================
+   COLORES DE COMUNICACIÓN
+========================================================= */
+
+const COMMUNICATION_TYPES = {
+  AMARILLO:
+    "LOGICO",
+
+  ROJO:
+    "RETADOR",
+
+  AZUL:
+    "EMOCIONAL",
+
+  VERDE:
+    "VISIONARIO",
+};
+
+/* =========================================================
+   MAPA EXACTO TIPOS DE CEREBRO
+   BASE!GL:GN
+
+   GL =
+   DH + DL + DO + DR + DS + DV + DW + EC
+
+   GM =
+   DI + DT + DX + DY + DZ + EB + ED
+
+   GN =
+   DJ + DK + DM + DN + DP + DQ + DU + EA
 ========================================================= */
 
 const BRAIN_QUESTION_MAP = {
-  PENSANTE: [
+  IZQUIERDO: [
     1,
     5,
     8,
     11,
     12,
+    15,
     16,
     22,
   ],
 
-  EMOCIONAL: [
+  CENTRAL: [
+    2,
+    13,
+    17,
+    18,
+    19,
+    21,
+    23,
+  ],
+
+  DERECHO: [
     3,
     4,
     6,
@@ -84,39 +148,314 @@ const BRAIN_QUESTION_MAP = {
     14,
     20,
   ],
+};
 
-  REPTILIANO: [
-    2,
-    13,
-    15,
-    17,
-    18,
-    19,
-    21,
-    23,
-  ],
+/* =========================================================
+   MATRIZ EXACTA FORMA NEGOCIADORA
+   BASE!JD:KG
+
+   Cada pregunta convierte A / B / C
+   a un valor 1, 2 o 3.
+========================================================= */
+
+const NEGOTIATION_SCORE_MAP = {
+  1: {
+    A: 3,
+    B: 1,
+    C: 2,
+  },
+
+  2: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  3: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  4: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  5: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  6: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  7: {
+    A: 2,
+    B: 1,
+    C: 3,
+  },
+
+  8: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  9: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  10: {
+    A: 1,
+    B: 3,
+    C: 2,
+  },
+
+  11: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  12: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  13: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  14: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  15: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  16: {
+    A: 2,
+    B: 1,
+    C: 3,
+  },
+
+  17: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  18: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  19: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  20: {
+    A: 3,
+    B: 2,
+    C: 1,
+  },
+
+  21: {
+    A: 1,
+    B: 3,
+    C: 2,
+  },
+
+  22: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  23: {
+    A: 2,
+    B: 3,
+    C: 1,
+  },
+
+  24: {
+    A: 3,
+    B: 2,
+    C: 1,
+  },
+
+  25: {
+    A: 2,
+    B: 1,
+    C: 3,
+  },
+
+  26: {
+    A: 3,
+    B: 2,
+    C: 1,
+  },
+
+  27: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  28: {
+    A: 1,
+    B: 2,
+    C: 3,
+  },
+
+  29: {
+    A: 3,
+    B: 2,
+    C: 1,
+  },
+
+  30: {
+    A: 3,
+    B: 1,
+    C: 2,
+  },
+};
+
+/* =========================================================
+   MATRIZ EXACTA VAK
+   BASE!KH:KS
+
+   1 = VISUAL
+   2 = AUDITIVO
+   3 = KINESTÉSICO
+========================================================= */
+
+const VAK_SCORE_MAP = {
+  1: {
+    A: "VISUAL",
+    B: "AUDITIVO",
+    C: "KINESTESICO",
+  },
+
+  2: {
+    A: "KINESTESICO",
+    B: "AUDITIVO",
+    C: "VISUAL",
+  },
+
+  3: {
+    A: "KINESTESICO",
+    B: "VISUAL",
+    C: "AUDITIVO",
+  },
+
+  4: {
+    A: "VISUAL",
+    B: "AUDITIVO",
+    C: "KINESTESICO",
+  },
+
+  5: {
+    A: "VISUAL",
+    B: "KINESTESICO",
+    C: "AUDITIVO",
+  },
+
+  6: {
+    A: "AUDITIVO",
+    B: "KINESTESICO",
+    C: "VISUAL",
+  },
+
+  7: {
+    A: "VISUAL",
+    B: "AUDITIVO",
+    C: "KINESTESICO",
+  },
+
+  8: {
+    A: "AUDITIVO",
+    B: "VISUAL",
+    C: "KINESTESICO",
+  },
+
+  9: {
+    A: "AUDITIVO",
+    B: "VISUAL",
+    C: "KINESTESICO",
+  },
+
+  10: {
+    A: "KINESTESICO",
+    B: "VISUAL",
+    C: "AUDITIVO",
+  },
+
+  11: {
+    A: "AUDITIVO",
+    B: "VISUAL",
+    C: "KINESTESICO",
+  },
+
+  12: {
+    A: "VISUAL",
+    B: "AUDITIVO",
+    C: "KINESTESICO",
+  },
 };
 
 /* =========================================================
    UTILIDADES GENERALES
 ========================================================= */
 
-const normalizeCode = (value) => {
-  return String(value || "")
+const normalizeCode = (
+  value
+) => {
+  return String(
+    value || ""
+  )
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      ""
+    )
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, "_");
+    .replace(
+      /\s+/g,
+      "_"
+    );
 };
 
 const toNumber = (
   value,
   defaultValue = 0
 ) => {
-  const number = Number(value);
+  const number =
+    Number(value);
 
-  return Number.isFinite(number)
+  return Number.isFinite(
+    number
+  )
     ? number
     : defaultValue;
 };
@@ -125,15 +464,20 @@ const round = (
   value,
   decimals = 2
 ) => {
-  const factor = 10 ** decimals;
+  const factor =
+    10 ** decimals;
 
   return (
     Math.round(
       (
-        toNumber(value) +
+        toNumber(
+          value
+        ) +
         Number.EPSILON
-      ) * factor
-    ) / factor
+      ) *
+        factor
+    ) /
+    factor
   );
 };
 
@@ -143,47 +487,46 @@ const sumObjectValues = (
   return Object.values(
     object
   ).reduce(
-    (total, value) =>
-      total + toNumber(value),
+    (
+      total,
+      value
+    ) =>
+      total +
+      toNumber(
+        value
+      ),
     0
   );
-};
-
-const addScore = (
-  scores,
-  category,
-  value
-) => {
-  const normalizedCategory =
-    normalizeCode(category);
-
-  if (!normalizedCategory) {
-    return;
-  }
-
-  scores[normalizedCategory] =
-    toNumber(
-      scores[normalizedCategory]
-    ) + toNumber(value);
 };
 
 const calculatePercentages = (
   scores = {}
 ) => {
   const total =
-    sumObjectValues(scores);
+    sumObjectValues(
+      scores
+    );
 
   return Object.fromEntries(
-    Object.entries(scores).map(
-      ([category, value]) => [
+    Object.entries(
+      scores
+    ).map(
+      ([
+        category,
+        value,
+      ]) => [
         category,
 
         total > 0
           ? round(
               (
-                toNumber(value) /
+                toNumber(
+                  value
+                ) /
                 total
-              ) * 100
+              ) *
+                100,
+              2
             )
           : 0,
       ]
@@ -191,81 +534,169 @@ const calculatePercentages = (
   );
 };
 
+/* =========================================================
+   PROPORCIONES DECIMALES
+
+   El Excel guarda comunicación como:
+   0.215909...
+   0.125
+   0.431818...
+   etc.
+
+   Se conservan ambas versiones:
+   - proportions = decimal
+   - percentages = 0-100
+========================================================= */
+
+const calculateProportions = (
+  scores = {}
+) => {
+  const total =
+    sumObjectValues(
+      scores
+    );
+
+  return Object.fromEntries(
+    Object.entries(
+      scores
+    ).map(
+      ([
+        category,
+        value,
+      ]) => [
+        category,
+
+        total > 0
+          ? toNumber(
+              value
+            ) / total
+          : 0,
+      ]
+    )
+  );
+};
+
+/* =========================================================
+   GANADOR
+
+   Excel usa LARGE + HLOOKUP.
+   Si existe empate, HLOOKUP toma
+   la primera coincidencia de izquierda a derecha.
+========================================================= */
+
 const getWinners = (
   scores = {},
   preferredOrder = []
 ) => {
   const entries =
-    Object.entries(scores);
+    Object.entries(
+      scores
+    );
 
-  if (!entries.length) {
+  if (
+    !entries.length
+  ) {
     return {
       maxScore: 0,
       winners: [],
       winner: null,
+      winnerIndex: null,
       tied: false,
     };
   }
 
-  const maxScore = Math.max(
-    ...entries.map(([, value]) =>
-      toNumber(value)
-    )
-  );
-
-  const winners = entries
-    .filter(
-      ([, value]) =>
-        toNumber(value) ===
-        maxScore
-    )
-    .map(([category]) =>
-      category
+  const maxScore =
+    Math.max(
+      ...entries.map(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          )
+      )
     );
 
-  /*
-   * Si todos los puntajes son cero,
-   * no existe resultado válido.
-   */
   const allZero =
     entries.every(
-      ([, value]) =>
-        toNumber(value) === 0
+      ([
+        ,
+        value,
+      ]) =>
+        toNumber(
+          value
+        ) === 0
     );
 
   if (allZero) {
     return {
       maxScore: 0,
-      winners,
-      winner: null,
-      tied: true,
+
+      winners:
+        entries.map(
+          ([
+            category,
+          ]) =>
+            category
+        ),
+
+      winner:
+        null,
+
+      winnerIndex:
+        null,
+
+      tied:
+        true,
     };
   }
 
-  /*
-   * En empate utilizamos un orden estable.
-   * También conservamos tied=true para el informe.
-   */
-  let winner = null;
+  const winners =
+    entries
+      .filter(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          ) ===
+          maxScore
+      )
+      .map(
+        ([
+          category,
+        ]) =>
+          category
+      );
 
-  if (winners.length === 1) {
-    winner = winners[0];
-  } else {
-    winner =
-      preferredOrder.find(
-        (category) =>
-          winners.includes(category)
-      ) ||
-      winners[0] ||
-      null;
-  }
+  const winner =
+    preferredOrder.find(
+      (category) =>
+        winners.includes(
+          category
+        )
+    ) ||
+    winners[0] ||
+    null;
+
+  const winnerIndex =
+    winner
+      ? preferredOrder.indexOf(
+          winner
+        ) + 1
+      : null;
 
   return {
     maxScore,
     winners,
     winner,
+    winnerIndex,
+
     tied:
-      winners.length > 1,
+      winners.length >
+      1,
   };
 };
 
@@ -273,9 +704,11 @@ const getSelectedOptions = (
   answer
 ) => {
   return Array.isArray(
-    answer?.selectedOptions
+    answer
+      ?.selectedOptions
   )
-    ? answer.selectedOptions
+    ? answer
+        .selectedOptions
     : [];
 };
 
@@ -285,9 +718,58 @@ const getQuestionOrder = (
   return toNumber(
     answer?.question
       ?.ordenSubtest ??
-      answer?.question?.orden
+      answer?.question
+        ?.orden
   );
 };
+
+/* =========================================================
+   LETRA DE OPCIÓN A/B/C
+========================================================= */
+
+const getOptionLetter = (
+  selectedOption
+) => {
+  const candidates = [
+    selectedOption
+      ?.option?.codigo,
+
+    selectedOption
+      ?.codigo,
+
+    selectedOption
+      ?.option?.texto,
+  ];
+
+  for (
+    const candidate of
+    candidates
+  ) {
+    if (!candidate) {
+      continue;
+    }
+
+    const value =
+      String(candidate)
+        .trim()
+        .toUpperCase();
+
+    const match =
+      value.match(
+        /^[ABC]/
+      );
+
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return null;
+};
+
+/* =========================================================
+   CATEGORÍA DE OPCIÓN
+========================================================= */
 
 const getOptionCategory = (
   selectedOption
@@ -295,77 +777,12 @@ const getOptionCategory = (
   return normalizeCode(
     selectedOption
       ?.categoriaResultado ||
-      selectedOption?.option
+      selectedOption
+        ?.option
         ?.categoriaResultado ||
-      selectedOption?.option
-        ?.codigo
+      selectedOption
+        ?.option?.codigo
   );
-};
-
-/* =========================================================
-   PUNTAJE DE OPCIONES
-
-   Comunicación:
-   prioridad 1 = 3 puntos
-   prioridad 2 = 1 punto
-
-   Otros subtests:
-   usa puntajeAplicado, puntaje de opción o fallback.
-========================================================= */
-
-const getAppliedScore = (
-  selectedOption,
-  {
-    useCommunicationPriority = false,
-    fallback = 1,
-  } = {}
-) => {
-  if (
-    selectedOption
-      ?.puntajeAplicado !==
-      null &&
-    selectedOption
-      ?.puntajeAplicado !==
-      undefined
-  ) {
-    return toNumber(
-      selectedOption
-        .puntajeAplicado
-    );
-  }
-
-  if (
-    useCommunicationPriority
-  ) {
-    const priority =
-      toNumber(
-        selectedOption
-          ?.prioridad,
-        0
-      );
-
-    if (priority === 1) {
-      return 3;
-    }
-
-    if (priority === 2) {
-      return 1;
-    }
-  }
-
-  if (
-    selectedOption?.option
-      ?.puntaje !== null &&
-    selectedOption?.option
-      ?.puntaje !== undefined
-  ) {
-    return toNumber(
-      selectedOption
-        .option.puntaje
-    );
-  }
-
-  return fallback;
 };
 
 /* =========================================================
@@ -377,7 +794,10 @@ const groupAnswersBySection = (
 ) => {
   const grouped = {};
 
-  for (const answer of answers) {
+  for (
+    const answer of
+    answers
+  ) {
     const sectionCode =
       normalizeCode(
         answer?.question
@@ -388,24 +808,37 @@ const groupAnswersBySection = (
       continue;
     }
 
-    if (!grouped[sectionCode]) {
-      grouped[sectionCode] = [];
+    if (
+      !grouped[
+        sectionCode
+      ]
+    ) {
+      grouped[
+        sectionCode
+      ] = [];
     }
 
-    grouped[sectionCode].push(
+    grouped[
+      sectionCode
+    ].push(
       answer
     );
   }
 
-  /*
-   * Mantener el orden real de las preguntas.
-   */
-  Object.values(grouped).forEach(
-    (sectionAnswers) => {
+  Object.values(
+    grouped
+  ).forEach(
+    (
+      sectionAnswers
+    ) => {
       sectionAnswers.sort(
         (a, b) =>
-          getQuestionOrder(a) -
-          getQuestionOrder(b)
+          getQuestionOrder(
+            a
+          ) -
+          getQuestionOrder(
+            b
+          )
       );
     }
   );
@@ -415,236 +848,443 @@ const groupAnswersBySection = (
 
 /* =========================================================
    ANIMODO
+   BASE!GC:GE
 
-   Según la hoja de cálculo:
+   GC =
+   J + L + N + P + R + T + V
 
-   Preguntas impares:
-   SENTIR - PENSAR
+   GD =
+   K + M + O + Q + S + U + W
 
-   Preguntas pares:
-   ACTUAR - OBSERVAR
-
-   Cada eje tiene 7 preguntas con valores de 1 a 6.
-   El punto medio del eje es 24.5.
+   En nuestra sección:
+   impares -> GC
+   pares   -> GD
 ========================================================= */
 
 const calculateAnimodo = (
   answers = []
 ) => {
-  let sentirPensarTotal = 0;
-  let actuarObservarTotal = 0;
+  let sentirPensar = 0;
+  let actuarObservar =
+    0;
 
-  let sentirPensarQuestions = 0;
-  let actuarObservarQuestions = 0;
+  let sentirPensarQuestions =
+    0;
 
-  for (const answer of answers) {
+  let actuarObservarQuestions =
+    0;
+
+  for (
+    const answer of
+    answers
+  ) {
     const order =
-      getQuestionOrder(answer);
+      getQuestionOrder(
+        answer
+      );
 
     const value =
       toNumber(
-        answer?.valorNumerico,
+        answer
+          ?.valorNumerico,
         0
       );
 
-    if (!order || !value) {
+    if (
+      !order ||
+      value <= 0
+    ) {
       continue;
     }
 
-    if (order % 2 !== 0) {
-      sentirPensarTotal += value;
-      sentirPensarQuestions += 1;
+    /*
+     * Preguntas 1,3,5...
+     * equivalen a:
+     * J,L,N,P,R,T,V
+     */
+    if (
+      order % 2 !==
+      0
+    ) {
+      sentirPensar +=
+        value;
+
+      sentirPensarQuestions +=
+        1;
     } else {
-      actuarObservarTotal += value;
-      actuarObservarQuestions += 1;
+      /*
+       * Preguntas 2,4,6...
+       * equivalen a:
+       * K,M,O,Q,S,U,W
+       */
+      actuarObservar +=
+        value;
+
+      actuarObservarQuestions +=
+        1;
     }
   }
 
-  const axisMin = 1;
-  const axisMax = 6;
-
-  const sentirPensarMidpoint =
-    sentirPensarQuestions *
-    (
-      (axisMin + axisMax) /
-      2
-    );
-
-  const actuarObservarMidpoint =
-    actuarObservarQuestions *
-    (
-      (axisMin + axisMax) /
-      2
-    );
-
-  /*
-   * En las preguntas impares:
-   * valor bajo  → SENTIR
-   * valor alto  → PENSAR
-   *
-   * En las preguntas pares:
-   * valor bajo  → ACTUAR
-   * valor alto  → OBSERVAR
-   */
-  const scores = {
-    SENTIR:
-      sentirPensarQuestions *
-        (axisMax + 1) -
-      sentirPensarTotal,
-
-    PENSAR:
-      sentirPensarTotal,
-
-    ACTUAR:
-      actuarObservarQuestions *
-        (axisMax + 1) -
-      actuarObservarTotal,
-
-    OBSERVAR:
-      actuarObservarTotal,
-  };
-
-  const sentirPensar =
-    sentirPensarMidpoint -
-    sentirPensarTotal;
-
-  const actuarObservar =
-    actuarObservarMidpoint -
-    actuarObservarTotal;
-
   const animal =
     determineAnimodoAnimal({
-      scores,
       sentirPensar,
       actuarObservar,
     });
 
   return {
     codigo:
-      SECTION_CODES.ANIMODO,
+      SECTION_CODES
+        .ANIMODO,
 
-    scores,
-
-    percentages:
-      calculatePercentages(
-        scores
-      ),
-
-    rawTotals: {
-      sentirPensar:
-        sentirPensarTotal,
-
-      actuarObservar:
-        actuarObservarTotal,
-
-      sentirPensarMidpoint,
-      actuarObservarMidpoint,
+    /*
+     * Estos dos son exactamente
+     * GC y GD del Excel.
+     */
+    axes: {
+      sentirPensar,
+      actuarObservar,
     },
 
-    axes: {
-      sentirPensar:
-        round(sentirPensar),
+    rawTotals: {
+      sentirPensar,
+      actuarObservar,
 
-      actuarObservar:
-        round(actuarObservar),
+      sentirPensarQuestions,
+      actuarObservarQuestions,
+    },
+
+    /*
+     * Se conserva para compatibilidad
+     * con cualquier frontend previo.
+     */
+    scores: {
+      SENTIR_PENSAR:
+        sentirPensar,
+
+      ACTUAR_OBSERVAR:
+        actuarObservar,
     },
 
     animal,
+
+    /*
+     * Usado únicamente para buscar
+     * la personalidad/imagen.
+     *
+     * Las zonas intermedias del Excel
+     * se representan como CAMALEÓN
+     * dentro de las 60 personalidades.
+     */
+    personalityAnimal:
+      getPersonalityAnimal(
+        animal
+      ),
   };
 };
 
 /* =========================================================
-   DETERMINAR ANIMAL
+   DETERMINAR ANIMODO
+   FÓRMULA EXACTA DIAG.FINAL / BASE!GE
 ========================================================= */
 
 const determineAnimodoAnimal = ({
-  scores,
   sentirPensar,
   actuarObservar,
 }) => {
-  const firstAxisTied =
-    sentirPensar === 0;
+  const gc =
+    toNumber(
+      sentirPensar
+    );
 
-  const secondAxisTied =
-    actuarObservar === 0;
+  const gd =
+    toNumber(
+      actuarObservar
+    );
 
+  /*
+   * DELFIN
+   */
   if (
-    firstAxisTied ||
-    secondAxisTied
-  ) {
-    return "CAMALEON";
-  }
-
-  const feelingDominant =
-    scores.SENTIR >
-    scores.PENSAR;
-
-  const thinkingDominant =
-    scores.PENSAR >
-    scores.SENTIR;
-
-  const actingDominant =
-    scores.ACTUAR >
-    scores.OBSERVAR;
-
-  const observingDominant =
-    scores.OBSERVAR >
-    scores.ACTUAR;
-
-  if (
-    feelingDominant &&
-    actingDominant
+    gd >= 6 &&
+    gd <= 21 &&
+    gc >= 6 &&
+    gc <= 21
   ) {
     return "DELFIN";
   }
 
+  /*
+   * CASTOR
+   */
   if (
-    thinkingDominant &&
-    actingDominant
-  ) {
-    return "ABEJA";
-  }
-
-  if (
-    thinkingDominant &&
-    observingDominant
+    gd >= 27 &&
+    gd <= 42 &&
+    gc >= 27 &&
+    gc <= 42
   ) {
     return "CASTOR";
   }
 
+  /*
+   * BUHO
+   */
   if (
-    feelingDominant &&
-    observingDominant
+    gd <= 21 &&
+    gc >= 27
   ) {
     return "BUHO";
   }
 
-  return "CAMALEON";
+  /*
+   * ABEJA
+   */
+  if (
+    gd >= 27 &&
+    gc <= 21
+  ) {
+    return "ABEJA";
+  }
+
+  /*
+   * ENTRE DELFIN Y BUHO
+   */
+  if (
+    gd <= 21 &&
+    gc >= 22 &&
+    gc <= 26
+  ) {
+    return (
+      "ENTRE DELFIN Y BUHO"
+    );
+  }
+
+  /*
+   * ENTRE ABEJA Y CASTOR
+   */
+  if (
+    gd >= 27 &&
+    gc >= 22 &&
+    gc <= 26
+  ) {
+    return (
+      "ENTRE ABEJA Y CASTOR"
+    );
+  }
+
+  /*
+   * ENTRE ABEJA Y DELFIN
+   */
+  if (
+    gc <= 21 &&
+    gd >= 22 &&
+    gd <= 26
+  ) {
+    return (
+      "ENTRE ABEJA Y DELFIN"
+    );
+  }
+
+  /*
+   * ENTRE CASTOR Y BUHO
+   */
+  if (
+    gc >= 27 &&
+    gd >= 22 &&
+    gd <= 26
+  ) {
+    return (
+      "ENTRE CASTOR Y BUHO"
+    );
+  }
+
+  /*
+   * CAMALEÓN
+   */
+  if (
+    gc >= 22 &&
+    gc <= 26 &&
+    gd >= 22 &&
+    gd <= 26
+  ) {
+    return "CAMALEON";
+  }
+
+  return null;
 };
 
 /* =========================================================
-   COLORES DE COMUNICACIÓN
+   ANIMAL PARA LAS 60 PERSONALIDADES
+
+   5 animales x 3 colores cabeza x 4 colores pecho = 60
+
+   Las cuatro zonas "ENTRE..." se consideran
+   CAMALEÓN para seleccionar la imagen/perfil,
+   pero el resultado ANIMODO conserva el texto
+   exacto del Excel.
 ========================================================= */
+
+const getPersonalityAnimal = (
+  animal
+) => {
+  const normalized =
+    normalizeCode(
+      animal
+    );
+
+  if (
+    [
+      "ABEJA",
+      "CASTOR",
+      "BUHO",
+      "DELFIN",
+    ].includes(
+      normalized
+    )
+  ) {
+    return normalized;
+  }
+
+  if (
+    normalized ===
+      "CAMALEON" ||
+    normalized.startsWith(
+      "ENTRE_"
+    )
+  ) {
+    return "CAMALEON";
+  }
+
+  return null;
+};
+
+/* =========================================================
+   COMUNICACIÓN
+   BASE!X:DG -> GG:GK
+
+   Por cada pregunta:
+   prioridad 1 = 3
+   prioridad 2 = 1
+   no seleccionada = 0
+
+   Columnas:
+   opción 1 = AMARILLO
+   opción 2 = ROJO
+   opción 3 = AZUL
+   opción 4 = VERDE
+========================================================= */
+
+const getCommunicationCategory = (
+  selected
+) => {
+  const configured =
+    normalizeCode(
+      selected
+        ?.categoriaResultado ||
+        selected?.option
+          ?.categoriaResultado
+    );
+
+  if (
+    [
+      "AMARILLO",
+      "ROJO",
+      "AZUL",
+      "VERDE",
+    ].includes(
+      configured
+    )
+  ) {
+    return configured;
+  }
+
+  /*
+   * Fallback por orden,
+   * exactamente como X,Y,Z,AA
+   * de cada grupo del Excel.
+   */
+  const optionOrder =
+    toNumber(
+      selected?.option
+        ?.orden,
+      0
+    );
+
+  const byOrder = {
+    1: "AMARILLO",
+    2: "ROJO",
+    3: "AZUL",
+    4: "VERDE",
+  };
+
+  return (
+    byOrder[
+      optionOrder
+    ] || null
+  );
+};
+
+const getCommunicationScore = (
+  selected
+) => {
+  const priority =
+    toNumber(
+      selected?.prioridad,
+      0
+    );
+
+  if (
+    priority === 1
+  ) {
+    return 3;
+  }
+
+  if (
+    priority === 2
+  ) {
+    return 1;
+  }
+
+  /*
+   * Fallback por si alguna respuesta
+   * antigua no tiene prioridad.
+   */
+  if (
+    selected
+      ?.puntajeAplicado !==
+      null &&
+    selected
+      ?.puntajeAplicado !==
+      undefined
+  ) {
+    return toNumber(
+      selected
+        .puntajeAplicado
+    );
+  }
+
+  return 0;
+};
 
 const calculateCommunicationColors = (
   answers = []
 ) => {
   const scores = {
     AMARILLO: 0,
-    AZUL: 0,
     ROJO: 0,
+    AZUL: 0,
     VERDE: 0,
   };
 
-  for (const answer of answers) {
+  for (
+    const answer of
+    answers
+  ) {
     const selectedOptions =
-      getSelectedOptions(answer);
-
-    /*
-     * Mantener el orden de prioridad.
-     */
-    const orderedOptions =
-      [...selectedOptions].sort(
+      [
+        ...getSelectedOptions(
+          answer
+        ),
+      ].sort(
         (a, b) =>
           toNumber(
             a?.prioridad,
@@ -658,27 +1298,32 @@ const calculateCommunicationColors = (
 
     for (
       const selected of
-      orderedOptions
+      selectedOptions
     ) {
       const category =
-        getOptionCategory(
+        getCommunicationCategory(
           selected
         );
 
       const score =
-        getAppliedScore(
-          selected,
-          {
-            useCommunicationPriority:
-              true,
-          }
+        getCommunicationScore(
+          selected
         );
 
-      addScore(
-        scores,
-        category,
-        score
-      );
+      if (
+        !category ||
+        !Object.prototype
+          .hasOwnProperty.call(
+            scores,
+            category
+          )
+      ) {
+        continue;
+      }
+
+      scores[
+        category
+      ] += score;
     }
   }
 
@@ -687,8 +1332,8 @@ const calculateCommunicationColors = (
       scores,
       [
         "AMARILLO",
-        "AZUL",
         "ROJO",
+        "AZUL",
         "VERDE",
       ]
     );
@@ -697,51 +1342,67 @@ const calculateCommunicationColors = (
     result.winner;
 
   const communicationType =
-    getCommunicationTypeFromColor(
-      dominantColor
-    );
+    dominantColor
+      ? COMMUNICATION_TYPES[
+          dominantColor
+        ]
+      : null;
 
   return {
     codigo:
       SECTION_CODES
         .COMUNICACION,
 
+    /*
+     * Sumas reales X:DG
+     */
     scores,
 
+    /*
+     * Equivalente decimal a GG:GJ.
+     * Ejemplo:
+     * 0.215909...
+     */
+    proportions:
+      calculateProportions(
+        scores
+      ),
+
+    /*
+     * Lo mismo expresado como porcentaje
+     * para el frontend:
+     * 21.59, 12.5, etc.
+     */
     percentages:
       calculatePercentages(
         scores
       ),
 
     dominantColor,
+
+    /*
+     * Equivalente a GK:
+     * 1 Amarillo
+     * 2 Rojo
+     * 3 Azul
+     * 4 Verde
+     */
+    valuation:
+      result.winnerIndex,
+
     communicationType,
 
-    tied: result.tied,
+    tied:
+      result.tied,
 
     tiedCategories:
       result.winners,
   };
 };
 
-const getCommunicationTypeFromColor = (
-  color
-) => {
-  const map = {
-    AMARILLO: "LOGICO",
-    AZUL: "EMOCIONAL",
-    ROJO: "RETADOR",
-    VERDE: "VISIONARIO",
-  };
-
-  return (
-    map[
-      normalizeCode(color)
-    ] || null
-  );
-};
-
 /* =========================================================
    TIPOS DE CEREBRO
+   BASE!DH:ED -> GL:GO
 ========================================================= */
 
 const getBrainCategoryByOrder = (
@@ -771,132 +1432,114 @@ const calculateBrainTypes = (
   answers = []
 ) => {
   const scores = {
-    PENSANTE: 0,
-    EMOCIONAL: 0,
-    REPTILIANO: 0,
+    IZQUIERDO: 0,
+    CENTRAL: 0,
+    DERECHO: 0,
   };
 
-  for (const answer of answers) {
-    const question =
-      answer?.question || {};
+  for (
+    const answer of
+    answers
+  ) {
+    const order =
+      getQuestionOrder(
+        answer
+      );
 
     const value =
       toNumber(
-        answer?.valorNumerico,
+        answer
+          ?.valorNumerico,
         0
       );
 
-    const selectedOptions =
-      getSelectedOptions(answer);
-
-    /*
-     * Primero intenta usar categorías
-     * configuradas en opciones.
-     */
     if (
-      selectedOptions.length
+      !order ||
+      value <= 0
     ) {
-      for (
-        const selected of
-        selectedOptions
-      ) {
-        const category =
-          normalizeBrainCategory(
-            getOptionCategory(
-              selected
-            )
-          );
-
-        if (category) {
-          addScore(
-            scores,
-            category,
-            getAppliedScore(
-              selected
-            )
-          );
-        }
-      }
-
       continue;
     }
 
-    const config =
-      question.configuracion ||
-      {};
-
-    /*
-     * Primero busca una categoría
-     * declarada en la configuración.
-     */
-    let category =
-      normalizeBrainCategory(
-        config
-          .categoriaResultado ||
-          config.categoria ||
-          config.dimension ||
-          answer?.metadata
-            ?.categoriaResultado ||
-          answer?.metadata
-            ?.categoria
+    const category =
+      getBrainCategoryByOrder(
+        order
       );
 
-    /*
-     * Las preguntas actuales solo
-     * tienen escala. En ese caso se
-     * usa el mapa por número.
-     */
     if (!category) {
-      category =
-        getBrainCategoryByOrder(
-          getQuestionOrder(
-            answer
-          )
-        );
+      continue;
     }
 
-    if (
-      category &&
-      value > 0
-    ) {
-      addScore(
-        scores,
-        category,
-        value
-      );
-    }
+    scores[
+      category
+    ] += value;
   }
 
+  /*
+   * Orden exacto GL, GM, GN.
+   *
+   * Si existe empate Excel devuelve
+   * la primera coincidencia.
+   */
   const result =
     getWinners(
       scores,
       [
-        "PENSANTE",
-        "EMOCIONAL",
-        "REPTILIANO",
+        "IZQUIERDO",
+        "CENTRAL",
+        "DERECHO",
       ]
     );
 
-  const brainType =
+  const brainCategory =
     result.winner;
+
+  const brainType =
+    brainCategory
+      ? BRAIN_TYPE_LABELS[
+          brainCategory
+        ]
+      : null;
+
+  const headColor =
+    brainCategory
+      ? BRAIN_TO_HEAD_COLOR[
+          brainCategory
+        ]
+      : null;
 
   return {
     codigo:
-      SECTION_CODES.CEREBRO,
+      SECTION_CODES
+        .CEREBRO,
 
+    /*
+     * Exactamente GL, GM, GN
+     */
     scores,
 
+    /*
+     * Se mantiene para gráficas.
+     * DIAG.FINAL usa scores.
+     */
     percentages:
       calculatePercentages(
         scores
       ),
 
+    brainCategory,
+
     brainType,
 
-    headColor:
-      BRAIN_TO_HEAD_COLOR[
-        brainType
-      ] || null,
+    /*
+     * Equivalente a GO:
+     * 1 Izquierdo
+     * 2 Central
+     * 3 Derecho
+     */
+    valuation:
+      result.winnerIndex,
+
+    headColor,
 
     tied:
       result.tied,
@@ -906,55 +1549,118 @@ const calculateBrainTypes = (
   };
 };
 
-const normalizeBrainCategory = (
-  category
-) => {
-  const normalized =
-    normalizeCode(category);
-
-  const map = {
-    PENSANTE: "PENSANTE",
-    IZQUIERDO: "PENSANTE",
-    PENSAR: "PENSANTE",
-
-    EMOCIONAL: "EMOCIONAL",
-    DERECHO: "EMOCIONAL",
-    SENTIR: "EMOCIONAL",
-
-    REPTILIANO:
-      "REPTILIANO",
-    CENTRAL: "REPTILIANO",
-    HACER: "REPTILIANO",
-    ACTUAR: "REPTILIANO",
-  };
-
-  return (
-    map[normalized] || null
-  );
-};
-
 /* =========================================================
    FORMA NEGOCIADORA
+   BASE!JD:KG -> GP:GQ:GR
 ========================================================= */
 
-const getNegotiationFallbackScore = (
-  selectedOption
+const getNegotiationQuality = (
+  score
 ) => {
-  const code =
-    normalizeCode(
-      selectedOption?.option
-        ?.codigo
+  const value =
+    toNumber(
+      score
     );
 
-  const scoreByCode = {
-    A: 1,
-    B: 2,
-    C: 3,
-  };
+  if (
+    value >= 30 &&
+    value <= 60
+  ) {
+    return (
+      "Aparentemente no eres confiable para negociaciones complicadas"
+    );
+  }
 
-  return (
-    scoreByCode[code] || 1
-  );
+  if (
+    value > 60 &&
+    value <= 65
+  ) {
+    return (
+      "La verdad no eres confiable como negociador"
+    );
+  }
+
+  if (
+    value > 65 &&
+    value <= 70
+  ) {
+    return (
+      "Francamente eres un Negociador “mediocre”"
+    );
+  }
+
+  if (
+    value > 70 &&
+    value <= 75
+  ) {
+    return (
+      "Mas que negociador, eres “manipulador”"
+    );
+  }
+
+  if (
+    value > 75 &&
+    value <= 80
+  ) {
+    return (
+      "Eres un negociador “de ocasion”"
+    );
+  }
+
+  if (
+    value > 80 &&
+    value <= 85
+  ) {
+    return (
+      "Generalmente eres buen Negociador"
+    );
+  }
+
+  if (
+    value > 85 &&
+    value <= 90
+  ) {
+    return (
+      "Generalmente eres buen Negociador"
+    );
+  }
+
+  return null;
+};
+
+const classifyNegotiationScore = (
+  score
+) => {
+  const value =
+    toNumber(
+      score
+    );
+
+  /*
+   * Fórmula exacta BASE!GQ.
+   */
+  if (
+    value >= 30 &&
+    value <= 70
+  ) {
+    return "BAJO";
+  }
+
+  if (
+    value > 70 &&
+    value <= 80
+  ) {
+    return "MEDIO";
+  }
+
+  if (
+    value > 80 &&
+    value <= 90
+  ) {
+    return "ALTO";
+  }
+
+  return null;
 };
 
 const calculateNegotiation = (
@@ -962,60 +1668,98 @@ const calculateNegotiation = (
 ) => {
   let totalScore = 0;
 
-  const categories = {};
+  const detail = [];
 
-  for (const answer of answers) {
-    const selectedOptions =
-      getSelectedOptions(answer);
+  for (
+    const answer of
+    answers
+  ) {
+    const order =
+      getQuestionOrder(
+        answer
+      );
 
-    if (
-      selectedOptions.length
-    ) {
-      for (
-        const selected of
-        selectedOptions
-      ) {
-        const score =
-          getAppliedScore(
-            selected,
-            {
-              fallback:
-                getNegotiationFallbackScore(
-                  selected
-                ),
-            }
-          );
+    if (!order) {
+      continue;
+    }
 
-        totalScore += score;
+    const selected =
+      getSelectedOptions(
+        answer
+      )[0];
 
-        const category =
-          getOptionCategory(
-            selected
-          );
+    if (!selected) {
+      /*
+       * Compatibilidad con respuestas
+       * donde ya esté almacenado
+       * puntajeCalculado.
+       */
+      const existingScore =
+        toNumber(
+          answer
+            ?.puntajeCalculado,
+          0
+        );
 
-        if (category) {
-          addScore(
-            categories,
-            category,
-            score
-          );
-        }
-      }
+      totalScore +=
+        existingScore;
+
+      detail.push({
+        questionOrder:
+          order,
+
+        option:
+          null,
+
+        score:
+          existingScore,
+      });
 
       continue;
     }
 
-    totalScore += toNumber(
-      answer
-        ?.puntajeCalculado ??
-        answer?.valorNumerico
-    );
+    const letter =
+      getOptionLetter(
+        selected
+      );
+
+    const questionMap =
+      NEGOTIATION_SCORE_MAP[
+        order
+      ];
+
+    const score =
+      questionMap &&
+      letter
+        ? toNumber(
+            questionMap[
+              letter
+            ],
+            0
+          )
+        : 0;
+
+    totalScore += score;
+
+    detail.push({
+      questionOrder:
+        order,
+
+      option:
+        letter,
+
+      score,
+    });
   }
 
   const classification =
     classifyNegotiationScore(
-      totalScore,
-      answers.length
+      totalScore
+    );
+
+  const quality =
+    getNegotiationQuality(
+      totalScore
     );
 
   return {
@@ -1023,46 +1767,32 @@ const calculateNegotiation = (
       SECTION_CODES
         .NEGOCIACION,
 
+    /*
+     * Exactamente GP
+     */
     totalScore:
-      round(totalScore),
+      round(
+        totalScore,
+        0
+      ),
 
-    categories,
+    /*
+     * Exactamente GQ
+     */
     classification,
+
+    /*
+     * Exactamente GR
+     */
+    quality,
+
+    detail,
   };
-};
-
-const classifyNegotiationScore = (
-  score,
-  totalQuestions
-) => {
-  if (!totalQuestions) {
-    return null;
-  }
-
-  const maximumEstimated =
-    totalQuestions * 3;
-
-  const percentage =
-    maximumEstimated > 0
-      ? (
-          score /
-          maximumEstimated
-        ) * 100
-      : 0;
-
-  if (percentage < 40) {
-    return "BAJO";
-  }
-
-  if (percentage < 70) {
-    return "MEDIO";
-  }
-
-  return "ALTO";
 };
 
 /* =========================================================
    VAK
+   BASE!KH:KS -> GS:GV
 ========================================================= */
 
 const calculateVak = (
@@ -1074,21 +1804,94 @@ const calculateVak = (
     KINESTESICO: 0,
   };
 
-  for (const answer of answers) {
-    for (
-      const selected of
-      getSelectedOptions(answer)
-    ) {
-      addScore(
-        scores,
+  const detail = [];
+
+  for (
+    const answer of
+    answers
+  ) {
+    const order =
+      getQuestionOrder(
+        answer
+      );
+
+    if (!order) {
+      continue;
+    }
+
+    const selected =
+      getSelectedOptions(
+        answer
+      )[0];
+
+    if (!selected) {
+      continue;
+    }
+
+    const letter =
+      getOptionLetter(
+        selected
+      );
+
+    const questionMap =
+      VAK_SCORE_MAP[
+        order
+      ];
+
+    let category =
+      questionMap &&
+      letter
+        ? questionMap[
+            letter
+          ]
+        : null;
+
+    /*
+     * Fallback si las opciones
+     * ya tienen categoriaResultado.
+     */
+    if (!category) {
+      const configured =
         getOptionCategory(
           selected
-        ),
-        getAppliedScore(
-          selected
+        );
+
+      if (
+        [
+          "VISUAL",
+          "AUDITIVO",
+          "KINESTESICO",
+        ].includes(
+          configured
         )
-      );
+      ) {
+        category =
+          configured;
+      }
     }
+
+    if (!category) {
+      continue;
+    }
+
+    /*
+     * COUNTIF del Excel.
+     * Cada respuesta suma UNO,
+     * no puntaje de opción.
+     */
+    scores[
+      category
+    ] += 1;
+
+    detail.push({
+      questionOrder:
+        order,
+
+      option:
+        letter,
+
+      category,
+    });
   }
 
   const result =
@@ -1105,6 +1908,14 @@ const calculateVak = (
     codigo:
       SECTION_CODES.VAK,
 
+    /*
+     * Exactamente GS, GT, GU.
+     *
+     * Ejemplo:
+     * VISUAL = 3
+     * AUDITIVO = 1
+     * KINESTESICO = 8
+     */
     scores,
 
     percentages:
@@ -1115,16 +1926,42 @@ const calculateVak = (
     dominantStyle:
       result.winner,
 
+    /*
+     * Equivalente GV:
+     * 1 Visual
+     * 2 Auditivo
+     * 3 Kinestésico
+     */
+    valuation:
+      result.winnerIndex,
+
     tied:
       result.tied,
 
     tiedCategories:
       result.winners,
+
+    detail,
   };
 };
 
 /* =========================================================
    PERSISTENCIA
+   BASE!GX:HC
+
+   GX = ANIMODO
+   GY = COMUNICACIÓN
+   GZ = CEREBRO
+   HA = NEGOCIACIÓN
+
+   HB = cantidad de valores = 1
+
+   HC:
+   0 = ALERTA
+   1 = NO
+   2 = NO
+   3 = SI
+   4 = SI
 ========================================================= */
 
 const calculatePersistence = ({
@@ -1133,91 +1970,190 @@ const calculatePersistence = ({
   brain,
   negotiation,
 }) => {
-  let score = 0;
+  /* =====================================================
+     GX - ANIMODO
+  ===================================================== */
 
-  const factors = [];
-
-  if (
-    negotiation
-      .classification ===
-    "ALTO"
-  ) {
-    score += 2;
-
-    factors.push(
-      "NEGOCIACION_ALTA"
+  const animal =
+    normalizeCode(
+      animodo?.animal
     );
-  } else if (
-    negotiation
-      .classification ===
-    "MEDIO"
-  ) {
-    score += 1;
 
-    factors.push(
-      "NEGOCIACION_MEDIA"
-    );
-  }
+  let animodoValue = 0;
 
   if (
     [
       "ABEJA",
       "CASTOR",
+      "BUHO",
     ].includes(
-      animodo.animal
+      animal
     )
   ) {
-    score += 1;
-
-    factors.push(
-      "ANIMAL_PERSISTENTE"
-    );
+    animodoValue = 1;
   }
+
+  /*
+   * DELFIN,
+   * CAMALEON
+   * y todos los ENTRE...
+   * = 0
+   */
+
+  /* =====================================================
+     GY - COMUNICACIÓN
+
+     GK:
+     1 AMARILLO -> 1
+     2 ROJO     -> 1
+     3 AZUL     -> 0
+     4 VERDE    -> 1
+  ===================================================== */
+
+  const communicationValue =
+    [1, 2, 4].includes(
+      toNumber(
+        communication
+          ?.valuation
+      )
+    )
+      ? 1
+      : 0;
+
+  /* =====================================================
+     GZ - CEREBRO
+
+     GO:
+     1 IZQUIERDO -> 1
+     2 CENTRAL   -> 1
+     3 DERECHO   -> 0
+  ===================================================== */
+
+  const brainValue =
+    [1, 2].includes(
+      toNumber(
+        brain
+          ?.valuation
+      )
+    )
+      ? 1
+      : 0;
+
+  /* =====================================================
+     HA - NEGOCIACIÓN
+
+     ALTO  = 1
+     MEDIO = 1
+     BAJO  = 0
+  ===================================================== */
+
+  const negotiationValue =
+    [
+      "ALTO",
+      "MEDIO",
+    ].includes(
+      normalizeCode(
+        negotiation
+          ?.classification
+      )
+    )
+      ? 1
+      : 0;
+
+  const indicators = {
+    animodo:
+      animodoValue,
+
+    communication:
+      communicationValue,
+
+    brain:
+      brainValue,
+
+    negotiation:
+      negotiationValue,
+  };
+
+  /*
+   * HB = COUNTIF(GX:HA,1)
+   */
+  const score =
+    Object.values(
+      indicators
+    ).filter(
+      (value) =>
+        value === 1
+    ).length;
+
+  /*
+   * HC
+   */
+  let level = null;
 
   if (
-    communication
-      .communicationType ===
-    "RETADOR"
+    score === 0
   ) {
-    score += 1;
-
-    factors.push(
-      "COMUNICACION_RETADORA"
-    );
-  }
-
-  if (
-    brain.brainType ===
-    "REPTILIANO"
-  ) {
-    score += 1;
-
-    factors.push(
-      "CEREBRO_REPTILIANO"
-    );
-  }
-
-  let level = "NO";
-
-  if (score >= 4) {
-    level = "SI";
-  } else if (score >= 2) {
     level = "ALERTA";
+  } else if (
+    score === 1 ||
+    score === 2
+  ) {
+    level = "NO";
+  } else if (
+    score === 3 ||
+    score === 4
+  ) {
+    level = "SI";
   }
 
   return {
+    /*
+     * HB
+     */
     score,
+
+    /*
+     * HC
+     */
     level,
-    factors,
+
+    /*
+     * GX:HA
+     */
+    indicators,
+
+    /*
+     * Se mantiene para compatibilidad
+     * con el frontend anterior.
+     */
+    factors:
+      Object.entries(
+        indicators
+      )
+        .filter(
+          ([
+            ,
+            value,
+          ]) =>
+            value === 1
+        )
+        .map(
+          ([
+            key,
+          ]) =>
+            key
+              .toUpperCase()
+      ),
   };
 };
 
 /* =========================================================
    BUSCAR PERSONALIDAD
 
-   Se cargan las personalidades activas y se comparan
-   normalizadas. Así no importa si en PostgreSQL están como:
-   Delfín, DELFIN, Amarillo, AMARILLO, etc.
+   Combinación:
+   ANIMAL
+   COLOR CABEZA
+   COLOR PECHO
 ========================================================= */
 
 const findPersonality = async ({
@@ -1227,13 +2163,19 @@ const findPersonality = async ({
   transaction,
 }) => {
   const normalizedAnimal =
-    normalizeCode(animal);
+    normalizeCode(
+      animal
+    );
 
   const normalizedHead =
-    normalizeCode(headColor);
+    normalizeCode(
+      headColor
+    );
 
   const normalizedChest =
-    normalizeCode(chestColor);
+    normalizeCode(
+      chestColor
+    );
 
   if (
     !normalizedAnimal ||
@@ -1254,17 +2196,22 @@ const findPersonality = async ({
 
   return (
     personalities.find(
-      (personality) =>
+      (
+        personality
+      ) =>
         normalizeCode(
-          personality.animal
+          personality
+            .animal
         ) ===
           normalizedAnimal &&
         normalizeCode(
-          personality.colorCabeza
+          personality
+            .colorCabeza
         ) ===
           normalizedHead &&
         normalizeCode(
-          personality.colorPecho
+          personality
+            .colorPecho
         ) ===
           normalizedChest
     ) || null
@@ -1275,580 +2222,926 @@ const findPersonality = async ({
    VALIDAR RESPUESTAS OBLIGATORIAS
 ========================================================= */
 
-const validateRequiredAnswers = async ({
-  evaluation,
-  answers,
-  transaction,
-}) => {
-  const requiredQuestions =
-    await PsychometricQuestion.findAll({
-      where: {
-        obligatoria: true,
-        activo: true,
-      },
+const validateRequiredAnswers =
+  async ({
+    evaluation,
+    answers,
+    transaction,
+  }) => {
+    const requiredQuestions =
+      await PsychometricQuestion.findAll({
+        where: {
+          obligatoria:
+            true,
 
-      include: [
-        {
-          model:
-            PsychometricSection,
-
-          as: "section",
-
-          where: {
-            testId:
-              evaluation.testId,
-
-            activo: true,
-          },
-
-          attributes: [
-            "id",
-            "codigo",
-            "nombre",
-          ],
+          activo:
+            true,
         },
-      ],
 
-      attributes: [
-        "id",
-        "pregunta",
-        "tipoRespuesta",
-        "seleccionesMinimas",
-        "seleccionesMaximas",
-      ],
+        include: [
+          {
+            model:
+              PsychometricSection,
 
-      transaction,
-    });
+            as:
+              "section",
 
-  const answerByQuestion =
-    new Map(
-      answers.map(
-        (answer) => [
-          String(
-            answer.questionId
-          ),
-          answer,
-        ]
-      )
-    );
+            where: {
+              testId:
+                evaluation
+                  .testId,
 
-  const missingQuestions = [];
+              activo:
+                true,
+            },
 
-  for (
-    const question of
-    requiredQuestions
-  ) {
-    const answer =
-      answerByQuestion.get(
-        String(question.id)
-      );
+            attributes: [
+              "id",
+              "codigo",
+              "nombre",
+            ],
+          },
+        ],
 
-    if (!answer) {
-      missingQuestions.push({
-        id: question.id,
+        attributes: [
+          "id",
+          "pregunta",
+          "tipoRespuesta",
+          "seleccionesMinimas",
+          "seleccionesMaximas",
+        ],
 
-        pregunta:
-          question.pregunta,
-
-        tipoRespuesta:
-          question.tipoRespuesta,
-
-        motivo:
-          "SIN_RESPUESTA",
+        transaction,
       });
 
-      continue;
-    }
+    const answerByQuestion =
+      new Map(
+        answers.map(
+          (
+            answer
+          ) => [
+            String(
+              answer
+                .questionId
+            ),
 
-    if (
-      [
-        "escala_bipolar",
-        "escala_1_5",
-      ].includes(
-        question.tipoRespuesta
-      )
+            answer,
+          ]
+        )
+      );
+
+    const missingQuestions =
+      [];
+
+    for (
+      const question of
+      requiredQuestions
     ) {
-      const hasNumeric =
-        answer.valorNumerico !==
-          null &&
-        answer.valorNumerico !==
-          undefined &&
-        answer.valorNumerico !== "";
+      const answer =
+        answerByQuestion.get(
+          String(
+            question.id
+          )
+        );
 
-      if (!hasNumeric) {
+      if (!answer) {
         missingQuestions.push({
-          id: question.id,
+          id:
+            question.id,
 
           pregunta:
-            question.pregunta,
+            question
+              .pregunta,
 
           tipoRespuesta:
-            question.tipoRespuesta,
+            question
+              .tipoRespuesta,
 
           motivo:
-            "SIN_VALOR_NUMERICO",
+            "SIN_RESPUESTA",
         });
+
+        continue;
       }
 
-      continue;
-    }
-
-    if (
-      [
-        "seleccion_unica",
-        "seleccion_ponderada",
-      ].includes(
-        question.tipoRespuesta
-      )
-    ) {
-      const selectedCount =
-        getSelectedOptions(
-          answer
-        ).length;
-
-      const minimum =
-        toNumber(
-          question
-            .seleccionesMinimas,
-          1
-        );
-
-      const maximum =
-        toNumber(
-          question
-            .seleccionesMaximas,
-          minimum
-        );
+      /* ===================================================
+         ESCALAS
+      =================================================== */
 
       if (
-        selectedCount < minimum ||
-        selectedCount > maximum
+        [
+          "escala_bipolar",
+          "escala_1_5",
+        ].includes(
+          question
+            .tipoRespuesta
+        )
       ) {
-        missingQuestions.push({
-          id: question.id,
+        const hasNumeric =
+          answer
+            .valorNumerico !==
+            null &&
+          answer
+            .valorNumerico !==
+            undefined &&
+          answer
+            .valorNumerico !==
+            "";
 
-          pregunta:
-            question.pregunta,
+        if (
+          !hasNumeric
+        ) {
+          missingQuestions.push({
+            id:
+              question.id,
 
-          tipoRespuesta:
-            question.tipoRespuesta,
+            pregunta:
+              question
+                .pregunta,
 
-          motivo:
-            "CANTIDAD_OPCIONES_INVALIDA",
+            tipoRespuesta:
+              question
+                .tipoRespuesta,
 
-          seleccionadas:
-            selectedCount,
+            motivo:
+              "SIN_VALOR_NUMERICO",
+          });
+        }
 
-          minimo: minimum,
-          maximo: maximum,
-        });
+        continue;
+      }
+
+      /* ===================================================
+         OPCIONES
+      =================================================== */
+
+      if (
+        [
+          "seleccion_unica",
+          "seleccion_ponderada",
+        ].includes(
+          question
+            .tipoRespuesta
+        )
+      ) {
+        const selectedCount =
+          getSelectedOptions(
+            answer
+          ).length;
+
+        const minimum =
+          toNumber(
+            question
+              .seleccionesMinimas,
+            1
+          );
+
+        const maximum =
+          toNumber(
+            question
+              .seleccionesMaximas,
+            minimum
+          );
+
+        if (
+          selectedCount <
+            minimum ||
+          selectedCount >
+            maximum
+        ) {
+          missingQuestions.push({
+            id:
+              question.id,
+
+            pregunta:
+              question
+                .pregunta,
+
+            tipoRespuesta:
+              question
+                .tipoRespuesta,
+
+            motivo:
+              "CANTIDAD_OPCIONES_INVALIDA",
+
+            seleccionadas:
+              selectedCount,
+
+            minimo:
+              minimum,
+
+            maximo:
+              maximum,
+          });
+        }
       }
     }
-  }
 
-  return {
-    valid:
-      missingQuestions.length ===
-      0,
+    return {
+      valid:
+        missingQuestions
+          .length === 0,
 
-    totalRequired:
-      requiredQuestions.length,
+      totalRequired:
+        requiredQuestions
+          .length,
 
-    totalAnswered:
-      requiredQuestions.length -
-      missingQuestions.length,
+      totalAnswered:
+        requiredQuestions
+          .length -
+        missingQuestions
+          .length,
 
-    missingQuestions,
+      missingQuestions,
+    };
   };
-};
 
 /* =========================================================
    CARGAR EVALUACIÓN COMPLETA
 ========================================================= */
 
-const loadEvaluationForScoring = async ({
-  evaluationId,
-  transaction,
-}) => {
-  return PsychometricEvaluation.findByPk(
+const loadEvaluationForScoring =
+  async ({
     evaluationId,
-    {
-      include: [
-        {
-          model:
-            PsychometricAnswer,
+    transaction,
+  }) => {
+    return PsychometricEvaluation.findByPk(
+      evaluationId,
+      {
+        include: [
+          {
+            model:
+              PsychometricAnswer,
 
-          as: "answers",
+            as:
+              "answers",
 
-          include: [
-            {
-              model:
-                PsychometricQuestion,
+            include: [
+              {
+                model:
+                  PsychometricQuestion,
 
-              as: "question",
+                as:
+                  "question",
 
-              include: [
-                {
-                  model:
-                    PsychometricSection,
+                include: [
+                  {
+                    model:
+                      PsychometricSection,
 
-                  as: "section",
-                },
-              ],
-            },
+                    as:
+                      "section",
+                  },
+                ],
+              },
 
-            {
-              model:
-                PsychometricAnswerOption,
+              {
+                model:
+                  PsychometricAnswerOption,
 
-              as:
-                "selectedOptions",
+                as:
+                  "selectedOptions",
 
-              include: [
-                {
-                  model:
-                    PsychometricOption,
+                include: [
+                  {
+                    model:
+                      PsychometricOption,
 
-                  as: "option",
-                },
-              ],
-            },
-          ],
-        },
-      ],
+                    as:
+                      "option",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
 
-      transaction,
-    }
-  );
-};
+        transaction,
+      }
+    );
+  };
 
 /* =========================================================
    CALCULAR RESULTADO COMPLETO
 ========================================================= */
 
-const calculateCompleteResult = async ({
-  evaluationId,
-  transaction,
-}) => {
-  const evaluation =
-    await loadEvaluationForScoring({
-      evaluationId,
-      transaction,
-    });
+const calculateCompleteResult =
+  async ({
+    evaluationId,
+    transaction,
+  }) => {
+    /* =====================================================
+       1. CARGAR EVALUACIÓN
+    ===================================================== */
 
-  if (!evaluation) {
-    const error = new Error(
-      "La evaluación no existe."
+    const evaluation =
+      await loadEvaluationForScoring({
+        evaluationId,
+        transaction,
+      });
+
+    if (!evaluation) {
+      const error =
+        new Error(
+          "La evaluación no existe."
+        );
+
+      error.statusCode =
+        404;
+
+      throw error;
+    }
+
+    const answers =
+      evaluation.answers ||
+      [];
+
+    /* =====================================================
+       2. VALIDAR RESPUESTAS
+    ===================================================== */
+
+    const validation =
+      await validateRequiredAnswers({
+        evaluation,
+        answers,
+        transaction,
+      });
+
+    if (
+      !validation.valid
+    ) {
+      const error =
+        new Error(
+          `Faltan o están incompletas ${validation.missingQuestions.length} preguntas obligatorias.`
+        );
+
+      error.statusCode =
+        422;
+
+      error.details =
+        validation;
+
+      throw error;
+    }
+
+    /* =====================================================
+       3. AGRUPAR POR SECCIÓN
+    ===================================================== */
+
+    const grouped =
+      groupAnswersBySection(
+        answers
+      );
+
+    /* =====================================================
+       4. ANIMODO
+    ===================================================== */
+
+    const animodo =
+      calculateAnimodo(
+        grouped[
+          SECTION_CODES
+            .ANIMODO
+        ] || []
+      );
+
+    /* =====================================================
+       5. COMUNICACIÓN
+    ===================================================== */
+
+    const communication =
+      calculateCommunicationColors(
+        grouped[
+          SECTION_CODES
+            .COMUNICACION
+        ] || []
+      );
+
+    /* =====================================================
+       6. TIPO DE CEREBRO
+    ===================================================== */
+
+    const brain =
+      calculateBrainTypes(
+        grouped[
+          SECTION_CODES
+            .CEREBRO
+        ] || []
+      );
+
+    /* =====================================================
+       7. NEGOCIACIÓN
+    ===================================================== */
+
+    const negotiation =
+      calculateNegotiation(
+        grouped[
+          SECTION_CODES
+            .NEGOCIACION
+        ] || []
+      );
+
+    /* =====================================================
+       8. VAK
+    ===================================================== */
+
+    const vak =
+      calculateVak(
+        grouped[
+          SECTION_CODES
+            .VAK
+        ] || []
+      );
+
+    /* =====================================================
+       9. PERSISTENCIA
+    ===================================================== */
+
+    const persistence =
+      calculatePersistence({
+        animodo,
+        communication,
+        brain,
+        negotiation,
+      });
+
+    /* =====================================================
+       10. LOG DE COMPARACIÓN CON EXCEL
+    ===================================================== */
+
+    console.log(
+      "=============================================="
     );
 
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  const answers =
-    evaluation.answers || [];
-
-  const validation =
-    await validateRequiredAnswers({
-      evaluation,
-      answers,
-      transaction,
-    });
-
-  if (!validation.valid) {
-    const error = new Error(
-      `Faltan o están incompletas ${validation.missingQuestions.length} preguntas obligatorias.`
+    console.log(
+      "RESULTADO PSICOMÉTRICO - FÓRMULAS EXCEL"
     );
 
-    error.statusCode = 422;
-    error.details = validation;
-
-    throw error;
-  }
-
-  const grouped =
-    groupAnswersBySection(
-      answers
+    console.log(
+      "----------------------------------------------"
     );
 
-  const animodo =
-    calculateAnimodo(
-      grouped[
-        SECTION_CODES.ANIMODO
-      ] || []
+    console.log(
+      "ANIMODO GC - SENTIR/PENSAR:",
+      animodo.axes
+        .sentirPensar
     );
 
-  const communication =
-    calculateCommunicationColors(
-      grouped[
-        SECTION_CODES.COMUNICACION
-      ] || []
+    console.log(
+      "ANIMODO GD - ACTUAR/OBSERVAR:",
+      animodo.axes
+        .actuarObservar
     );
 
-  const brain =
-    calculateBrainTypes(
-      grouped[
-        SECTION_CODES.CEREBRO
-      ] || []
+    console.log(
+      "ANIMODO GE:",
+      animodo.animal
     );
 
-  const negotiation =
-    calculateNegotiation(
-      grouped[
-        SECTION_CODES.NEGOCIACION
-      ] || []
+    console.log(
+      "----------------------------------------------"
     );
 
-  const vak =
-    calculateVak(
-      grouped[
-        SECTION_CODES.VAK
-      ] || []
+    console.log(
+      "COMUNICACIÓN GG:GJ:",
+      communication
+        .proportions
     );
 
-  const persistence =
-    calculatePersistence({
-      animodo,
-      communication,
-      brain,
-      negotiation,
-    });
-
-  /*
-   * Estos datos aparecerán en la consola
-   * si vuelve a existir una combinación
-   * no encontrada.
-   */
-  console.log(
-    "======================================"
-  );
-
-  console.log(
-    "RESULTADO PSICOMÉTRICO PARA PERSONALIDAD"
-  );
-
-  console.log(
-    "ANIMAL:",
-    animodo.animal
-  );
-
-  console.log(
-    "CEREBRO:",
-    brain.brainType
-  );
-
-  console.log(
-    "CABEZA:",
-    brain.headColor
-  );
-
-  console.log(
-    "COMUNICACIÓN:",
-    communication
-      .communicationType
-  );
-
-  console.log(
-    "PECHO:",
-    communication
-      .dominantColor
-  );
-
-  console.log(
-    "======================================"
-  );
-
-  if (
-    !animodo.animal ||
-    !brain.headColor ||
-    !communication
-      .dominantColor
-  ) {
-    const error = new Error(
-      "No se pudieron determinar todos los componentes de la personalidad."
+    console.log(
+      "COMUNICACIÓN GK:",
+      communication
+        .valuation
     );
 
-    error.statusCode = 422;
-
-    error.details = {
-      animal:
-        animodo.animal,
-
-      animodoScores:
-        animodo.scores,
-
-      tipoCerebro:
-        brain.brainType,
-
-      colorCabeza:
-        brain.headColor,
-
-      brainScores:
-        brain.scores,
-
-      tipoComunicacion:
-        communication
-          .communicationType,
-
-      colorPecho:
-        communication
-          .dominantColor,
-
-      communicationScores:
-        communication.scores,
-    };
-
-    throw error;
-  }
-
-  const personality =
-    await findPersonality({
-      animal:
-        animodo.animal,
-
-      headColor:
-        brain.headColor,
-
-      chestColor:
-        communication
-          .dominantColor,
-
-      transaction,
-    });
-
-  if (!personality) {
-    const error = new Error(
-      "No existe una personalidad activa para la combinación calculada."
+    console.log(
+      "COLOR DOMINANTE:",
+      communication
+        .dominantColor
     );
 
-    error.statusCode = 422;
-
-    error.details = {
-      animal:
-        animodo.animal,
-
-      colorCabeza:
-        brain.headColor,
-
-      colorPecho:
-        communication
-          .dominantColor,
-
-      tipoCerebro:
-        brain.brainType,
-
-      tipoComunicacion:
-        communication
-          .communicationType,
-    };
-
-    throw error;
-  }
-
-  const totalScore =
-    round(
-      sumObjectValues(
-        communication.scores
-      ) +
-        sumObjectValues(
-          brain.scores
-        ) +
-        negotiation.totalScore +
-        sumObjectValues(
-          vak.scores
-        )
+    console.log(
+      "----------------------------------------------"
     );
 
-  return {
-    evaluation,
-    validation,
+    console.log(
+      "CEREBRO GL:GN:",
+      brain.scores
+    );
 
-    personality,
+    console.log(
+      "CEREBRO GO:",
+      brain.valuation
+    );
 
-    personalityId:
-      personality.id,
+    console.log(
+      "TIPO CEREBRO:",
+      brain.brainType
+    );
 
-    totalScore,
+    console.log(
+      "COLOR CABEZA:",
+      brain.headColor
+    );
 
-    result: {
-      version:
-        evaluation
-          .testVersion,
+    console.log(
+      "----------------------------------------------"
+    );
 
-      generatedAt:
-        new Date()
-          .toISOString(),
+    console.log(
+      "NEGOCIACIÓN GP:",
+      negotiation
+        .totalScore
+    );
 
-      animodo,
-      communication,
-      brain,
-      negotiation,
-      vak,
-      persistence,
+    console.log(
+      "NEGOCIACIÓN GQ:",
+      negotiation
+        .classification
+    );
 
-      personality: {
-        id:
-          personality.id,
+    console.log(
+      "NEGOCIACIÓN GR:",
+      negotiation
+        .quality
+    );
 
-        numero:
-          personality.numero,
+    console.log(
+      "----------------------------------------------"
+    );
 
-        codigo:
-          personality.codigo,
+    console.log(
+      "VAK GS:GU:",
+      vak.scores
+    );
 
-        nombre:
-          personality.nombre,
+    console.log(
+      "VAK GV:",
+      vak.valuation
+    );
 
-        animal:
-          personality.animal,
+    console.log(
+      "VAK DOMINANTE:",
+      vak.dominantStyle
+    );
 
-        colorCabeza:
-          personality
-            .colorCabeza,
+    console.log(
+      "----------------------------------------------"
+    );
+
+    console.log(
+      "PERSISTENCIA GX:HA:",
+      persistence
+        .indicators
+    );
+
+    console.log(
+      "PERSISTENCIA HB:",
+      persistence.score
+    );
+
+    console.log(
+      "PERSISTENCIA HC:",
+      persistence.level
+    );
+
+    console.log(
+      "=============================================="
+    );
+
+    /* =====================================================
+       11. VALIDAR COMPONENTES PERSONALIDAD
+    ===================================================== */
+
+    const personalityAnimal =
+      animodo
+        .personalityAnimal;
+
+    if (
+      !personalityAnimal ||
+      !brain.headColor ||
+      !communication
+        .dominantColor
+    ) {
+      const error =
+        new Error(
+          "No se pudieron determinar todos los componentes de la personalidad."
+        );
+
+      error.statusCode =
+        422;
+
+      error.details = {
+        animodo:
+          animodo.animal,
+
+        personalityAnimal,
+
+        sentirPensar:
+          animodo.axes
+            .sentirPensar,
+
+        actuarObservar:
+          animodo.axes
+            .actuarObservar,
 
         tipoCerebro:
-          personality
-            .tipoCerebro,
+          brain.brainType,
 
-        colorPecho:
-          personality
-            .colorPecho,
+        categoriaCerebro:
+          brain.brainCategory,
+
+        colorCabeza:
+          brain.headColor,
+
+        brainScores:
+          brain.scores,
 
         tipoComunicacion:
-          personality
-            .tipoComunicacion,
+          communication
+            .communicationType,
 
-        imagenUrl:
-          personality.imagenUrl,
+        colorPecho:
+          communication
+            .dominantColor,
+
+        communicationScores:
+          communication.scores,
+      };
+
+      throw error;
+    }
+
+    /* =====================================================
+       12. BUSCAR PERSONALIDAD
+    ===================================================== */
+
+    const personality =
+      await findPersonality({
+        animal:
+          personalityAnimal,
+
+        headColor:
+          brain.headColor,
+
+        chestColor:
+          communication
+            .dominantColor,
+
+        transaction,
+      });
+
+    if (!personality) {
+      const error =
+        new Error(
+          "No existe una personalidad activa para la combinación calculada."
+        );
+
+      error.statusCode =
+        422;
+
+      error.details = {
+        /*
+         * Resultado real Excel.
+         */
+        resultadoAnimodo:
+          animodo.animal,
+
+        /*
+         * Animal usado para las
+         * 60 personalidades.
+         */
+        animalPersonalidad:
+          personalityAnimal,
+
+        colorCabeza:
+          brain.headColor,
+
+        colorPecho:
+          communication
+            .dominantColor,
+
+        tipoCerebro:
+          brain.brainType,
+
+        tipoComunicacion:
+          communication
+            .communicationType,
+      };
+
+      throw error;
+    }
+
+    /* =====================================================
+       13. PUNTAJE INTERNO
+
+       Se conserva porque tu modelo evaluation
+       actualmente utiliza puntajeTotal.
+
+       NO se utiliza para determinar DIAG.FINAL.
+    ===================================================== */
+
+    const totalScore =
+      round(
+        sumObjectValues(
+          communication
+            .scores
+        ) +
+          sumObjectValues(
+            brain.scores
+          ) +
+          negotiation
+            .totalScore +
+          sumObjectValues(
+            vak.scores
+          ),
+        2
+      );
+
+    /* =====================================================
+       14. RESULTADO
+    ===================================================== */
+
+    return {
+      evaluation,
+
+      validation,
+
+      personality,
+
+      personalityId:
+        personality.id,
+
+      totalScore,
+
+      result: {
+        version:
+          evaluation
+            .testVersion,
+
+        generatedAt:
+          new Date()
+            .toISOString(),
+
+        /* ===============================================
+           DIAGNÓSTICO
+        =============================================== */
+
+        animodo,
+
+        communication,
+
+        brain,
+
+        negotiation,
+
+        vak,
+
+        persistence,
+
+        /* ===============================================
+           PERSONALIDAD
+        =============================================== */
+
+        personality: {
+          id:
+            personality.id,
+
+          numero:
+            personality.numero,
+
+          codigo:
+            personality.codigo,
+
+          nombre:
+            personality.nombre,
+
+          /*
+           * Resultado del registro
+           * de personalidad.
+           */
+          animal:
+            personality.animal,
+
+          /*
+           * Resultado real ANIMODO
+           * proveniente del Excel.
+           *
+           * Puede ser:
+           * ENTRE ABEJA Y DELFIN,
+           * etc.
+           */
+          resultadoAnimodo:
+            animodo.animal,
+
+          colorCabeza:
+            personality
+              .colorCabeza,
+
+          /*
+           * Mostramos el tipo real
+           * calculado por GL:GN.
+           */
+          tipoCerebro:
+            brain.brainType,
+
+          categoriaCerebro:
+            brain.brainCategory,
+
+          colorPecho:
+            personality
+              .colorPecho,
+
+          tipoComunicacion:
+            personality
+              .tipoComunicacion,
+
+          imagenUrl:
+            personality
+              .imagenUrl,
+
+          descripcion:
+            personality
+              .descripcion,
+
+          formaPensar:
+            personality
+              .formaPensar,
+
+          formaAprender:
+            personality
+              .formaAprender,
+
+          descripcionComunicacion:
+            personality
+              .descripcionComunicacion,
+        },
       },
-    },
+    };
   };
-};
 
 /* =========================================================
    EXPORTACIONES
 ========================================================= */
 
 module.exports = {
+  /* ===========================
+     ANIMODO
+  =========================== */
+
   calculateAnimodo,
+
   determineAnimodoAnimal,
+
+  getPersonalityAnimal,
+
+  /* ===========================
+     COMUNICACIÓN
+  =========================== */
 
   calculateCommunicationColors,
 
+  /* ===========================
+     CEREBRO
+  =========================== */
+
   calculateBrainTypes,
+
+  /* ===========================
+     NEGOCIACIÓN
+  =========================== */
 
   calculateNegotiation,
 
+  /* ===========================
+     VAK
+  =========================== */
+
   calculateVak,
+
+  /* ===========================
+     PERSISTENCIA
+  =========================== */
 
   calculatePersistence,
 
+  /* ===========================
+     PERSONALIDAD
+  =========================== */
+
   findPersonality,
+
+  /* ===========================
+     VALIDACIÓN / CARGA
+  =========================== */
 
   validateRequiredAnswers,
 
   loadEvaluationForScoring,
+
+  /* ===========================
+     RESULTADO COMPLETO
+  =========================== */
 
   calculateCompleteResult,
 };

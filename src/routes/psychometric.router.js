@@ -26,6 +26,7 @@ const {
   getAllResults,
   getPublicResultByToken,
   getPsychometricResultPdf,
+  getPsychometricResultPdfAdmin,
 } = require(
   "../controllers/psychometricResult.controllers"
 );
@@ -99,6 +100,19 @@ psychometricRouter
 psychometricRouter
   .route("/psychometric/results/user/:userId")
   .get(verifyJWT, getUserHistory);
+
+/* =========================================
+ PDF ADMINISTRATIVO
+========================================= */
+
+psychometricRouter
+  .route(
+    "/psychometric/results/:evaluationId/pdf"
+  )
+  .get(
+    verifyJWT,
+    getPsychometricResultPdfAdmin
+  );
 
 psychometricRouter
   .route("/psychometric/results/:evaluationId")

@@ -8,6 +8,7 @@ const generarInformePsicometrico = require(
   "../utils/generarInformePsicometrico"
 );
 
+
 const PsychometricAccessToken = require(
   "../models/PsychometricAccessToken"
 );
@@ -1725,6 +1726,110 @@ const getPsychometricResultPdf =
     );
   });
 
+
+/* =========================================================
+ PDF ADMINISTRATIVO DEL RESULTADO
+ GET /psychometric/results/:evaluationId/pdf
+========================================================= */
+
+const getPsychometricResultPdfAdmin =
+  catchError(async (req, res) => {
+    const {
+      evaluationId,
+    } = req.params;
+
+    /* =========================================
+       1. VALIDAR ID
+    ========================================= */
+
+    if (
+      !evaluationId ||
+      !String(
+        evaluationId,
+      ).trim()
+    ) {
+      return res.status(400).json({
+        message:
+          "El ID de la evaluación es requerido.",
+      });
+    }
+
+    /* =========================================
+       2. GENERAR PDF DINÁMICAMENTE
+    ========================================= */
+
+    let pdfBuffer;
+
+    try {
+      pdfBuffer =
+        await generarInformePsicometrico({
+          evaluationId,
+        });
+    } catch (error) {
+      console.error(
+        "Error generando PDF administrativo psicométrico:",
+        error,
+      );
+
+      if (error.statusCode) {
+        return res
+          .status(
+            error.statusCode,
+          )
+          .json({
+            message:
+              error.message,
+          });
+      }
+
+      throw error;
+    }
+
+    /* =========================================
+       3. VALIDAR BUFFER
+    ========================================= */
+
+    if (
+      !pdfBuffer ||
+      !Buffer.isBuffer(
+        pdfBuffer,
+      )
+    ) {
+      return res.status(500).json({
+        message:
+          "No fue posible generar el informe psicométrico.",
+      });
+    }
+
+    /* =========================================
+       4. RESPUESTA PDF
+    ========================================= */
+
+    res.setHeader(
+      "Content-Type",
+      "application/pdf",
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="resultado-proyecto-pensar-${evaluationId}.pdf"`,
+    );
+
+    res.setHeader(
+      "Content-Length",
+      pdfBuffer.length,
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "private, no-store, max-age=0",
+    );
+
+    return res.send(
+      pdfBuffer,
+    );
+  });
+
 module.exports = {
   getIndividualResult,
   getUserHistory,
@@ -1732,4 +1837,6 @@ module.exports = {
   getPublicResultByToken,
 
   getPsychometricResultPdf,
+  getPsychometricResultPdfAdmin,
+
 };

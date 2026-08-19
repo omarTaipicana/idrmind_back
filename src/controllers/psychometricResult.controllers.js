@@ -1830,6 +1830,116 @@ const getPsychometricResultPdfAdmin =
     );
   });
 
+
+/* =========================================================
+ PREVIEW PDF PSICOMÉTRICO
+ GET /psychometric/results/:evaluationId/pdf-preview
+========================================================= */
+
+const previewPsychometricResultPdf =
+  catchError(async (req, res) => {
+    const { evaluationId } =
+      req.params;
+
+    /* =========================================
+       1. VALIDAR ID
+    ========================================= */
+
+    if (
+      !evaluationId ||
+      !String(evaluationId).trim()
+    ) {
+      return res.status(400).json({
+        message:
+          "El ID de la evaluación es requerido.",
+      });
+    }
+
+    /* =========================================
+       2. GENERAR PDF
+    ========================================= */
+
+    let pdfBuffer;
+
+    try {
+      pdfBuffer =
+        await generarInformePsicometrico({
+          evaluationId:
+            String(
+              evaluationId
+            ).trim(),
+        });
+    } catch (error) {
+      console.error(
+        "Error generando preview PDF psicométrico:",
+        error
+      );
+
+      if (error.statusCode) {
+        return res
+          .status(error.statusCode)
+          .json({
+            message:
+              error.message,
+          });
+      }
+
+      throw error;
+    }
+
+    /* =========================================
+       3. VALIDAR BUFFER
+    ========================================= */
+
+    if (
+      !pdfBuffer ||
+      !Buffer.isBuffer(pdfBuffer)
+    ) {
+      return res.status(500).json({
+        message:
+          "No fue posible generar la vista previa del informe.",
+      });
+    }
+
+    /* =========================================
+       4. EVITAR CACHE
+    ========================================= */
+
+    res.setHeader(
+      "Content-Type",
+      "application/pdf"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="preview-${evaluationId}.pdf"`
+    );
+
+    res.setHeader(
+      "Content-Length",
+      pdfBuffer.length
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate"
+    );
+
+    res.setHeader(
+      "Pragma",
+      "no-cache"
+    );
+
+    res.setHeader(
+      "Expires",
+      "0"
+    );
+
+    return res.status(200).send(
+      pdfBuffer
+    );
+  });
+
 module.exports = {
   getIndividualResult,
   getUserHistory,
@@ -1838,5 +1948,7 @@ module.exports = {
 
   getPsychometricResultPdf,
   getPsychometricResultPdfAdmin,
+
+  previewPsychometricResultPdf,
 
 };

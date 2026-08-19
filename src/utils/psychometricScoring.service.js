@@ -75,13 +75,13 @@ const BRAIN_TO_HEAD_COLOR = {
 
 const BRAIN_TYPE_LABELS = {
   IZQUIERDO:
-    "IZQUIERDO / PENSAR / VISUAL",
+    "IZQUIERDO / PENSAR",
 
   CENTRAL:
-    "CENTRAL / HACER / AUDITIVO",
+    "CENTRAL / HACER",
 
   DERECHO:
-    "DERECHO / SENTIR / KINESTÉSICO",
+    "DERECHO / SENTIR",
 };
 
 /* =========================================================
@@ -475,7 +475,7 @@ const round = (
         ) +
         Number.EPSILON
       ) *
-        factor
+      factor
     ) /
     factor
   );
@@ -515,21 +515,21 @@ const calculatePercentages = (
         category,
         value,
       ]) => [
-        category,
+          category,
 
-        total > 0
-          ? round(
+          total > 0
+            ? round(
               (
                 toNumber(
                   value
                 ) /
                 total
               ) *
-                100,
+              100,
               2
             )
-          : 0,
-      ]
+            : 0,
+        ]
     )
   );
 };
@@ -564,14 +564,14 @@ const calculateProportions = (
         category,
         value,
       ]) => [
-        category,
+          category,
 
-        total > 0
-          ? toNumber(
+          total > 0
+            ? toNumber(
               value
             ) / total
-          : 0,
-      ]
+            : 0,
+        ]
     )
   );
 };
@@ -684,8 +684,8 @@ const getWinners = (
   const winnerIndex =
     winner
       ? preferredOrder.indexOf(
-          winner
-        ) + 1
+        winner
+      ) + 1
       : null;
 
   return {
@@ -708,7 +708,7 @@ const getSelectedOptions = (
       ?.selectedOptions
   )
     ? answer
-        .selectedOptions
+      .selectedOptions
     : [];
 };
 
@@ -718,8 +718,8 @@ const getQuestionOrder = (
   return toNumber(
     answer?.question
       ?.ordenSubtest ??
-      answer?.question
-        ?.orden
+    answer?.question
+      ?.orden
   );
 };
 
@@ -777,11 +777,11 @@ const getOptionCategory = (
   return normalizeCode(
     selectedOption
       ?.categoriaResultado ||
-      selectedOption
-        ?.option
-        ?.categoriaResultado ||
-      selectedOption
-        ?.option?.codigo
+    selectedOption
+      ?.option
+      ?.categoriaResultado ||
+    selectedOption
+      ?.option?.codigo
   );
 };
 
@@ -810,7 +810,7 @@ const groupAnswersBySection = (
 
     if (
       !grouped[
-        sectionCode
+      sectionCode
       ]
     ) {
       grouped[
@@ -1146,7 +1146,7 @@ const getPersonalityAnimal = (
 
   if (
     normalized ===
-      "CAMALEON" ||
+    "CAMALEON" ||
     normalized.startsWith(
       "ENTRE_"
     )
@@ -1180,8 +1180,8 @@ const getCommunicationCategory = (
     normalizeCode(
       selected
         ?.categoriaResultado ||
-        selected?.option
-          ?.categoriaResultado
+      selected?.option
+        ?.categoriaResultado
     );
 
   if (
@@ -1218,7 +1218,7 @@ const getCommunicationCategory = (
 
   return (
     byOrder[
-      optionOrder
+    optionOrder
     ] || null
   );
 };
@@ -1251,10 +1251,10 @@ const getCommunicationScore = (
   if (
     selected
       ?.puntajeAplicado !==
-      null &&
+    null &&
     selected
       ?.puntajeAplicado !==
-      undefined
+    undefined
   ) {
     return toNumber(
       selected
@@ -1344,8 +1344,8 @@ const calculateCommunicationColors = (
   const communicationType =
     dominantColor
       ? COMMUNICATION_TYPES[
-          dominantColor
-        ]
+      dominantColor
+      ]
       : null;
 
   return {
@@ -1496,15 +1496,15 @@ const calculateBrainTypes = (
   const brainType =
     brainCategory
       ? BRAIN_TYPE_LABELS[
-          brainCategory
-        ]
+      brainCategory
+      ]
       : null;
 
   const headColor =
     brainCategory
       ? BRAIN_TO_HEAD_COLOR[
-          brainCategory
-        ]
+      brainCategory
+      ]
       : null;
 
   return {
@@ -1725,18 +1725,18 @@ const calculateNegotiation = (
 
     const questionMap =
       NEGOTIATION_SCORE_MAP[
-        order
+      order
       ];
 
     const score =
       questionMap &&
-      letter
+        letter
         ? toNumber(
-            questionMap[
-              letter
-            ],
-            0
-          )
+          questionMap[
+          letter
+          ],
+          0
+        )
         : 0;
 
     totalScore += score;
@@ -1835,15 +1835,15 @@ const calculateVak = (
 
     const questionMap =
       VAK_SCORE_MAP[
-        order
+      order
       ];
 
     let category =
       questionMap &&
-      letter
+        letter
         ? questionMap[
-            letter
-          ]
+        letter
+        ]
         : null;
 
     /*
@@ -2143,9 +2143,384 @@ const calculatePersistence = ({
           ]) =>
             key
               .toUpperCase()
-      ),
+        ),
   };
 };
+
+
+/* =========================================================
+   ÍNDICE DE PRODUCTIVIDAD PERSONAL
+========================================================= */
+
+const calculateProductivityIndex = ({
+  animodo,
+  communication,
+  brain,
+  negotiation,
+  vak,
+  persistence,
+}) => {
+  /*
+   * Normalizamos los textos para soportar:
+   * CAMALEÓN / CAMALEON
+   * BÚHO / BUHO
+   * KINESTÉSICO / KINESTESICO
+   */
+  const normalize = (value) =>
+    String(value || "")
+      .trim()
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  /* =====================================================
+     RESULTADOS OBTENIDOS
+  ===================================================== */
+
+  const persistenceResult =
+    normalize(
+      persistence?.level
+    );
+
+  const communicationResult =
+    normalize(
+      communication?.dominantColor
+    );
+
+  const animodoResult =
+    normalize(
+      animodo?.animal
+    );
+
+  const brainResult =
+    normalize(
+      brain?.brainCategory
+    );
+
+  const negotiationResult =
+    normalize(
+      negotiation?.classification
+    );
+
+  const vakResult =
+    normalize(
+      vak?.dominantStyle
+    );
+
+  /* =====================================================
+     TABLAS DE VALORACIÓN
+     Según Índice de Productividad Personal del Excel
+  ===================================================== */
+
+  const persistenceValues = {
+    SI: 1,
+    NO: 0.5,
+
+    /*
+     * Tu sistema puede producir ALERTA.
+     * Se conserva con valoración mínima.
+     */
+    ALERTA: 0.5,
+  };
+
+  const communicationValues = {
+    AMARILLO: 1,
+    ROJO: 1,
+    AZUL: 1,
+    VERDE: 1,
+  };
+
+  const animodoValues = {
+    DELFIN: 0.5,
+    ABEJA: 1,
+    CASTOR: 1,
+    BUHO: 1,
+    CAMALEON: 0.5,
+  };
+
+  const brainValues = {
+    DERECHO: 0.5,
+    CENTRAL: 1,
+    IZQUIERDO: 0.5,
+  };
+
+  const negotiationValues = {
+    ALTO: 1.5,
+    MEDIO: 1,
+    BAJO: 0.5,
+  };
+
+  const vakValues = {
+    VISUAL: 0.5,
+    AUDITIVO: 0.5,
+    KINESTESICO: 0.5,
+  };
+
+  /* =====================================================
+     OBTENER VALORES
+  ===================================================== */
+
+  const persistenceValue =
+    persistenceValues[
+    persistenceResult
+    ] ?? 0;
+
+  const communicationValue =
+    communicationValues[
+    communicationResult
+    ] ?? 0;
+
+  /*
+   * Animodo puede tener casos como:
+   *
+   * ENTRE CASTOR Y ABEJA
+   * ENTRE DELFIN Y CAMALEON
+   *
+   * Si no existe coincidencia directa,
+   * mantenemos valoración mínima 0.5.
+   */
+  let animodoValue =
+    animodoValues[
+    animodoResult
+    ];
+
+  if (
+    animodoValue ===
+    undefined &&
+    animodoResult.startsWith(
+      "ENTRE "
+    )
+  ) {
+    animodoValue = 0.5;
+  }
+
+  animodoValue ??= 0;
+
+  const brainValue =
+    brainValues[
+    brainResult
+    ] ?? 0;
+
+  const negotiationValue =
+    negotiationValues[
+    negotiationResult
+    ] ?? 0;
+
+  const vakValue =
+    vakValues[
+    vakResult
+    ] ?? 0;
+
+  /* =====================================================
+     SUMA DEL ÍNDICE
+  ===================================================== */
+
+  const score =
+    persistenceValue +
+    communicationValue +
+    animodoValue +
+    brainValue +
+    negotiationValue +
+    vakValue;
+
+  /*
+   * Evitamos errores de punto flotante.
+   */
+  const roundedScore =
+    Number(
+      score.toFixed(2)
+    );
+
+  /* =====================================================
+     CLASIFICACIÓN
+  ===================================================== */
+
+  let classification = "F";
+  let factor = 0.566;
+
+  if (
+    roundedScore >= 6
+  ) {
+    classification = "A";
+    factor = 1;
+  } else if (
+    roundedScore >= 5.5
+  ) {
+    classification = "B";
+    factor = 0.916;
+  } else if (
+    roundedScore >= 5
+  ) {
+    classification = "C";
+    factor = 0.83;
+  } else if (
+    roundedScore >= 4.5
+  ) {
+    classification = "D";
+    factor = 0.75;
+  } else if (
+    roundedScore >= 4
+  ) {
+    classification = "E";
+    factor = 0.666;
+  }
+
+  const percentage =
+    Number(
+      (
+        factor * 100
+      ).toFixed(1)
+    );
+
+  /* =====================================================
+     DETALLE
+  ===================================================== */
+
+  const detail = {
+    persistence: {
+      result:
+        persistenceResult,
+      value:
+        persistenceValue,
+    },
+
+    communication: {
+      result:
+        communicationResult,
+      value:
+        communicationValue,
+    },
+
+    animodo: {
+      result:
+        animodoResult,
+      value:
+        animodoValue,
+    },
+
+    brain: {
+      result:
+        brainResult,
+      value:
+        brainValue,
+    },
+
+    negotiation: {
+      result:
+        negotiationResult,
+      value:
+        negotiationValue,
+    },
+
+    vak: {
+      result:
+        vakResult,
+      value:
+        vakValue,
+    },
+  };
+
+  /* =====================================================
+     LOG TEMPORAL PARA COMPARAR CON EXCEL
+  ===================================================== */
+
+  console.log(
+    "=============================================="
+  );
+
+  console.log(
+    "ÍNDICE DE PRODUCTIVIDAD PERSONAL"
+  );
+
+  console.log(
+    "Persistencia:",
+    persistenceResult,
+    persistenceValue
+  );
+
+  console.log(
+    "Comunicación:",
+    communicationResult,
+    communicationValue
+  );
+
+  console.log(
+    "Animodo:",
+    animodoResult,
+    animodoValue
+  );
+
+  console.log(
+    "Cerebro:",
+    brainResult,
+    brainValue
+  );
+
+  console.log(
+    "Negociación:",
+    negotiationResult,
+    negotiationValue
+  );
+
+  console.log(
+    "VAK:",
+    vakResult,
+    vakValue
+  );
+
+  console.log(
+    "----------------------------------------------"
+  );
+
+  console.log(
+    "PUNTAJE:",
+    roundedScore
+  );
+
+  console.log(
+    "CLASIFICACIÓN:",
+    classification
+  );
+
+  console.log(
+    "FACTOR:",
+    factor
+  );
+
+  console.log(
+    "PORCENTAJE:",
+    percentage
+  );
+
+  console.log(
+    "=============================================="
+  );
+
+  /* =====================================================
+     RESULTADO
+  ===================================================== */
+
+  return {
+    codigo:
+      "indice_productividad_personal",
+
+    score:
+      roundedScore,
+
+    maxScore: 6,
+
+    classification,
+
+    factor,
+
+    percentage,
+
+    detail,
+  };
+};
+
+
+
 
 /* =========================================================
    BUSCAR PERSONALIDAD
@@ -2203,17 +2578,17 @@ const findPersonality = async ({
           personality
             .animal
         ) ===
-          normalizedAnimal &&
+        normalizedAnimal &&
         normalizeCode(
           personality
             .colorCabeza
         ) ===
-          normalizedHead &&
+        normalizedHead &&
         normalizeCode(
           personality
             .colorPecho
         ) ===
-          normalizedChest
+        normalizedChest
     ) || null
   );
 };
@@ -2280,13 +2655,13 @@ const validateRequiredAnswers =
           (
             answer
           ) => [
-            String(
-              answer
-                .questionId
-            ),
+              String(
+                answer
+                  .questionId
+              ),
 
-            answer,
-          ]
+              answer,
+            ]
         )
       );
 
@@ -2340,13 +2715,13 @@ const validateRequiredAnswers =
         const hasNumeric =
           answer
             .valorNumerico !==
-            null &&
+          null &&
           answer
             .valorNumerico !==
-            undefined &&
+          undefined &&
           answer
             .valorNumerico !==
-            "";
+          "";
 
         if (
           !hasNumeric
@@ -2405,9 +2780,9 @@ const validateRequiredAnswers =
 
         if (
           selectedCount <
-            minimum ||
+          minimum ||
           selectedCount >
-            maximum
+          maximum
         ) {
           missingQuestions.push({
             id:
@@ -2600,8 +2975,8 @@ const calculateCompleteResult =
     const animodo =
       calculateAnimodo(
         grouped[
-          SECTION_CODES
-            .ANIMODO
+        SECTION_CODES
+          .ANIMODO
         ] || []
       );
 
@@ -2612,8 +2987,8 @@ const calculateCompleteResult =
     const communication =
       calculateCommunicationColors(
         grouped[
-          SECTION_CODES
-            .COMUNICACION
+        SECTION_CODES
+          .COMUNICACION
         ] || []
       );
 
@@ -2624,8 +2999,8 @@ const calculateCompleteResult =
     const brain =
       calculateBrainTypes(
         grouped[
-          SECTION_CODES
-            .CEREBRO
+        SECTION_CODES
+          .CEREBRO
         ] || []
       );
 
@@ -2636,8 +3011,8 @@ const calculateCompleteResult =
     const negotiation =
       calculateNegotiation(
         grouped[
-          SECTION_CODES
-            .NEGOCIACION
+        SECTION_CODES
+          .NEGOCIACION
         ] || []
       );
 
@@ -2648,8 +3023,8 @@ const calculateCompleteResult =
     const vak =
       calculateVak(
         grouped[
-          SECTION_CODES
-            .VAK
+        SECTION_CODES
+          .VAK
         ] || []
       );
 
@@ -2663,6 +3038,16 @@ const calculateCompleteResult =
         communication,
         brain,
         negotiation,
+      });
+
+    const productivityIndex =
+      calculateProductivityIndex({
+        animodo,
+        communication,
+        brain,
+        negotiation,
+        vak,
+        persistence,
       });
 
     /* =====================================================
@@ -2947,14 +3332,14 @@ const calculateCompleteResult =
           communication
             .scores
         ) +
-          sumObjectValues(
-            brain.scores
-          ) +
-          negotiation
-            .totalScore +
-          sumObjectValues(
-            vak.scores
-          ),
+        sumObjectValues(
+          brain.scores
+        ) +
+        negotiation
+          .totalScore +
+        sumObjectValues(
+          vak.scores
+        ),
         2
       );
 
@@ -2998,6 +3383,8 @@ const calculateCompleteResult =
         vak,
 
         persistence,
+
+        productivityIndex,
 
         /* ===============================================
            PERSONALIDAD

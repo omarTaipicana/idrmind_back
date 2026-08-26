@@ -60,6 +60,10 @@ const PsychometricAnswerOption = require(
     "../models/PsychometricAnswerOption"
 );
 
+const PsychometricIdentityVerification = require(
+    "../models/PsychometricIdentityVerification"
+);
+
 /* =========================================================
    UTILS
 ========================================================= */
@@ -175,10 +179,6 @@ const validateSelectionCount = ({
     question,
     selectedOptions,
 }) => {
-    /*
-     * Las preguntas de escala utilizan
-     * valorNumerico y NO selectedOptions.
-     */
     if (
         ![
             "seleccion_unica",
@@ -243,15 +243,6 @@ const calculateAppliedScore = ({
     option,
     selectedOption,
 }) => {
-    /*
-     * En selección ponderada:
-     *
-     * prioridad 1 = 3 puntos
-     * prioridad 2 = 1 punto
-     *
-     * Los valores pueden venir de configuracion.
-     */
-
     if (
         question.tipoRespuesta ===
         "seleccion_ponderada"
@@ -341,10 +332,6 @@ const saveSingleAnswer = async ({
         selectedOptions = [],
     } = answerData;
 
-    /* =========================================
-       VALIDAR ID DE PREGUNTA
-    ========================================= */
-
     if (!questionId) {
         const error = new Error(
             "questionId es requerido."
@@ -354,10 +341,6 @@ const saveSingleAnswer = async ({
 
         throw error;
     }
-
-    /* =========================================
-       BUSCAR PREGUNTA
-    ========================================= */
 
     const question =
         await getQuestionForEvaluation({
@@ -379,10 +362,6 @@ const saveSingleAnswer = async ({
         throw error;
     }
 
-    /* =========================================
-       VALIDAR SELECCIONES
-    ========================================= */
-
     validateSelectionCount({
         question,
         selectedOptions,
@@ -394,10 +373,6 @@ const saveSingleAnswer = async ({
             selectedOptions,
             transaction,
         });
-
-    /* =========================================
-       VALIDAR PREGUNTAS NUMÉRICAS
-    ========================================= */
 
     const isNumericQuestion = [
         "escala_bipolar",
@@ -474,10 +449,6 @@ const saveSingleAnswer = async ({
         }
     }
 
-    /* =========================================
-       BUSCAR RESPUESTA EXISTENTE
-    ========================================= */
-
     let answer =
         await PsychometricAnswer.findOne({
             where: {
@@ -490,10 +461,6 @@ const saveSingleAnswer = async ({
 
             transaction,
         });
-
-    /* =========================================
-       CREAR RESPUESTA
-    ========================================= */
 
     if (!answer) {
         answer =
@@ -543,10 +510,6 @@ const saveSingleAnswer = async ({
                 }
             );
     } else {
-        /* =========================================
-           ACTUALIZAR RESPUESTA
-        ========================================= */
-
         await answer.update(
             {
                 valorNumerico:
@@ -588,10 +551,6 @@ const saveSingleAnswer = async ({
         );
     }
 
-    /* =========================================
-       ELIMINAR OPCIONES ANTERIORES
-    ========================================= */
-
     await PsychometricAnswerOption.destroy({
         where: {
             answerId:
@@ -600,10 +559,6 @@ const saveSingleAnswer = async ({
 
         transaction,
     });
-
-    /* =========================================
-       CREAR OPCIONES NUEVAS
-    ========================================= */
 
     let calculatedScore = 0;
 
@@ -688,10 +643,6 @@ const saveSingleAnswer = async ({
         );
     }
 
-    /* =========================================
-       GUARDAR PUNTAJE DE RESPUESTA
-    ========================================= */
-
     await answer.update(
         {
             puntajeCalculado:
@@ -754,13 +705,6 @@ const getEvaluationByToken = async (
             where: {
                 tokenHash,
                 activo: true,
-
-                /*
-                 * IMPORTANTE:
-                 * este controlador solamente
-                 * acepta tokens para rendir
-                 * la evaluación.
-                 */
                 purpose: "test",
             },
 
@@ -785,10 +729,6 @@ const getEvaluationByToken = async (
 
         throw error;
     }
-
-    /* =========================================
-       VALIDAR EXPIRACIÓN
-    ========================================= */
 
     if (
         access.revokedAt ||
@@ -825,6 +765,98 @@ const getEvaluationByToken = async (
 };
 
 /* =========================================================
+   OBTENER VERIFICACIÓN INICIAL DE IDENTIDAD
+========================================================= */
+
+const getInitialIdentityVerification = async ({
+    evaluationId,
+    transaction = null,
+}) => {
+    if (!evaluationId) {
+        return null;
+    }
+
+    const verification =
+        await PsychometricIdentityVerification.findOne({
+            where: {
+                evaluationId,
+                captureType: "initial",
+            },
+
+            order: [
+                ["capturedAt", "DESC"],
+            ],
+
+            transaction,
+        });
+
+    return verification;
+};
+
+/* =========================================================
+   VALIDAR VERIFICACIÓN INICIAL DE IDENTIDAD
+
+   AÚN NO SE LLAMA DESDE saveAnswers.
+   Se activará cuando el endpoint para guardar
+   la fotografía esté funcionando.
+========================================================= */
+
+const requireInitialIdentityVerification = async ({
+    evaluationId,
+    transaction = null,
+}) => {
+    const verification =
+        await getInitialIdentityVerification({
+            evaluationId,
+            transaction,
+        });
+
+    if (!verification) {
+        const error = new Error(
+            "Debes completar la verificación de identidad antes de iniciar el test."
+        );
+
+        error.statusCode = 403;
+        error.code =
+            "IDENTITY_VERIFICATION_REQUIRED";
+
+        throw error;
+    }
+
+    if (
+        !verification
+            .consentAccepted
+    ) {
+        const error = new Error(
+            "La verificación de identidad no registra el consentimiento requerido."
+        );
+
+        error.statusCode = 403;
+        error.code =
+            "IDENTITY_CONSENT_REQUIRED";
+
+        throw error;
+    }
+
+    if (
+        verification.status ===
+        "rejected"
+    ) {
+        const error = new Error(
+            "La verificación de identidad fue rechazada."
+        );
+
+        error.statusCode = 403;
+        error.code =
+            "IDENTITY_VERIFICATION_REJECTED";
+
+        throw error;
+    }
+
+    return verification;
+};
+
+/* =========================================================
    GUARDAR RESPUESTAS
    PUT /psychometric/access/:token/answers
 ========================================================= */
@@ -840,10 +872,6 @@ const saveAnswers = catchError(
             )
                 ? req.body
                 : req.body.answers;
-
-        /* =========================================
-           VALIDAR BODY
-        ========================================= */
 
         if (
             !Array.isArray(
@@ -866,10 +894,6 @@ const saveAnswers = catchError(
                         "No se enviaron respuestas para guardar.",
                 });
         }
-
-        /* =========================================
-           OBTENER EVALUACIÓN
-        ========================================= */
 
         let evaluation;
 
@@ -901,10 +925,6 @@ const saveAnswers = catchError(
                         "La evaluación no existe.",
                 });
         }
-
-        /* =========================================
-           VALIDAR ESTADO
-        ========================================= */
 
         if (
             evaluation.estado ===
@@ -947,9 +967,16 @@ const saveAnswers = catchError(
                 });
         }
 
-        /* =========================================
-           TRANSACCIÓN
-        ========================================= */
+        /*
+         * IMPORTANTE:
+         *
+         * Todavía NO activamos:
+         *
+         * await requireInitialIdentityVerification(...)
+         *
+         * Lo activaremos una vez que exista
+         * el endpoint que registra la fotografía.
+         */
 
         const transaction =
             await sequelize.transaction();
@@ -976,10 +1003,6 @@ const saveAnswers = catchError(
             let fechaInicioFinal =
                 evaluation.fechaInicio;
 
-            /* =====================================
-               MARCAR EN PROGRESO
-            ===================================== */
-
             if (
                 evaluation.estado !==
                 "en_progreso"
@@ -1004,10 +1027,6 @@ const saveAnswers = catchError(
             }
 
             await transaction.commit();
-
-            /* =====================================
-               CONTAR RESPUESTAS
-            ===================================== */
 
             const totalSaved =
                 await PsychometricAnswer.count({
@@ -1067,11 +1086,6 @@ const saveAnswers = catchError(
    CON TOKEN PERSONAL DE PAGO
 ========================================================= */
 
-/* =========================================================
-   ENVIAR CORREO DE FINALIZACIÓN
-   CON TOKEN PERSONAL DE PAGO
-========================================================= */
-
 const sendPsychometricCompletionEmail =
     async ({
         user,
@@ -1081,32 +1095,12 @@ const sendPsychometricCompletionEmail =
         paymentToken,
         paymentExpiresAt,
     }) => {
-        /* =========================================
-           1. URL BASE DEL FRONTEND PARA PAGO
-        ========================================= */
-
-        /*
-         * Desarrollo:
-         * PSYCHOMETRIC_PAYMENT_URL=http://localhost:5173/#/pago-test
-         *
-         * Producción:
-         * PSYCHOMETRIC_PAYMENT_URL=https://idrmind.com/#/pago-test
-         *
-         * replace(/\/+$/, "")
-         * evita que una "/" al final genere:
-         * .../pago-test//TOKEN
-         */
-
         const paymentBaseUrl =
             (
                 process.env
                     .PSYCHOMETRIC_PAYMENT_URL ||
                 "https://idrmind.com/#/pago-test"
             ).replace(/\/+$/, "");
-
-        /* =========================================
-           2. VALIDAR TOKEN
-        ========================================= */
 
         if (
             !paymentToken ||
@@ -1124,16 +1118,8 @@ const sendPsychometricCompletionEmail =
                 paymentToken
             ).trim();
 
-        /* =========================================
-           3. URL PERSONAL DE PAGO
-        ========================================= */
-
         const paymentUrl =
             `${paymentBaseUrl}/${cleanPaymentToken}`;
-
-        /* =========================================
-           4. LOGS TEMPORALES DE VERIFICACIÓN
-        ========================================= */
 
         console.log(
             "=============================================="
@@ -1168,10 +1154,6 @@ const sendPsychometricCompletionEmail =
             "=============================================="
         );
 
-        /* =========================================
-           5. EXPIRACIÓN
-        ========================================= */
-
         const expirationText =
             paymentExpiresAt
                 ? new Date(
@@ -1190,10 +1172,6 @@ const sendPsychometricCompletionEmail =
                     }
                 )
                 : null;
-
-        /* =========================================
-           6. CORREO
-        ========================================= */
 
         await sendEmail({
             to: user.email,
@@ -1221,35 +1199,33 @@ const sendPsychometricCompletionEmail =
               rgba(7,27,63,.16);
           ">
 
-            <!-- =========================
-                 HEADER
-            ========================== -->
-
-            <div style="
-              padding:28px;
-              text-align:center;
-              background:
-                linear-gradient(
+            <div
+              style="
+                padding:28px;
+                text-align:center;
+                background-color:#071b3f !important;
+                background:#071b3f;
+                background-image:linear-gradient(
                   135deg,
-                  #071b3f,
-                  #173a8a
+                  #071b3f 0%,
+                  #173a8a 100%
                 );
-            ">
-
+              "
+            >
               <img
                 src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
                 alt="iDr.Mind"
+                width="165"
                 style="
+                  display:block;
                   width:165px;
                   max-width:100%;
+                  height:auto;
+                  margin:0 auto;
+                  border:0;
                 "
               />
-
             </div>
-
-            <!-- =========================
-                 CONTENIDO
-            ========================== -->
 
             <div style="
               padding:34px;
@@ -1274,10 +1250,6 @@ const sendPsychometricCompletionEmail =
                   ${course.nombre}
                 </strong>.
               </p>
-
-              <!-- =========================
-                   EVALUACIÓN
-              ========================== -->
 
               <div style="
                 margin:25px 0;
@@ -1323,10 +1295,6 @@ const sendPsychometricCompletionEmail =
                 el pago correspondiente.
               </p>
 
-              <!-- =========================
-                   SEGURIDAD DEL ENLACE
-              ========================== -->
-
               <div style="
                 margin:24px 0;
                 padding:16px;
@@ -1351,22 +1319,18 @@ const sendPsychometricCompletionEmail =
 
                   ${expirationText
                     ? `
-                          <br/><br/>
+                        <br/><br/>
 
-                          Disponible hasta:
-                          <strong>
-                            ${expirationText}
-                          </strong>
-                        `
+                        Disponible hasta:
+                        <strong>
+                          ${expirationText}
+                        </strong>
+                      `
                     : ""
                 }
                 </p>
 
               </div>
-
-              <!-- =========================
-                   BOTÓN DE PAGO
-              ========================== -->
 
               <div style="
                 text-align:center;
@@ -1376,39 +1340,30 @@ const sendPsychometricCompletionEmail =
                 <a
                   href="${paymentUrl}"
                   target="_blank"
-                  rel="noopener"
                   style="
                     display:inline-block;
                     padding:15px 30px;
-                    border-radius:12px;
 
-                    background:
-                      linear-gradient(
-                        135deg,
-                        #173a8a,
-                        #071b3f
-                      );
+                    background-color:#173a8a !important;
+                    background:#173a8a !important;
 
-                    color:#ffffff;
+                    color:#ffffff !important;
+                    -webkit-text-fill-color:#ffffff !important;
 
-                    text-decoration:none;
-
+                    text-decoration:none !important;
+                    font-family:Arial,Helvetica,sans-serif;
                     font-size:16px;
-                    font-weight:bold;
+                    font-weight:700;
+                    line-height:20px;
 
-                    box-shadow:
-                      0 8px 20px
-                      rgba(23,58,138,.25);
+                    border:1px solid #173a8a;
+                    border-radius:12px;
                   "
                 >
                   Registrar mi pago
                 </a>
 
               </div>
-
-              <!-- =========================
-                   URL ALTERNATIVA
-              ========================== -->
 
               <div style="
                 margin:20px 0;
@@ -1464,10 +1419,6 @@ const sendPsychometricCompletionEmail =
 
             </div>
 
-            <!-- =========================
-                 FOOTER
-            ========================== -->
-
             <div style="
               padding:18px;
               background:#f8fafc;
@@ -1486,10 +1437,6 @@ const sendPsychometricCompletionEmail =
         </div>
       `,
         });
-
-        /* =========================================
-           7. CONFIRMACIÓN
-        ========================================= */
 
         console.log(
             `✅ Correo de pago psicométrico enviado a ${user.email}`
@@ -1515,10 +1462,6 @@ const finishEvaluation = catchError(
 
         let access;
         let evaluation;
-
-        /* =========================================
-           1. OBTENER EVALUACIÓN POR TOKEN
-        ========================================= */
 
         try {
             const result =
@@ -1582,10 +1525,6 @@ const finishEvaluation = catchError(
                 });
         }
 
-        /* =========================================
-           2. VALIDAR EVALUACIÓN
-        ========================================= */
-
         if (
             evaluation.estado ===
             "completada"
@@ -1647,22 +1586,13 @@ const finishEvaluation = catchError(
                 });
         }
 
-        /* =========================================
-           3. TRANSACCIÓN
-        ========================================= */
-
         const transaction =
             await sequelize.transaction();
 
         let scoring;
-
         let now;
 
         try {
-            /* =====================================
-               4. CALCULAR RESULTADO
-            ===================================== */
-
             scoring =
                 await calculateCompleteResult({
                     evaluationId:
@@ -1704,10 +1634,6 @@ const finishEvaluation = catchError(
 
             now = new Date();
 
-            /* =====================================
-               5. COMPLETAR EVALUACIÓN
-            ===================================== */
-
             await evaluation.update(
                 {
                     estado:
@@ -1726,10 +1652,6 @@ const finishEvaluation = catchError(
                         scoring
                             .personalityId,
 
-                    /*
-                     * El resultado permanece
-                     * bloqueado hasta validar pago.
-                     */
                     resultadoLiberado:
                         false,
                 },
@@ -1738,10 +1660,6 @@ const finishEvaluation = catchError(
                     transaction,
                 }
             );
-
-            /* =====================================
-               6. INVALIDAR TOKEN DEL TEST
-            ===================================== */
 
             await access.update(
                 {
@@ -1755,10 +1673,6 @@ const finishEvaluation = catchError(
                     transaction,
                 }
             );
-
-            /* =====================================
-               7. CONFIRMAR TRANSACCIÓN
-            ===================================== */
 
             await transaction.commit();
         } catch (error) {
@@ -1789,14 +1703,6 @@ const finishEvaluation = catchError(
             throw error;
         }
 
-        /* =================================================
-           8. CREAR TOKEN DE PAGO
-
-           Se realiza DESPUÉS del commit de la evaluación.
-           Así nunca generamos enlace de pago para una
-           evaluación que realmente no terminó.
-        ================================================= */
-
         let paymentAccess = null;
 
         try {
@@ -1816,10 +1722,6 @@ const finishEvaluation = catchError(
                 paymentTokenError
             );
         }
-
-        /* =================================================
-           9. ENVIAR CORREO DE FINALIZACIÓN
-        ================================================= */
 
         let emailSent = true;
 
@@ -1896,10 +1798,6 @@ const finishEvaluation = catchError(
             );
         }
 
-        /* =================================================
-           10. RESPUESTA AL FRONTEND
-        ================================================= */
-
         return res.json({
             message:
                 emailSent
@@ -1942,10 +1840,6 @@ const finishEvaluation = catchError(
                     false,
             },
 
-            /*
-             * No exponemos el resultado
-             * mientras no se valide el pago.
-             */
             result: {
                 completed: true,
 
@@ -1966,4 +1860,12 @@ const finishEvaluation = catchError(
 module.exports = {
     saveAnswers,
     finishEvaluation,
+
+    /*
+     * Se exportan también porque luego podemos
+     * reutilizarlos en otros controladores de
+     * seguridad/identidad.
+     */
+    getInitialIdentityVerification,
+    requireInitialIdentityVerification,
 };

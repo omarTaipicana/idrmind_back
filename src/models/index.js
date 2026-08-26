@@ -21,6 +21,7 @@ const PsychometricSection = require("./PsychometricSection");
 const PsychometricAnswerOption = require("./PsychometricAnswerOption");
 const PsychometricAnswer = require("./PsychometricAnswer");
 const PsychometricAccessToken = require("./PsychometricAccessToken");
+const PsychometricIdentityVerification = require("./PsychometricIdentityVerification");
 
 
 EmailCode.belongsTo(User);
@@ -425,6 +426,25 @@ Pagos.belongsTo(
       "psychometricEvaluationId",
 
     as: "psychometricEvaluation",
+  }
+);
+
+
+PsychometricEvaluation.hasMany(
+ PsychometricIdentityVerification,
+  {
+    foreignKey: "evaluationId",
+    as: "identityVerifications",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricIdentityVerification.belongsTo(
+  PsychometricEvaluation,
+  {
+    foreignKey: "evaluationId",
+    as: "evaluation",
+    onDelete: "CASCADE",
   }
 );
 

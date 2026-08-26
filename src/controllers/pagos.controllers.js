@@ -1830,30 +1830,34 @@ const create = catchError(async (req, res) => {
           padding:20px;
           color:#333;
         ">
-          <div style="
-            max-width:600px;
-            margin:0 auto;
-            background-color:#ffffff;
-            border-radius:10px;
-            box-shadow:0 2px 10px rgba(0,0,0,.1);
-            overflow:hidden;
-          ">
+<div
+  style="
+    padding:28px;
+    text-align:center;
 
-            <div style="
-              text-align:center;
-              background:linear-gradient(
-                135deg,
-                #0a2540,
-                #174a8c
-              );
-              padding:25px;
-            ">
-              <img
-                src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
-                alt="iDr.Mind"
-                style="width:160px;"
-              />
-            </div>
+    background-color:#071b3f !important;
+    background:#071b3f;
+    background-image:linear-gradient(
+      135deg,
+      #071b3f 0%,
+      #173a8a 100%
+    );
+  "
+>
+  <img
+    src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+    alt="iDr.Mind"
+    width="165"
+    style="
+      display:block;
+      width:165px;
+      max-width:100%;
+      height:auto;
+      margin:0 auto;
+      border:0;
+    "
+  />
+</div>
 
             <div style="
               padding:30px;
@@ -2153,21 +2157,34 @@ const sendPsychometricResultEmail = async ({
           overflow:hidden;
           box-shadow:0 18px 45px rgba(7,27,63,.16);
         ">
-          <div style="
-            padding:28px;
-            text-align:center;
-            background:linear-gradient(
-              135deg,
-              #071b3f,
-              #173a8a
-            );
-          ">
-            <img
-              src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
-              alt="iDr.Mind"
-              style="width:165px;max-width:100%;"
-            />
-          </div>
+          <div
+  style="
+    padding:28px;
+    text-align:center;
+
+    background-color:#071b3f !important;
+    background:#071b3f;
+    background-image:linear-gradient(
+      135deg,
+      #071b3f 0%,
+      #173a8a 100%
+    );
+  "
+>
+  <img
+    src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+    alt="iDr.Mind"
+    width="165"
+    style="
+      display:block;
+      width:165px;
+      max-width:100%;
+      height:auto;
+      margin:0 auto;
+      border:0;
+    "
+  />
+</div>
 
           <div style="padding:34px;">
             <h1 style="
@@ -2224,21 +2241,27 @@ const sendPsychometricResultEmail = async ({
             ">
               <a
                 href="${resultUrl}"
-                style="
-                  display:inline-block;
-                  padding:15px 30px;
-                  border-radius:12px;
-                  background:linear-gradient(
-                    135deg,
-                    #173a8a,
-                    #071b3f
-                  );
-                  color:#ffffff;
-                  text-decoration:none;
-                  font-size:16px;
-                  font-weight:bold;
-                "
-              >
+                target="_blank"
+  style="
+    display:inline-block;
+    padding:15px 30px;
+
+    background-color:#173a8a !important;
+    background:#173a8a !important;
+
+    color:#ffffff !important;
+    -webkit-text-fill-color:#ffffff !important;
+
+    text-decoration:none !important;
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:16px;
+    font-weight:700;
+    line-height:20px;
+
+    border:1px solid #173a8a;
+    border-radius:12px;
+  "
+>
                 Consultar mi resultado
               </a>
             </div>
@@ -3265,28 +3288,34 @@ const createPsychometricPayment =
                 0 18px 45px
                 rgba(7,27,63,.16);
             ">
+<div
+  style="
+    padding:28px;
+    text-align:center;
 
-              <div style="
-                padding:28px;
-                text-align:center;
-                background:
-                  linear-gradient(
-                    135deg,
-                    #071b3f,
-                    #173a8a
-                  );
-              ">
-
-                <img
-                  src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
-                  alt="iDr.Mind"
-                  style="
-                    width:165px;
-                    max-width:100%;
-                  "
-                />
-
-              </div>
+    background-color:#071b3f !important;
+    background:#071b3f;
+    background-image:linear-gradient(
+      135deg,
+      #071b3f 0%,
+      #173a8a 100%
+    );
+  "
+>
+  <img
+    src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+    alt="iDr.Mind"
+    width="165"
+    style="
+      display:block;
+      width:165px;
+      max-width:100%;
+      height:auto;
+      margin:0 auto;
+      border:0;
+    "
+  />
+</div>
 
               <div style="
                 padding:34px;

@@ -291,9 +291,24 @@ const getIndividualResult = catchError(
               evaluation.personality
                 .formaPensar,
 
-            formaAprender:
+            rasgos:
               evaluation.personality
-                .formaAprender,
+                .rasgos,
+
+
+            fortalezas:
+              evaluation.personality
+                .fortalezas,
+
+
+            debilidades:
+              evaluation.personality
+                .debilidades,
+
+
+            sugerencias:
+              evaluation.personality
+                .sugerencias,
 
             descripcionComunicacion:
               evaluation.personality
@@ -1503,9 +1518,28 @@ const getPublicResultByToken = catchError(
               evaluation.personality
                 .formaPensar,
 
-            formaAprender:
+            formaPensar:
               evaluation.personality
-                .formaAprender,
+                .formaPensar,
+
+            rasgos:
+              evaluation.personality
+                .rasgos,
+
+
+            fortalezas:
+              evaluation.personality
+                .fortalezas,
+
+
+            debilidades:
+              evaluation.personality
+                .debilidades,
+
+
+            sugerencias:
+              evaluation.personality
+                .sugerencias,
 
             descripcionComunicacion:
               evaluation.personality

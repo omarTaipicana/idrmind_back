@@ -554,24 +554,34 @@ const sendPsychometricAccessEmail = async ({
           overflow:hidden;
           box-shadow:0 18px 45px rgba(7,27,63,.16);
         ">
-          <div style="
-            padding:28px;
-            text-align:center;
-            background:linear-gradient(
-              135deg,
-              #071b3f,
-              #173a8a
-            );
-          ">
-            <img
-              src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
-              alt="iDr.Mind"
-              style="
-                width:165px;
-                max-width:100%;
-              "
-            />
-          </div>
+         <div
+  style="
+    padding:28px;
+    text-align:center;
+
+    background-color:#071b3f !important;
+    background:#071b3f;
+    background-image:linear-gradient(
+      135deg,
+      #071b3f 0%,
+      #173a8a 100%
+    );
+  "
+>
+  <img
+    src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+    alt="iDr.Mind"
+    width="165"
+    style="
+      display:block;
+      width:165px;
+      max-width:100%;
+      height:auto;
+      margin:0 auto;
+      border:0;
+    "
+  />
+</div>
 
           <div style="padding:34px;">
             <h1 style="
@@ -635,25 +645,31 @@ const sendPsychometricAccessEmail = async ({
               text-align:center;
               margin:30px 0;
             ">
-              <a
-                href="${link}"
-                style="
-                  display:inline-block;
-                  padding:15px 30px;
-                  border-radius:12px;
-                  background:linear-gradient(
-                    135deg,
-                    #173a8a,
-                    #071b3f
-                  );
-                  color:#ffffff;
-                  text-decoration:none;
-                  font-size:16px;
-                  font-weight:bold;
-                "
-              >
-                Iniciar test psicotécnico
-              </a>
+<a
+  href="${link}"
+  target="_blank"
+  style="
+    display:inline-block;
+    padding:15px 30px;
+
+    background-color:#173a8a !important;
+    background:#173a8a !important;
+
+    color:#ffffff !important;
+    -webkit-text-fill-color:#ffffff !important;
+
+    text-decoration:none !important;
+    font-family:Arial,Helvetica,sans-serif;
+    font-size:16px;
+    font-weight:700;
+    line-height:20px;
+
+    border:1px solid #173a8a;
+    border-radius:12px;
+  "
+>
+  Iniciar test psicotécnico
+</a>
             </div>
 
             <p style="

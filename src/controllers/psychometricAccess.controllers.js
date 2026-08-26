@@ -34,14 +34,25 @@ const PsychometricAnswerOption = require(
   "../models/PsychometricAnswerOption"
 );
 
+const PsychometricIdentityVerification = require(
+  "../models/PsychometricIdentityVerification"
+);
+
 const Inscripcion = require(
   "../models/Inscripcion"
 );
 
-const User = require("../models/User");
-const Course = require("../models/Course");
+const User = require(
+  "../models/User"
+);
 
-const Empresa = require("../models/Empresa");
+const Course = require(
+  "../models/Course"
+);
+
+const Empresa = require(
+  "../models/Empresa"
+);
 
 const EmpresaSeccion = require(
   "../models/EmpresaSeccion"
@@ -54,7 +65,9 @@ const EmpresaSeccion = require(
 const hashToken = (token) => {
   return crypto
     .createHash("sha256")
-    .update(String(token || "").trim())
+    .update(
+      String(token || "").trim()
+    )
     .digest("hex");
 };
 
@@ -62,11 +75,19 @@ const hashToken = (token) => {
    VALIDAR FECHA DE EXPIRACIÓN
 ========================================================= */
 
-const isExpired = (expiresAt) => {
-  if (!expiresAt) return true;
+const isExpired = (
+  expiresAt
+) => {
+  if (!expiresAt) {
+    return true;
+  }
 
-  return new Date(expiresAt).getTime() <
-    Date.now();
+  return (
+    new Date(
+      expiresAt
+    ).getTime() <
+    Date.now()
+  );
 };
 
 /* =========================================================
@@ -76,621 +97,1237 @@ const isExpired = (expiresAt) => {
 const normalizeSavedAnswers = (
   answers = []
 ) => {
-  return answers.map((answer) => ({
-    id: answer.id,
-    evaluationId: answer.evaluationId,
-    questionId: answer.questionId,
+  return answers.map(
+    (answer) => ({
+      id:
+        answer.id,
 
-    valorNumerico:
-      answer.valorNumerico !== null
-        ? Number(answer.valorNumerico)
-        : null,
+      evaluationId:
+        answer.evaluationId,
 
-    valorBooleano:
-      answer.valorBooleano,
+      questionId:
+        answer.questionId,
 
-    valorTexto:
-      answer.valorTexto,
+      valorNumerico:
+        answer.valorNumerico !==
+        null
+          ? Number(
+              answer.valorNumerico
+            )
+          : null,
 
-    puntajeCalculado:
-      answer.puntajeCalculado !== null
-        ? Number(answer.puntajeCalculado)
-        : null,
+      valorBooleano:
+        answer.valorBooleano,
 
-    tiempoSegundos:
-      answer.tiempoSegundos,
+      valorTexto:
+        answer.valorTexto,
 
-    metadata:
-      answer.metadata,
+      puntajeCalculado:
+        answer.puntajeCalculado !==
+        null
+          ? Number(
+              answer.puntajeCalculado
+            )
+          : null,
 
-    selectedOptions:
-      (answer.selectedOptions || []).map(
-        (selected) => ({
-          id: selected.id,
-          optionId: selected.optionId,
-          prioridad: selected.prioridad,
+      tiempoSegundos:
+        answer.tiempoSegundos,
 
-          puntajeAplicado:
-            selected.puntajeAplicado !== null
-              ? Number(
-                  selected.puntajeAplicado
-                )
-              : null,
+      metadata:
+        answer.metadata,
 
-          categoriaResultado:
-            selected.categoriaResultado,
+      selectedOptions:
+        (
+          answer.selectedOptions ||
+          []
+        ).map(
+          (selected) => ({
+            id:
+              selected.id,
 
-          metadata:
-            selected.metadata,
-        })
-      ),
-  }));
+            optionId:
+              selected.optionId,
+
+            prioridad:
+              selected.prioridad,
+
+            puntajeAplicado:
+              selected
+                .puntajeAplicado !==
+              null
+                ? Number(
+                    selected
+                      .puntajeAplicado
+                  )
+                : null,
+
+            categoriaResultado:
+              selected
+                .categoriaResultado,
+
+            metadata:
+              selected.metadata,
+          })
+        ),
+    })
+  );
 };
+
+/* =========================================================
+   OBTENER ESTADO DE VERIFICACIÓN DE IDENTIDAD
+========================================================= */
+
+const getIdentityVerificationStatus =
+  async (
+    evaluationId
+  ) => {
+    const [
+      initialVerification,
+      finalVerification,
+    ] =
+      await Promise.all([
+        PsychometricIdentityVerification.findOne(
+          {
+            where: {
+              evaluationId,
+              captureType:
+                "initial",
+            },
+
+            order: [
+              [
+                "capturedAt",
+                "DESC",
+              ],
+            ],
+
+            attributes: [
+              "id",
+              "captureType",
+              "status",
+              "capturedAt",
+              "consentAccepted",
+              "consentAt",
+              "consentVersion",
+              "faceDetected",
+              "faceCount",
+              "faceMatchPassed",
+              "livenessChecked",
+              "livenessPassed",
+            ],
+          }
+        ),
+
+        PsychometricIdentityVerification.findOne(
+          {
+            where: {
+              evaluationId,
+              captureType:
+                "final",
+            },
+
+            order: [
+              [
+                "capturedAt",
+                "DESC",
+              ],
+            ],
+
+            attributes: [
+              "id",
+              "captureType",
+              "status",
+              "capturedAt",
+              "consentAccepted",
+              "consentAt",
+              "consentVersion",
+              "faceDetected",
+              "faceCount",
+              "faceMatchPassed",
+              "livenessChecked",
+              "livenessPassed",
+            ],
+          }
+        ),
+      ]);
+
+    return {
+      initialVerification,
+      finalVerification,
+    };
+  };
 
 /* =========================================================
    GET /psychometric/access/:token
 ========================================================= */
 
 const validatePsychometricAccess =
-  catchError(async (req, res) => {
-    const { token } = req.params;
+  catchError(
+    async (
+      req,
+      res
+    ) => {
+      const {
+        token,
+      } = req.params;
 
-    if (!token || !String(token).trim()) {
-      return res.status(400).json({
-        message:
-          "El código de acceso es requerido.",
-      });
-    }
+      /* =====================================================
+         VALIDAR TOKEN
+      ===================================================== */
 
-    const tokenHash = hashToken(token);
+      if (
+        !token ||
+        !String(
+          token
+        ).trim()
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "El código de acceso es requerido.",
+          });
+      }
 
-    const access =
-      await PsychometricAccessToken.findOne({
-        where: {
-          tokenHash,
-        },
+      const tokenHash =
+        hashToken(
+          token
+        );
 
-        include: [
+      /* =====================================================
+         BUSCAR ACCESO + EVALUACIÓN
+      ===================================================== */
+
+      const access =
+        await PsychometricAccessToken.findOne(
           {
-            model: PsychometricEvaluation,
-            as: "evaluation",
+            where: {
+              tokenHash,
+            },
 
             include: [
               {
-                model: PsychometricTest,
-                as: "test",
+                model:
+                  PsychometricEvaluation,
+
+                as:
+                  "evaluation",
 
                 include: [
-                  {
-                    model: Course,
-                    as: "course",
-                  },
+                  /* =========================================
+                     TEST
+                  ========================================= */
 
                   {
                     model:
-                      PsychometricSection,
+                      PsychometricTest,
 
-                    as: "sections",
-
-                    where: {
-                      activo: true,
-                    },
-
-                    required: false,
-
-                    separate: true,
-
-                    order: [
-                      ["orden", "ASC"],
-                    ],
+                    as:
+                      "test",
 
                     include: [
                       {
                         model:
-                          PsychometricQuestion,
+                          Course,
 
-                        as: "questions",
+                        as:
+                          "course",
+                      },
+
+                      /* =====================================
+                         SECCIONES
+                      ===================================== */
+
+                      {
+                        model:
+                          PsychometricSection,
+
+                        as:
+                          "sections",
 
                         where: {
                           activo: true,
                         },
 
-                        required: false,
+                        required:
+                          false,
 
-                        separate: true,
+                        separate:
+                          true,
 
                         order: [
-                          ["orden", "ASC"],
+                          [
+                            "orden",
+                            "ASC",
+                          ],
                         ],
 
                         include: [
+                          /* ===============================
+                             PREGUNTAS
+                          =============================== */
+
                           {
                             model:
-                              PsychometricOption,
+                              PsychometricQuestion,
 
-                            as: "options",
+                            as:
+                              "questions",
 
                             where: {
-                              activo: true,
+                              activo:
+                                true,
                             },
 
-                            required: false,
+                            required:
+                              false,
 
-                            separate: true,
+                            separate:
+                              true,
 
                             order: [
-                              ["orden", "ASC"],
+                              [
+                                "orden",
+                                "ASC",
+                              ],
+                            ],
+
+                            include: [
+                              /* ===========================
+                                 OPCIONES
+                              =========================== */
+
+                              {
+                                model:
+                                  PsychometricOption,
+
+                                as:
+                                  "options",
+
+                                where: {
+                                  activo:
+                                    true,
+                                },
+
+                                required:
+                                  false,
+
+                                separate:
+                                  true,
+
+                                order: [
+                                  [
+                                    "orden",
+                                    "ASC",
+                                  ],
+                                ],
+                              },
                             ],
                           },
                         ],
                       },
                     ],
                   },
-                ],
-              },
 
-              {
-                model: Inscripcion,
-                as: "inscripcion",
+                  /* =========================================
+                     INSCRIPCIÓN / USUARIO
+                  ========================================= */
 
-                include: [
                   {
-                    model: User,
-                    as: "user",
+                    model:
+                      Inscripcion,
 
-                    attributes: [
-                      "id",
-                      "cI",
-                      "email",
-                      "firstName",
-                      "lastName",
-                      "cellular",
-                      "grado",
-                      "subsistema",
-                      "empresaId",
-                      "seccionId",
-                    ],
+                    as:
+                      "inscripcion",
 
                     include: [
                       {
-                        model: Empresa,
-                        as: "empresa",
-
-                        attributes: [
-                          "id",
-                          "razonSocial",
-                          "nombreComercial",
-                        ],
-
-                        required: false,
-                      },
-
-                      {
                         model:
-                          EmpresaSeccion,
+                          User,
 
-                        as: "empresaSeccion",
+                        as:
+                          "user",
 
                         attributes: [
                           "id",
-                          "nombre",
+                          "cI",
+                          "email",
+                          "firstName",
+                          "lastName",
+                          "cellular",
+                          "grado",
+                          "subsistema",
+                          "empresaId",
+                          "seccionId",
                         ],
 
-                        required: false,
+                        include: [
+                          {
+                            model:
+                              Empresa,
+
+                            as:
+                              "empresa",
+
+                            attributes: [
+                              "id",
+                              "razonSocial",
+                              "nombreComercial",
+                            ],
+
+                            required:
+                              false,
+                          },
+
+                          {
+                            model:
+                              EmpresaSeccion,
+
+                            as:
+                              "empresaSeccion",
+
+                            attributes: [
+                              "id",
+                              "nombre",
+                            ],
+
+                            required:
+                              false,
+                          },
+                        ],
                       },
                     ],
                   },
-                ],
-              },
 
-              {
-                model: PsychometricAnswer,
-                as: "answers",
+                  /* =========================================
+                     RESPUESTAS GUARDADAS
+                  ========================================= */
 
-                required: false,
-
-                include: [
                   {
                     model:
-                      PsychometricAnswerOption,
+                      PsychometricAnswer,
 
-                    as: "selectedOptions",
+                    as:
+                      "answers",
 
-                    required: false,
+                    required:
+                      false,
+
+                    include: [
+                      {
+                        model:
+                          PsychometricAnswerOption,
+
+                        as:
+                          "selectedOptions",
+
+                        required:
+                          false,
+                      },
+                    ],
                   },
                 ],
               },
             ],
-          },
-        ],
-      });
+          }
+        );
 
-    if (!access) {
-      return res.status(404).json({
-        message:
-          "El enlace del test no es válido.",
-        code: "INVALID_ACCESS_TOKEN",
-      });
-    }
+      /* =====================================================
+         VALIDAR ACCESO
+      ===================================================== */
 
-    if (!access.activo) {
-      return res.status(410).json({
-        message:
-          "El enlace del test ya no se encuentra activo.",
-        code: "INACTIVE_ACCESS_TOKEN",
-      });
-    }
+      if (!access) {
+        return res
+          .status(404)
+          .json({
+            message:
+              "El enlace del test no es válido.",
 
-    if (access.revokedAt) {
-      return res.status(410).json({
-        message:
-          "El enlace del test fue revocado.",
-        code: "REVOKED_ACCESS_TOKEN",
-      });
-    }
+            code:
+              "INVALID_ACCESS_TOKEN",
+          });
+      }
 
-    if (isExpired(access.expiresAt)) {
-      await access.update({
-        activo: false,
-      });
+      if (
+        !access.activo
+      ) {
+        return res
+          .status(410)
+          .json({
+            message:
+              "El enlace del test ya no se encuentra activo.",
 
-      return res.status(410).json({
-        message:
-          "El enlace del test ha expirado.",
-        code: "EXPIRED_ACCESS_TOKEN",
-      });
-    }
+            code:
+              "INACTIVE_ACCESS_TOKEN",
+          });
+      }
 
-    const evaluation = access.evaluation;
+      if (
+        access.revokedAt
+      ) {
+        return res
+          .status(410)
+          .json({
+            message:
+              "El enlace del test fue revocado.",
 
-    if (!evaluation) {
-      return res.status(404).json({
-        message:
-          "No se encontró la evaluación asociada al enlace.",
-        code: "EVALUATION_NOT_FOUND",
-      });
-    }
+            code:
+              "REVOKED_ACCESS_TOKEN",
+          });
+      }
 
-    if (evaluation.estado === "anulada") {
-      return res.status(410).json({
-        message:
-          "La evaluación fue anulada.",
-        code: "EVALUATION_CANCELLED",
-      });
-    }
+      /* =====================================================
+         EXPIRACIÓN
+      ===================================================== */
 
-    if (
-      evaluation.estado === "completada"
-    ) {
-      return res.status(409).json({
-        message:
-          "Esta evaluación ya fue completada.",
-        code: "EVALUATION_COMPLETED",
+      if (
+        isExpired(
+          access.expiresAt
+        )
+      ) {
+        await access.update(
+          {
+            activo:
+              false,
+          }
+        );
 
-        evaluation: {
-          id: evaluation.id,
-          numeroEvaluacion:
-            evaluation.numeroEvaluacion,
-          estado: evaluation.estado,
-          fechaFinalizacion:
-            evaluation.fechaFinalizacion,
-          resultadoLiberado:
-            evaluation.resultadoLiberado,
-        },
-      });
-    }
+        return res
+          .status(410)
+          .json({
+            message:
+              "El enlace del test ha expirado.",
 
-    /*
-     * Registrar uso del enlace.
-     */
-    const now = new Date();
+            code:
+              "EXPIRED_ACCESS_TOKEN",
+          });
+      }
 
-    await access.update({
-      firstUsedAt:
-        access.firstUsedAt || now,
+      /* =====================================================
+         EVALUACIÓN
+      ===================================================== */
 
-      lastUsedAt: now,
+      const evaluation =
+        access.evaluation;
 
-      accessCount:
-        Number(access.accessCount || 0) +
-        1,
-    });
+      if (
+        !evaluation
+      ) {
+        return res
+          .status(404)
+          .json({
+            message:
+              "No se encontró la evaluación asociada al enlace.",
 
-    /*
-     * Cuando se abre por primera vez,
-     * cambiamos a en_progreso.
-     */
-    if (
-      [
-        "habilitada",
-        "pago_validado",
-      ].includes(evaluation.estado)
-    ) {
-      await evaluation.update({
-        estado: "en_progreso",
+            code:
+              "EVALUATION_NOT_FOUND",
+          });
+      }
 
-        fechaInicio:
-          evaluation.fechaInicio || now,
-      });
-    }
+      if (
+        evaluation.estado ===
+        "anulada"
+      ) {
+        return res
+          .status(410)
+          .json({
+            message:
+              "La evaluación fue anulada.",
 
-    const test = evaluation.test;
+            code:
+              "EVALUATION_CANCELLED",
+          });
+      }
 
-    if (!test) {
-      return res.status(404).json({
-        message:
-          "No se encontró la configuración del test.",
-        code: "TEST_NOT_FOUND",
-      });
-    }
+      if (
+        evaluation.estado ===
+        "completada"
+      ) {
+        return res
+          .status(409)
+          .json({
+            message:
+              "Esta evaluación ya fue completada.",
 
-    const inscription =
-      evaluation.inscripcion;
+            code:
+              "EVALUATION_COMPLETED",
 
-    const user = inscription?.user;
+            evaluation: {
+              id:
+                evaluation.id,
 
-    const sections =
-      (test.sections || []).map(
-        (section) => ({
-          id: section.id,
-          codigo: section.codigo,
-          nombre: section.nombre,
-          descripcion:
-            section.descripcion,
-          instrucciones:
-            section.instrucciones,
-          orden: section.orden,
-          tipoCalculo:
-            section.tipoCalculo,
-          configuracion:
-            section.configuracion,
-          obligatoria:
-            section.obligatoria,
+              numeroEvaluacion:
+                evaluation
+                  .numeroEvaluacion,
 
-          questions:
-            (
-              section.questions || []
-            ).map((question) => ({
-              id: question.id,
-              sectionId:
-                question.sectionId,
+              estado:
+                evaluation.estado,
 
-              pregunta:
-                question.pregunta,
+              fechaFinalizacion:
+                evaluation
+                  .fechaFinalizacion,
 
-              tipoRespuesta:
-                question.tipoRespuesta,
+              resultadoLiberado:
+                evaluation
+                  .resultadoLiberado,
+            },
+          });
+      }
 
-              orden:
-                question.orden,
+      /* =====================================================
+         REGISTRAR USO DEL ENLACE
+      ===================================================== */
 
-              obligatoria:
-                question.obligatoria,
+      const now =
+        new Date();
 
-              valorMinimo:
-                question.valorMinimo,
+      const newAccessCount =
+        Number(
+          access.accessCount ||
+          0
+        ) + 1;
 
-              valorMaximo:
-                question.valorMaximo,
+      await access.update(
+        {
+          firstUsedAt:
+            access.firstUsedAt ||
+            now,
 
-              seleccionesMinimas:
-                question
-                  .seleccionesMinimas,
+          lastUsedAt:
+            now,
 
-              seleccionesMaximas:
-                question
-                  .seleccionesMaximas,
+          accessCount:
+            newAccessCount,
+        }
+      );
 
-              instrucciones:
-                question.instrucciones,
+      /* =====================================================
+         IMPORTANTE
 
-              configuracion:
-                question.configuracion,
+         YA NO CAMBIAMOS LA EVALUACIÓN A "en_progreso"
+         AL SIMPLEMENTE ABRIR EL ENLACE.
 
-              options:
+         La evaluación comenzará realmente cuando
+         registremos la captura inicial de identidad.
+
+         Mientras todavía no implementamos el endpoint
+         de fotografía, saveAnswers mantiene su mecanismo
+         actual de respaldo para marcarla en_progreso.
+      ===================================================== */
+
+      /* =====================================================
+         VERIFICACIÓN DE IDENTIDAD
+      ===================================================== */
+
+      const {
+        initialVerification,
+        finalVerification,
+      } =
+        await getIdentityVerificationStatus(
+          evaluation.id
+        );
+
+      /* =====================================================
+         TEST
+      ===================================================== */
+
+      const test =
+        evaluation.test;
+
+      if (!test) {
+        return res
+          .status(404)
+          .json({
+            message:
+              "No se encontró la configuración del test.",
+
+            code:
+              "TEST_NOT_FOUND",
+          });
+      }
+
+      /* =====================================================
+         USUARIO
+      ===================================================== */
+
+      const inscription =
+        evaluation.inscripcion;
+
+      const user =
+        inscription?.user;
+
+      /* =====================================================
+         NORMALIZAR SECCIONES
+      ===================================================== */
+
+      const sections =
+        (
+          test.sections ||
+          []
+        ).map(
+          (
+            section
+          ) => ({
+            id:
+              section.id,
+
+            codigo:
+              section.codigo,
+
+            nombre:
+              section.nombre,
+
+            descripcion:
+              section.descripcion,
+
+            instrucciones:
+              section.instrucciones,
+
+            orden:
+              section.orden,
+
+            tipoCalculo:
+              section.tipoCalculo,
+
+            configuracion:
+              section.configuracion,
+
+            obligatoria:
+              section.obligatoria,
+
+            questions:
+              (
+                section.questions ||
+                []
+              ).map(
                 (
-                  question.options || []
-                ).map((option) => ({
-                  id: option.id,
-                  questionId:
-                    option.questionId,
+                  question
+                ) => ({
+                  id:
+                    question.id,
 
-                  texto:
-                    option.texto,
+                  sectionId:
+                    question
+                      .sectionId,
 
-                  codigo:
-                    option.codigo,
+                  pregunta:
+                    question
+                      .pregunta,
+
+                  tipoRespuesta:
+                    question
+                      .tipoRespuesta,
 
                   orden:
-                    option.orden,
+                    question
+                      .orden,
 
-                  categoriaResultado:
-                    option
-                      .categoriaResultado,
+                  obligatoria:
+                    question
+                      .obligatoria,
 
-                  /*
-                   * El frontend no necesita
-                   * conocer el puntaje para
-                   * responder el test.
-                   *
-                   * Esto evita revelar la lógica.
-                   */
-                  metadata:
-                    option.metadata,
-                })),
-            })),
-        })
-      );
+                  valorMinimo:
+                    question
+                      .valorMinimo,
 
-    const savedAnswers =
-      normalizeSavedAnswers(
-        evaluation.answers || []
-      );
+                  valorMaximo:
+                    question
+                      .valorMaximo,
 
-    const totalQuestions =
-      sections.reduce(
-        (total, section) =>
-          total +
-          section.questions.length,
-        0
-      );
+                  seleccionesMinimas:
+                    question
+                      .seleccionesMinimas,
 
-    const answeredQuestionIds =
-      new Set(
-        savedAnswers.map(
-          (answer) =>
-            String(answer.questionId)
-        )
-      );
+                  seleccionesMaximas:
+                    question
+                      .seleccionesMaximas,
 
-    const answeredQuestions =
-      answeredQuestionIds.size;
+                  instrucciones:
+                    question
+                      .instrucciones,
 
-    const progress =
-      totalQuestions > 0
-        ? Number(
+                  configuracion:
+                    question
+                      .configuracion,
+
+                  options:
+                    (
+                      question.options ||
+                      []
+                    ).map(
+                      (
+                        option
+                      ) => ({
+                        id:
+                          option.id,
+
+                        questionId:
+                          option
+                            .questionId,
+
+                        texto:
+                          option.texto,
+
+                        codigo:
+                          option.codigo,
+
+                        orden:
+                          option.orden,
+
+                        categoriaResultado:
+                          option
+                            .categoriaResultado,
+
+                        /*
+                         * El frontend no necesita
+                         * conocer el puntaje para
+                         * responder el test.
+                         *
+                         * Esto evita revelar
+                         * la lógica de cálculo.
+                         */
+                        metadata:
+                          option
+                            .metadata,
+                      })
+                    ),
+                })
+              ),
+          })
+        );
+
+      /* =====================================================
+         RESPUESTAS GUARDADAS
+      ===================================================== */
+
+      const savedAnswers =
+        normalizeSavedAnswers(
+          evaluation.answers ||
+          []
+        );
+
+      /* =====================================================
+         PROGRESO
+      ===================================================== */
+
+      const totalQuestions =
+        sections.reduce(
+          (
+            total,
+            section
+          ) =>
+            total +
+            section
+              .questions
+              .length,
+
+          0
+        );
+
+      const answeredQuestionIds =
+        new Set(
+          savedAnswers.map(
             (
-              (answeredQuestions /
-                totalQuestions) *
-              100
-            ).toFixed(2)
+              answer
+            ) =>
+              String(
+                answer
+                  .questionId
+              )
           )
-        : 0;
+        );
 
-    return res.json({
-      message:
-        "Acceso al test validado correctamente.",
+      const answeredQuestions =
+        answeredQuestionIds.size;
 
-      access: {
-        expiresAt:
-          access.expiresAt,
+      const progress =
+        totalQuestions >
+        0
+          ? Number(
+              (
+                (
+                  answeredQuestions /
+                  totalQuestions
+                ) *
+                100
+              ).toFixed(
+                2
+              )
+            )
+          : 0;
 
-        accessCount:
-          Number(access.accessCount || 0) +
-          1,
-      },
+      /* =====================================================
+         RESPUESTA
+      ===================================================== */
 
-      evaluation: {
-        id: evaluation.id,
+      return res.json(
+        {
+          message:
+            "Acceso al test validado correctamente.",
 
-        numeroEvaluacion:
-          evaluation.numeroEvaluacion,
+          /* =================================================
+             INFORMACIÓN DEL TOKEN
+          ================================================= */
 
-        estado:
-          "en_progreso",
+          access: {
+            expiresAt:
+              access.expiresAt,
 
-        fechaHabilitacion:
-          evaluation.fechaHabilitacion,
+            accessCount:
+              newAccessCount,
+          },
 
-        fechaInicio:
-          evaluation.fechaInicio || now,
+          /* =================================================
+             EVALUACIÓN
 
-        testVersion:
-          evaluation.testVersion,
+             IMPORTANTE:
+             Ya no forzamos "en_progreso".
+          ================================================= */
 
-        resultadoLiberado:
-          evaluation.resultadoLiberado,
-      },
+          evaluation: {
+            id:
+              evaluation.id,
 
-      user: user
-        ? {
-            id: user.id,
-            cI: user.cI,
-            email: user.email,
-            firstName:
-              user.firstName,
-            lastName:
-              user.lastName,
-            cellular:
-              user.cellular,
-            grado: user.grado,
-            subsistema:
-              user.subsistema,
+            numeroEvaluacion:
+              evaluation
+                .numeroEvaluacion,
 
-            empresa:
-              user.empresa
-                ? {
-                    id:
-                      user.empresa.id,
+            estado:
+              evaluation.estado,
 
-                    nombre:
-                      user.empresa
-                        .nombreComercial ||
-                      user.empresa
-                        .razonSocial,
-                  }
-                : null,
+            fechaHabilitacion:
+              evaluation
+                .fechaHabilitacion,
 
-            seccion:
-              user.empresaSeccion
-                ? {
-                    id:
-                      user
-                        .empresaSeccion
-                        .id,
+            fechaInicio:
+              evaluation
+                .fechaInicio ||
+              null,
 
-                    nombre:
-                      user
-                        .empresaSeccion
-                        .nombre,
-                  }
-                : null,
-          }
-        : null,
+            testVersion:
+              evaluation
+                .testVersion,
 
-      course: test.course
-        ? {
-            id: test.course.id,
+            resultadoLiberado:
+              evaluation
+                .resultadoLiberado,
+          },
+
+          /* =================================================
+             VERIFICACIÓN DE IDENTIDAD
+          ================================================= */
+
+          identityVerification: {
+            required:
+              true,
+
+            initial: {
+              completed:
+                Boolean(
+                  initialVerification
+                ),
+
+              id:
+                initialVerification
+                  ?.id ||
+                null,
+
+              status:
+                initialVerification
+                  ?.status ||
+                null,
+
+              capturedAt:
+                initialVerification
+                  ?.capturedAt ||
+                null,
+
+              consentAccepted:
+                Boolean(
+                  initialVerification
+                    ?.consentAccepted
+                ),
+
+              consentAt:
+                initialVerification
+                  ?.consentAt ||
+                null,
+
+              consentVersion:
+                initialVerification
+                  ?.consentVersion ||
+                null,
+
+              /*
+               * Campos preparados
+               * para futuras mejoras.
+               */
+              faceDetected:
+                initialVerification
+                  ?.faceDetected ??
+                null,
+
+              faceCount:
+                initialVerification
+                  ?.faceCount ??
+                null,
+
+              faceMatchPassed:
+                initialVerification
+                  ?.faceMatchPassed ??
+                null,
+
+              livenessChecked:
+                Boolean(
+                  initialVerification
+                    ?.livenessChecked
+                ),
+
+              livenessPassed:
+                initialVerification
+                  ?.livenessPassed ??
+                null,
+            },
+
+            final: {
+              completed:
+                Boolean(
+                  finalVerification
+                ),
+
+              id:
+                finalVerification
+                  ?.id ||
+                null,
+
+              status:
+                finalVerification
+                  ?.status ||
+                null,
+
+              capturedAt:
+                finalVerification
+                  ?.capturedAt ||
+                null,
+
+              consentAccepted:
+                Boolean(
+                  finalVerification
+                    ?.consentAccepted
+                ),
+
+              consentAt:
+                finalVerification
+                  ?.consentAt ||
+                null,
+
+              consentVersion:
+                finalVerification
+                  ?.consentVersion ||
+                null,
+
+              faceDetected:
+                finalVerification
+                  ?.faceDetected ??
+                null,
+
+              faceCount:
+                finalVerification
+                  ?.faceCount ??
+                null,
+
+              faceMatchPassed:
+                finalVerification
+                  ?.faceMatchPassed ??
+                null,
+
+              livenessChecked:
+                Boolean(
+                  finalVerification
+                    ?.livenessChecked
+                ),
+
+              livenessPassed:
+                finalVerification
+                  ?.livenessPassed ??
+                null,
+            },
+          },
+
+          /* =================================================
+             USUARIO
+          ================================================= */
+
+          user:
+            user
+              ? {
+                  id:
+                    user.id,
+
+                  cI:
+                    user.cI,
+
+                  email:
+                    user.email,
+
+                  firstName:
+                    user
+                      .firstName,
+
+                  lastName:
+                    user
+                      .lastName,
+
+                  cellular:
+                    user
+                      .cellular,
+
+                  grado:
+                    user.grado,
+
+                  subsistema:
+                    user
+                      .subsistema,
+
+                  empresa:
+                    user.empresa
+                      ? {
+                          id:
+                            user
+                              .empresa
+                              .id,
+
+                          nombre:
+                            user
+                              .empresa
+                              .nombreComercial ||
+                            user
+                              .empresa
+                              .razonSocial,
+                        }
+                      : null,
+
+                  seccion:
+                    user
+                      .empresaSeccion
+                      ? {
+                          id:
+                            user
+                              .empresaSeccion
+                              .id,
+
+                          nombre:
+                            user
+                              .empresaSeccion
+                              .nombre,
+                        }
+                      : null,
+                }
+              : null,
+
+          /* =================================================
+             CURSO
+          ================================================= */
+
+          course:
+            test.course
+              ? {
+                  id:
+                    test
+                      .course
+                      .id,
+
+                  nombre:
+                    test
+                      .course
+                      .nombre,
+
+                  sigla:
+                    test
+                      .course
+                      .sigla,
+
+                  objetivo:
+                    test
+                      .course
+                      .objetivo,
+
+                  tipo:
+                    test
+                      .course
+                      .tipo,
+                }
+              : null,
+
+          /* =================================================
+             TEST
+          ================================================= */
+
+          test: {
+            id:
+              test.id,
+
             nombre:
-              test.course.nombre,
-            sigla:
-              test.course.sigla,
-            objetivo:
-              test.course.objetivo,
-            tipo:
-              test.course.tipo,
-          }
-        : null,
+              test.nombre,
 
-      test: {
-        id: test.id,
-        nombre: test.nombre,
-        descripcion:
-          test.descripcion,
-        instrucciones:
-          test.instrucciones,
+            descripcion:
+              test.descripcion,
 
-        duracionMinutos:
-          test.duracionMinutos,
+            instrucciones:
+              test.instrucciones,
 
-        permiteContinuar:
-          test.permiteContinuar,
+            duracionMinutos:
+              test
+                .duracionMinutos,
 
-        preguntasAleatorias:
-          test.preguntasAleatorias,
+            permiteContinuar:
+              test
+                .permiteContinuar,
 
-        version:
-          test.version,
+            preguntasAleatorias:
+              test
+                .preguntasAleatorias,
 
-        sections,
-      },
+            version:
+              test.version,
 
-      progress: {
-        totalQuestions,
-        answeredQuestions,
-        pendingQuestions:
-          Math.max(
-            totalQuestions -
-              answeredQuestions,
-            0
-          ),
+            sections,
+          },
 
-        percentage: progress,
-      },
+          /* =================================================
+             PROGRESO
+          ================================================= */
 
-      savedAnswers,
-    });
-  });
+          progress: {
+            totalQuestions,
+
+            answeredQuestions,
+
+            pendingQuestions:
+              Math.max(
+                totalQuestions -
+                  answeredQuestions,
+
+                0
+              ),
+
+            percentage:
+              progress,
+          },
+
+          /* =================================================
+             RESPUESTAS EXISTENTES
+          ================================================= */
+
+          savedAnswers,
+        }
+      );
+    }
+  );
+
+/* =========================================================
+   EXPORTACIONES
+========================================================= */
 
 module.exports = {
   validatePsychometricAccess,

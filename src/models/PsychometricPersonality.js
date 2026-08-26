@@ -45,6 +45,26 @@ const PsychometricPersonality = sequelize.define(
       allowNull: false,
     },
 
+    rasgos: {
+      type: DataTypes.STRING(256),
+      allowNull: true,
+    },
+
+    fortalezas: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
+
+    debilidades: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
+
+    sugerencias: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+    },
+
     /*
      * Color de la cabeza.
      * Determina el tipo de cerebro.

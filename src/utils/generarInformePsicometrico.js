@@ -2121,6 +2121,102 @@ const drawVakCard = ({
 };
 
 /* =========================================================
+   BLOQUE DE LISTA / TEXTO MULTILÍNEA
+========================================================= */
+
+const drawMultilineList = ({
+  page,
+  text,
+  x,
+  y,
+  maxWidth,
+  font,
+  size = 8.5,
+  lineHeight = 12,
+  color = COLORS.textSoft,
+  bulletColor = COLORS.blue,
+  maxY = 60,
+}) => {
+  if (!text) {
+    return y;
+  }
+
+  const normalized = repairMojibake(
+    String(text)
+  )
+    .normalize("NFC")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim();
+
+  const items = normalized
+    .split("\n")
+    .map((item) =>
+      item
+        .replace(/^[•●▪\-]\s*/, "")
+        .trim()
+    )
+    .filter(Boolean);
+
+  let currentY = y;
+
+  for (const item of items) {
+    const bulletX = x;
+    const textX = x + 13;
+
+    const lines = wrapText({
+      text: item,
+      font,
+      fontSize: size,
+      maxWidth: maxWidth - 13,
+    });
+
+    if (
+      currentY -
+      lines.length *
+      lineHeight <
+      maxY
+    ) {
+      break;
+    }
+
+    page.drawCircle({
+      x: bulletX + 3,
+      y: currentY + 3,
+      size: 2.2,
+      color: bulletColor,
+    });
+
+    for (
+      let i = 0;
+      i < lines.length;
+      i++
+    ) {
+      page.drawText(
+        normalizeText(
+          lines[i],
+          ""
+        ),
+        {
+          x: textX,
+          y: currentY,
+          font,
+          size,
+          color,
+        }
+      );
+
+      currentY -=
+        lineHeight;
+    }
+
+    currentY -= 6;
+  }
+
+  return currentY;
+};
+
+/* =========================================================
    OBTENER DATOS
 ========================================================= */
 
@@ -4953,418 +5049,1325 @@ const generarInformePsicometrico =
       });
     }
 
-/* =====================================================
-   PÁGINA 9
-   ÍNDICE DE PRODUCTIVIDAD PERSONAL
-===================================================== */
+    /* =====================================================
+       PÁGINA 9
+       ÍNDICE DE PRODUCTIVIDAD PERSONAL
+    ===================================================== */
 
-/* =====================================================
-   PÁGINA 9
-   ÍNDICE DE PRODUCTIVIDAD PERSONAL
-===================================================== */
+    /* =====================================================
+       PÁGINA 9
+       ÍNDICE DE PRODUCTIVIDAD PERSONAL
+    ===================================================== */
 
-{
-  const page =
-    pdfDoc.addPage([
-      PAGE_WIDTH,
-      PAGE_HEIGHT,
-    ]);
+    {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
 
-  drawCorporateHeader({
-    page,
-    fullName,
-    logoImage,
-    boldFont,
-    regularFont,
-  });
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
 
-  /* =====================================================
-     TÍTULO
-  ===================================================== */
+      /* =====================================================
+         TÍTULO
+      ===================================================== */
 
-  drawSectionTitle({
-    page,
+      drawSectionTitle({
+        page,
 
-    kicker:
-      "ÍNDICE DE PRODUCTIVIDAD PERSONAL",
+        kicker:
+          "ÍNDICE DE PRODUCTIVIDAD PERSONAL",
 
-    title:
-      "Resultado integral de productividad",
+        title:
+          "Resultado integral de productividad",
 
-    y: 665,
+        y: 665,
 
-    boldFont,
-  });
+        boldFont,
+      });
 
-  /* =====================================================
-     DATOS PRINCIPALES
-  ===================================================== */
+      /* =====================================================
+         DATOS PRINCIPALES
+      ===================================================== */
 
-  const ippPercentage =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        Math.round(
-          Number(
-            productivityIndex
-              ?.percentage || 0
+      const ippPercentage =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              Number(
+                productivityIndex
+                  ?.percentage || 0
+              )
+            )
           )
-        )
-      )
-    );
+        );
 
-  const ippClassification =
-    normalizeText(
-      productivityIndex
-        ?.classification,
-      "-"
-    );
+      const ippClassification =
+        normalizeText(
+          productivityIndex
+            ?.classification,
+          "-"
+        );
 
-  /* =====================================================
-     COLOR SEGÚN CLASIFICACIÓN
-  ===================================================== */
+      /* =====================================================
+         COLOR SEGÚN CLASIFICACIÓN
+      ===================================================== */
 
-  let ippColor =
-    COLORS.red;
+      let ippColor =
+        COLORS.red;
 
-  let ippBackground =
-    COLORS.redSoft;
+      let ippBackground =
+        COLORS.redSoft;
 
-  if (
-    ippClassification ===
-    "A"
-  ) {
-    ippColor =
-      COLORS.success;
+      if (
+        ippClassification ===
+        "A"
+      ) {
+        ippColor =
+          COLORS.success;
 
-    ippBackground =
-      COLORS.successSoft;
-  } else if (
-    ippClassification ===
-    "B"
-  ) {
-    ippColor =
-      COLORS.green;
+        ippBackground =
+          COLORS.successSoft;
+      } else if (
+        ippClassification ===
+        "B"
+      ) {
+        ippColor =
+          COLORS.green;
 
-    ippBackground =
-      COLORS.greenSoft;
-  } else if (
-    ippClassification ===
-    "C"
-  ) {
-    ippColor =
-      COLORS.blue;
+        ippBackground =
+          COLORS.greenSoft;
+      } else if (
+        ippClassification ===
+        "C"
+      ) {
+        ippColor =
+          COLORS.blue;
 
-    ippBackground =
-      COLORS.blueSoft;
-  } else if (
-    ippClassification ===
-    "D"
-  ) {
-    ippColor =
-      COLORS.warning;
+        ippBackground =
+          COLORS.blueSoft;
+      } else if (
+        ippClassification ===
+        "D"
+      ) {
+        ippColor =
+          COLORS.warning;
 
-    ippBackground =
-      COLORS.warningSoft;
-  } else if (
-    ippClassification ===
-    "E"
-  ) {
-    ippColor =
-      COLORS.redDark;
+        ippBackground =
+          COLORS.warningSoft;
+      } else if (
+        ippClassification ===
+        "E"
+      ) {
+        ippColor =
+          COLORS.redDark;
 
-    ippBackground =
-      COLORS.redSoft;
-  }
+        ippBackground =
+          COLORS.redSoft;
+      }
 
-  /* =====================================================
-     LETRA DE CLASIFICACIÓN
-  ===================================================== */
+      /* =====================================================
+         LETRA DE CLASIFICACIÓN
+      ===================================================== */
 
-  page.drawRectangle({
-    x: 450,
-    y: 600,
+      page.drawRectangle({
+        x: 450,
+        y: 600,
 
-    width: 90,
-    height: 90,
+        width: 90,
+        height: 90,
 
-    color:
-      ippBackground,
+        color:
+          ippBackground,
 
-    borderColor:
-      ippColor,
+        borderColor:
+          ippColor,
 
-    borderWidth: 1.2,
-  });
+        borderWidth: 1.2,
+      });
 
-  drawCenteredTextInBox({
-    page,
+      drawCenteredTextInBox({
+        page,
 
-    text:
-      ippClassification,
+        text:
+          ippClassification,
 
-    x: 450,
-    y: 624,
+        x: 450,
+        y: 624,
 
-    width: 90,
+        width: 90,
 
-    font:
-      boldFont,
+        font:
+          boldFont,
 
-    size: 38,
+        size: 38,
 
-    color:
-      ippColor,
-  });
+        color:
+          ippColor,
+      });
 
-  /* =====================================================
-     ÍNDICE FINAL
-     CUADRO AZUL MÁS ANGOSTO Y CENTRADO
-  ===================================================== */
+      /* =====================================================
+         ÍNDICE FINAL
+         CUADRO AZUL MÁS ANGOSTO Y CENTRADO
+      ===================================================== */
 
-  const ippBoxWidth = 340;
-  const ippBoxHeight = 165;
+      const ippBoxWidth = 340;
+      const ippBoxHeight = 165;
 
-  const ippBoxX =
-    (
-      PAGE_WIDTH -
-      ippBoxWidth
-    ) / 2;
+      const ippBoxX =
+        (
+          PAGE_WIDTH -
+          ippBoxWidth
+        ) / 2;
 
-  const ippBoxY = 395;
+      const ippBoxY = 395;
 
-  page.drawRectangle({
-    x:
-      ippBoxX,
+      page.drawRectangle({
+        x:
+          ippBoxX,
 
-    y:
-      ippBoxY,
+        y:
+          ippBoxY,
 
-    width:
-      ippBoxWidth,
+        width:
+          ippBoxWidth,
 
-    height:
-      ippBoxHeight,
+        height:
+          ippBoxHeight,
 
-    color:
-      COLORS.navy,
-  });
+        color:
+          COLORS.navy,
+      });
 
-  /* =====================================================
-     TEXTO ÍNDICE FINAL CENTRADO
-  ===================================================== */
+      /* =====================================================
+         TEXTO ÍNDICE FINAL CENTRADO
+      ===================================================== */
 
-  drawCenteredTextInBox({
-    page,
+      drawCenteredTextInBox({
+        page,
 
-    text:
-      "ÍNDICE FINAL",
+        text:
+          "ÍNDICE FINAL",
 
-    x:
-      ippBoxX,
+        x:
+          ippBoxX,
 
-    y:
-      ippBoxY + 125,
+        y:
+          ippBoxY + 125,
 
-    width:
-      ippBoxWidth,
+        width:
+          ippBoxWidth,
 
-    font:
-      boldFont,
+        font:
+          boldFont,
 
-    size: 10,
+        size: 10,
 
-    color:
-      COLORS.cyan,
-  });
+        color:
+          COLORS.cyan,
+      });
 
-  /* =====================================================
-     PORCENTAJE CENTRADO
-  ===================================================== */
+      /* =====================================================
+         PORCENTAJE CENTRADO
+      ===================================================== */
 
-  drawCenteredTextInBox({
-    page,
+      drawCenteredTextInBox({
+        page,
 
-    text:
-      `${ippPercentage}%`,
+        text:
+          `${ippPercentage}%`,
 
-    x:
-      ippBoxX,
+        x:
+          ippBoxX,
 
-    y:
-      ippBoxY + 52,
+        y:
+          ippBoxY + 52,
 
-    width:
-      ippBoxWidth,
+        width:
+          ippBoxWidth,
 
-    font:
-      boldFont,
+        font:
+          boldFont,
 
-    size: 58,
+        size: 58,
 
-    color:
-      COLORS.white,
-  });
+        color:
+          COLORS.white,
+      });
 
-  /* =====================================================
-     NIVEL DE PRODUCTIVIDAD
-  ===================================================== */
+      /* =====================================================
+         NIVEL DE PRODUCTIVIDAD
+      ===================================================== */
 
-  page.drawText(
-    "NIVEL DE PRODUCTIVIDAD PERSONAL",
+      page.drawText(
+        "NIVEL DE PRODUCTIVIDAD PERSONAL",
+        {
+          x: 52,
+          y: 340,
+
+          font:
+            boldFont,
+
+          size: 8.5,
+
+          color:
+            COLORS.blue,
+        }
+      );
+
+      /* =====================================================
+         PORCENTAJE DE LA BARRA
+      ===================================================== */
+
+      page.drawText(
+        `${ippPercentage}%`,
+        {
+          x: 505,
+          y: 340,
+
+          font:
+            boldFont,
+
+          size: 9.5,
+
+          color:
+            ippColor,
+        }
+      );
+
+      /* =====================================================
+         FONDO DE LA BARRA
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 300,
+
+        width: 491,
+        height: 18,
+
+        color:
+          COLORS.border,
+      });
+
+      /* =====================================================
+         BARRA DE PROGRESO
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 300,
+
+        width:
+          491 *
+          ippPercentage /
+          100,
+
+        height: 18,
+
+        color:
+          ippColor,
+      });
+
+      /* =====================================================
+         EXPLICACIÓN DEL IPP
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 115,
+
+        width: 491,
+        height: 140,
+
+        color:
+          COLORS.blueSoft,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      /* =====================================================
+         TÍTULO IPP MÁS GRANDE
+      ===================================================== */
+
+      page.drawText(
+        "IPP",
+        {
+          x: 74,
+          y: 220,
+
+          font:
+            boldFont,
+
+          size: 14,
+
+          color:
+            COLORS.blue,
+        }
+      );
+
+      /* =====================================================
+         EXPLICACIÓN MÁS GRANDE
+      ===================================================== */
+
+      drawWrappedText({
+        page,
+
+        text:
+          "El Índice de Productividad Personal integra los principales resultados de la evaluación y permite observar de forma global cómo interactúan la persistencia, comunicación, preferencia conductual, dominancia cerebral, negociación y sistema representacional.",
+
+        x: 74,
+        y: 190,
+
+        maxWidth: 445,
+
+        font:
+          regularFont,
+
+        size: 10.5,
+
+        lineHeight: 16,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 7,
+      });
+
+      /* =====================================================
+         PIE DE PÁGINA
+      ===================================================== */
+
+      drawFooter({
+        page,
+        number: 9,
+        regularFont,
+      });
+    }
+
+
+    /* =====================================================
+       PÁGINA 10
+       CONCLUSIÓN DE PERSONALIDAD
+    ===================================================== */
+
     {
-      x: 52,
-      y: 340,
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
 
-      font:
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
+
+      /* =====================================================
+         TÍTULO
+      ===================================================== */
+
+      drawSectionTitle({
+        page,
+
+        kicker:
+          "CONCLUSIÓN DE PERSONALIDAD",
+
+        title:
+          `Perfil integral de ${user?.firstName ||
+          "la persona evaluada"
+          }`,
+
+        y: 665,
+
+        boldFont,
+      });
+
+      /* =====================================================
+         CHIP ANIMAL
+      ===================================================== */
+
+      drawChip({
+        page,
+
+        text:
+          animal,
+
+        x: 420,
+        y: 618,
+
+        width: 120,
+
         boldFont,
 
-      size: 8.5,
+        color:
+          COLORS.blue,
 
-      color:
-        COLORS.blue,
+        background:
+          COLORS.blueSoft,
+      });
+
+      /* =====================================================
+         PERFIL PRINCIPAL
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 390,
+
+        width: 491,
+        height: 195,
+
+        color:
+          COLORS.soft,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      /*
+       * Imagen.
+       */
+
+      page.drawRectangle({
+        x: 68,
+        y: 414,
+
+        width: 145,
+        height: 145,
+
+        color:
+          COLORS.white,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      if (
+        personalityImage
+      ) {
+        drawContainedImage({
+          page,
+
+          image:
+            personalityImage,
+
+          x: 72,
+          y: 418,
+
+          width: 137,
+          height: 137,
+
+          padding: 2,
+
+          background:
+            COLORS.white,
+        });
+      }
+
+      /*
+       * Etiqueta.
+       */
+
+      page.drawText(
+        "TU PERFIL DE PERSONALIDAD",
+        {
+          x: 235,
+          y: 548,
+
+          font:
+            boldFont,
+
+          size: 6.7,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      /*
+       * Nombre de personalidad.
+       */
+
+      drawWrappedText({
+        page,
+
+        text:
+          personalityName,
+
+        x: 235,
+        y: 522,
+
+        maxWidth: 285,
+
+        font:
+          boldFont,
+
+        size: 14,
+
+        lineHeight: 17,
+
+        color:
+          COLORS.navy,
+
+        maxLines: 2,
+      });
+
+      /* =====================================================
+         DATOS DEL PERFIL
+      ===================================================== */
+
+      const conclusionAnimal =
+        personality?.animal ||
+        resultPersonality
+          ?.animal ||
+        animal ||
+        "-";
+
+      const conclusionBrain =
+        personality
+          ?.tipoCerebro ||
+        resultPersonality
+          ?.tipoCerebro ||
+        brainType ||
+        "-";
+
+      const conclusionCommunication =
+        personality
+          ?.tipoComunicacion ||
+        resultPersonality
+          ?.tipoComunicacion ||
+        communicationType ||
+        "-";
+
+      const conclusionHeadColor =
+        personality
+          ?.colorCabeza ||
+        resultPersonality
+          ?.colorCabeza ||
+        headColor ||
+        "-";
+
+      const conclusionChestColor =
+        personality
+          ?.colorPecho ||
+        resultPersonality
+          ?.colorPecho ||
+        chestColor ||
+        "-";
+
+      /*
+       * Animal.
+       */
+
+      page.drawText(
+        "ANIMAL",
+        {
+          x: 235,
+          y: 470,
+
+          font:
+            boldFont,
+
+          size: 6.2,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          conclusionAnimal,
+
+        x: 235,
+        y: 452,
+
+        maxWidth: 90,
+
+        font:
+          boldFont,
+
+        size: 8.5,
+
+        lineHeight: 10,
+
+        color:
+          COLORS.text,
+
+        maxLines: 2,
+      });
+
+      /*
+       * Cerebro.
+       */
+
+      page.drawText(
+        "TIPO DE CEREBRO",
+        {
+          x: 335,
+          y: 470,
+
+          font:
+            boldFont,
+
+          size: 6.2,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          conclusionBrain,
+
+        x: 335,
+        y: 452,
+
+        maxWidth: 90,
+
+        font:
+          boldFont,
+
+        size: 8.5,
+
+        lineHeight: 10,
+
+        color:
+          COLORS.text,
+
+        maxLines: 2,
+      });
+
+      /*
+       * Comunicación.
+       */
+
+      page.drawText(
+        "COMUNICACIÓN",
+        {
+          x: 435,
+          y: 470,
+
+          font:
+            boldFont,
+
+          size: 6.2,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      drawWrappedText({
+        page,
+
+        text:
+          conclusionCommunication,
+
+        x: 435,
+        y: 452,
+
+        maxWidth: 88,
+
+        font:
+          boldFont,
+
+        size: 8.5,
+
+        lineHeight: 10,
+
+        color:
+          COLORS.text,
+
+        maxLines: 2,
+      });
+
+      /* =====================================================
+         COLORES
+      ===================================================== */
+
+      const getProfileColor = (
+        value
+      ) => {
+        const color =
+          normalizeText(
+            value,
+            ""
+          ).toUpperCase();
+
+        if (
+          color ===
+          "AMARILLO"
+        ) {
+          return COLORS.yellow;
+        }
+
+        if (
+          color ===
+          "ROJO"
+        ) {
+          return COLORS.red;
+        }
+
+        if (
+          color ===
+          "VERDE"
+        ) {
+          return COLORS.green;
+        }
+
+        return COLORS.blue;
+      };
+
+      /*
+       * Pensamiento.
+       */
+
+      page.drawCircle({
+        x: 241,
+        y: 417,
+
+        size: 6,
+
+        color:
+          getProfileColor(
+            conclusionHeadColor
+          ),
+      });
+
+      page.drawText(
+        "COLOR DE PENSAMIENTO",
+        {
+          x: 255,
+          y: 422,
+
+          font:
+            boldFont,
+
+          size: 5.8,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        normalizeText(
+          conclusionHeadColor
+        ),
+        {
+          x: 255,
+          y: 407,
+
+          font:
+            boldFont,
+
+          size: 7.5,
+
+          color:
+            COLORS.text,
+        }
+      );
+
+      /*
+       * Comunicación.
+       */
+
+      page.drawCircle({
+        x: 388,
+        y: 417,
+
+        size: 6,
+
+        color:
+          getProfileColor(
+            conclusionChestColor
+          ),
+      });
+
+      page.drawText(
+        "COLOR DE COMUNICACIÓN",
+        {
+          x: 402,
+          y: 422,
+
+          font:
+            boldFont,
+
+          size: 5.8,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        normalizeText(
+          conclusionChestColor
+        ),
+        {
+          x: 402,
+          y: 407,
+
+          font:
+            boldFont,
+
+          size: 7.5,
+
+          color:
+            COLORS.text,
+        }
+      );
+
+      /* =====================================================
+         RASGOS CARACTERÍSTICOS
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 120,
+
+        width: 491,
+        height: 225,
+
+        color:
+          COLORS.white,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      page.drawRectangle({
+        x: 52,
+        y: 120,
+
+        width: 5,
+        height: 225,
+
+        color:
+          COLORS.blue,
+      });
+
+      page.drawText(
+        "RASGOS CARACTERÍSTICOS",
+        {
+          x: 75,
+          y: 315,
+
+          font:
+            boldFont,
+
+          size: 8,
+
+          color:
+            COLORS.blue,
+        }
+      );
+
+      drawMultilineList({
+        page,
+
+        text:
+          personality
+            ?.rasgos ||
+          resultPersonality
+            ?.rasgos ||
+          "-",
+
+        x: 75,
+        y: 284,
+
+        maxWidth: 440,
+
+        font:
+          regularFont,
+
+        size: 9,
+
+        lineHeight: 13,
+
+        color:
+          COLORS.textSoft,
+
+        bulletColor:
+          COLORS.blue,
+
+        maxY: 140,
+      });
+
+      drawFooter({
+        page,
+        number: 10,
+        regularFont,
+      });
     }
-  );
 
-  /* =====================================================
-     PORCENTAJE DE LA BARRA
-  ===================================================== */
 
-  page.drawText(
-    `${ippPercentage}%`,
+    /* =====================================================
+       PÁGINA 11
+       CONCLUSIÓN - DESARROLLO PERSONAL
+    ===================================================== */
+
     {
-      x: 505,
-      y: 340,
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
 
-      font:
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
         boldFont,
+        regularFont,
+      });
 
-      size: 9.5,
+      drawSectionTitle({
+        page,
 
-      color:
-        ippColor,
-    }
-  );
+        kicker:
+          "CONCLUSIÓN DE PERSONALIDAD",
 
-  /* =====================================================
-     FONDO DE LA BARRA
-  ===================================================== */
+        title:
+          "Fortalezas y desarrollo",
 
-  page.drawRectangle({
-    x: 52,
-    y: 300,
+        y: 665,
 
-    width: 491,
-    height: 18,
-
-    color:
-      COLORS.border,
-  });
-
-  /* =====================================================
-     BARRA DE PROGRESO
-  ===================================================== */
-
-  page.drawRectangle({
-    x: 52,
-    y: 300,
-
-    width:
-      491 *
-      ippPercentage /
-      100,
-
-    height: 18,
-
-    color:
-      ippColor,
-  });
-
-  /* =====================================================
-     EXPLICACIÓN DEL IPP
-  ===================================================== */
-
-  page.drawRectangle({
-    x: 52,
-    y: 115,
-
-    width: 491,
-    height: 140,
-
-    color:
-      COLORS.blueSoft,
-
-    borderColor:
-      COLORS.border,
-
-    borderWidth: 0.8,
-  });
-
-  /* =====================================================
-     TÍTULO IPP MÁS GRANDE
-  ===================================================== */
-
-  page.drawText(
-    "IPP",
-    {
-      x: 74,
-      y: 220,
-
-      font:
         boldFont,
+      });
 
-      size: 14,
+      /* =====================================================
+         FORTALEZAS
+      ===================================================== */
 
-      color:
-        COLORS.blue,
+      page.drawRectangle({
+        x: 52,
+        y: 420,
+
+        width: 235,
+        height: 190,
+
+        color:
+          COLORS.successSoft,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      page.drawRectangle({
+        x: 52,
+        y: 420,
+
+        width: 5,
+        height: 190,
+
+        color:
+          COLORS.success,
+      });
+
+      page.drawText(
+        "RECURSOS PERSONALES",
+        {
+          x: 72,
+          y: 579,
+
+          font:
+            boldFont,
+
+          size: 6.2,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        "FORTALEZAS",
+        {
+          x: 72,
+          y: 556,
+
+          font:
+            boldFont,
+
+          size: 13,
+
+          color:
+            COLORS.success,
+        }
+      );
+
+      drawMultilineList({
+        page,
+
+        text:
+          personality
+            ?.fortalezas ||
+          resultPersonality
+            ?.fortalezas ||
+          "-",
+
+        x: 72,
+        y: 528,
+
+        maxWidth: 195,
+
+        font:
+          regularFont,
+
+        size: 7.8,
+
+        lineHeight: 10.5,
+
+        color:
+          COLORS.textSoft,
+
+        bulletColor:
+          COLORS.success,
+
+        maxY: 442,
+      });
+
+      /* =====================================================
+         OPORTUNIDADES DE MEJORA
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 308,
+        y: 420,
+
+        width: 235,
+        height: 190,
+
+        color:
+          COLORS.warningSoft,
+
+        borderColor:
+          COLORS.border,
+
+        borderWidth: 0.8,
+      });
+
+      page.drawRectangle({
+        x: 308,
+        y: 420,
+
+        width: 5,
+        height: 190,
+
+        color:
+          COLORS.warning,
+      });
+
+      page.drawText(
+        "ASPECTOS A OBSERVAR",
+        {
+          x: 328,
+          y: 579,
+
+          font:
+            boldFont,
+
+          size: 6.2,
+
+          color:
+            COLORS.muted,
+        }
+      );
+
+      page.drawText(
+        "OPORTUNIDADES DE MEJORA",
+        {
+          x: 328,
+          y: 556,
+
+          font:
+            boldFont,
+
+          size: 10.3,
+
+          color:
+            COLORS.warning,
+        }
+      );
+
+      drawMultilineList({
+        page,
+
+        text:
+          personality
+            ?.debilidades ||
+          resultPersonality
+            ?.debilidades ||
+          "-",
+
+        x: 328,
+        y: 528,
+
+        maxWidth: 195,
+
+        font:
+          regularFont,
+
+        size: 7.8,
+
+        lineHeight: 10.5,
+
+        color:
+          COLORS.textSoft,
+
+        bulletColor:
+          COLORS.warning,
+
+        maxY: 442,
+      });
+
+      /* =====================================================
+         RECOMENDACIONES
+      ===================================================== */
+
+      page.drawRectangle({
+        x: 52,
+        y: 105,
+
+        width: 491,
+        height: 265,
+
+        color:
+          COLORS.navy,
+      });
+
+      /*
+       * Elemento decorativo.
+       */
+
+      page.drawCircle({
+        x: 86,
+        y: 325,
+
+        size: 18,
+
+        color:
+          COLORS.blue,
+      });
+
+      drawCenteredTextInBox({
+        page,
+
+        text: "+",
+
+        x: 68,
+        y: 317,
+
+        width: 36,
+
+        font:
+          boldFont,
+
+        size: 17,
+
+        color:
+          COLORS.white,
+      });
+
+      page.drawText(
+        "DESARROLLO PERSONAL Y PROFESIONAL",
+        {
+          x: 120,
+          y: 335,
+
+          font:
+            boldFont,
+
+          size: 6.5,
+
+          color:
+            COLORS.cyan,
+        }
+      );
+
+      page.drawText(
+        "RECOMENDACIONES",
+        {
+          x: 120,
+          y: 310,
+
+          font:
+            boldFont,
+
+          size: 15,
+
+          color:
+            COLORS.white,
+        }
+      );
+
+      drawMultilineList({
+        page,
+
+        text:
+          personality
+            ?.sugerencias ||
+          resultPersonality
+            ?.sugerencias ||
+          "-",
+
+        x: 78,
+        y: 270,
+
+        maxWidth: 435,
+
+        font:
+          regularFont,
+
+        size: 8.5,
+
+        lineHeight: 12,
+
+        color:
+          COLORS.white,
+
+        bulletColor:
+          COLORS.cyan,
+
+        maxY: 132,
+      });
+
+      drawFooter({
+        page,
+        number: 11,
+        regularFont,
+      });
     }
-  );
-
-  /* =====================================================
-     EXPLICACIÓN MÁS GRANDE
-  ===================================================== */
-
-  drawWrappedText({
-    page,
-
-    text:
-      "El Índice de Productividad Personal integra los principales resultados de la evaluación y permite observar de forma global cómo interactúan la persistencia, comunicación, preferencia conductual, dominancia cerebral, negociación y sistema representacional.",
-
-    x: 74,
-    y: 190,
-
-    maxWidth: 445,
-
-    font:
-      regularFont,
-
-    size: 10.5,
-
-    lineHeight: 16,
-
-    color:
-      COLORS.textSoft,
-
-    maxLines: 7,
-  });
-
-  /* =====================================================
-     PIE DE PÁGINA
-  ===================================================== */
-
-  drawFooter({
-    page,
-    number: 9,
-    regularFont,
-  });
-}
-
-
-
-
-
-
 
     /* =====================================================
        METADATA

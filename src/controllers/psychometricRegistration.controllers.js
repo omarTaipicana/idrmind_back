@@ -25,10 +25,6 @@ const PsychometricAccessToken = require(
   "../models/PsychometricAccessToken"
 );
 
-/*
- * Ajusta esta importación a la ruta real
- * que ya utilizas para enviar correos.
- */
 const sendEmail = require("../utils/sendEmail");
 
 const FRONTEND_URL =
@@ -72,6 +68,30 @@ const capitalizeWords = (value) => {
 };
 
 /* =========================================================
+   NORMALIZAR FECHA DE NACIMIENTO
+========================================================= */
+
+const normalizeDateBirth = (value) => {
+  const dateBirth = normalizeText(value);
+
+  if (!dateBirth) {
+    return null;
+  }
+
+  /*
+   * Esperamos formato YYYY-MM-DD,
+   * compatible con DataTypes.DATEONLY.
+   */
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(dateBirth)
+  ) {
+    return null;
+  }
+
+  return dateBirth;
+};
+
+/* =========================================================
    GENERAR TOKEN SEGURO
 ========================================================= */
 
@@ -100,8 +120,11 @@ const validateCompanyData = async ({
   seccionId,
   transaction,
 }) => {
-  const empresaIdFinal = normalizeText(empresaId);
-  const seccionIdFinal = normalizeText(seccionId);
+  const empresaIdFinal =
+    normalizeText(empresaId);
+
+  const seccionIdFinal =
+    normalizeText(seccionId);
 
   /*
    * Participante individual.
@@ -190,6 +213,7 @@ const findOrCreateUser = async ({
   nombres,
   apellidos,
   celular,
+  dateBirth,
   grado,
   subsistema,
   empresaId,
@@ -207,14 +231,29 @@ const findOrCreateUser = async ({
     user = await User.create(
       {
         cI: cedula || null,
+
         email,
+
         firstName:
-          capitalizeWords(nombres) || null,
+          capitalizeWords(nombres) ||
+          null,
+
         lastName:
-          capitalizeWords(apellidos) || null,
-        cellular: celular || null,
-        grado: grado || null,
-        subsistema: subsistema || null,
+          capitalizeWords(apellidos) ||
+          null,
+
+        cellular:
+          celular || null,
+
+        dateBirth:
+          dateBirth || null,
+
+        grado:
+          grado || null,
+
+        subsistema:
+          subsistema || null,
+
         empresaId,
         seccionId,
       },
@@ -241,7 +280,10 @@ const findOrCreateUser = async ({
   );
 
   const userUpdate = {
-    cI: user.cI || cedula || null,
+    cI:
+      user.cI ||
+      cedula ||
+      null,
 
     firstName:
       user.firstName ||
@@ -254,12 +296,31 @@ const findOrCreateUser = async ({
       null,
 
     cellular:
-      user.cellular || celular || null,
+      user.cellular ||
+      celular ||
+      null,
 
-    grado: user.grado || grado || null,
+    /*
+     * Si ya tiene fecha de nacimiento,
+     * se conserva.
+     *
+     * Si está vacía, se completa con
+     * la recibida desde el formulario.
+     */
+    dateBirth:
+      user.dateBirth ||
+      dateBirth ||
+      null,
+
+    grado:
+      user.grado ||
+      grado ||
+      null,
 
     subsistema:
-      user.subsistema || subsistema || null,
+      user.subsistema ||
+      subsistema ||
+      null,
 
     empresaId: userHasCompany
       ? user.empresaId
@@ -306,21 +367,19 @@ const findOrCreateInscription = async ({
     };
   }
 
-  /*
-   * Ajusta estos campos si tu modelo Inscripcion
-   * utiliza otros nombres obligatorios.
-   */
-  inscripcion = await Inscripcion.create(
-    {
-      userId: user.id,
-      courseId: course.id,
-      curso: course.sigla,
-      aceptacion: Boolean(aceptacion),
-    },
-    {
-      transaction,
-    }
-  );
+  inscripcion =
+    await Inscripcion.create(
+      {
+        userId: user.id,
+        courseId: course.id,
+        curso: course.sigla,
+        aceptacion:
+          Boolean(aceptacion),
+      },
+      {
+        transaction,
+      }
+    );
 
   return {
     inscripcion,
@@ -329,7 +388,7 @@ const findOrCreateInscription = async ({
 };
 
 /* =========================================================
-   CREAR O REUTILIZAR EVALUACIÓN ACTIVA
+   CREAR NUEVA EVALUACIÓN
 ========================================================= */
 
 const createOrReuseEvaluation = async ({
@@ -337,83 +396,16 @@ const createOrReuseEvaluation = async ({
   test,
   transaction,
 }) => {
-  /*
-   * Evita que el usuario genere evaluaciones duplicadas
-   * si registra varias veces el mismo formulario antes
-   * de terminar el test.
-   */
-  const createOrReuseEvaluation = async ({
-    inscripcion,
-    test,
-    transaction,
-  }) => {
-    /*
-     * La inscripción es única para el usuario y el test,
-     * pero cada intento genera una nueva evaluación.
-     *
-     * Ejemplo:
-     * Inscripción
-     * ├── Evaluación 1
-     * ├── Evaluación 2
-     * └── Evaluación 3
-     */
-
-    const lastEvaluationNumber =
-      await PsychometricEvaluation.max(
-        "numeroEvaluacion",
-        {
-          where: {
-            inscripcionId: inscripcion.id,
-            testId: test.id,
-          },
-          transaction,
-        }
-      );
-
-    const numeroEvaluacion =
-      Number(lastEvaluationNumber || 0) + 1;
-
-    const evaluation =
-      await PsychometricEvaluation.create(
-        {
-          inscripcionId: inscripcion.id,
-          testId: test.id,
-
-          numeroEvaluacion,
-
-          estado: "habilitada",
-
-          fechaHabilitacion: new Date(),
-
-          testVersion:
-            Number(test.version || 1),
-
-          puntajeTotal: null,
-          resultado: null,
-          personalityId: null,
-
-          resultadoLiberado: false,
-
-          observacion: null,
-        },
-        {
-          transaction,
-        }
-      );
-
-    return {
-      evaluation,
-      evaluationCreated: true,
-    };
-  };
-
   const lastEvaluationNumber =
     await PsychometricEvaluation.max(
       "numeroEvaluacion",
       {
         where: {
-          inscripcionId: inscripcion.id,
-          testId: test.id,
+          inscripcionId:
+            inscripcion.id,
+
+          testId:
+            test.id,
         },
 
         transaction,
@@ -421,23 +413,51 @@ const createOrReuseEvaluation = async ({
     );
 
   const numeroEvaluacion =
-    Number(lastEvaluationNumber || 0) + 1;
+    Number(
+      lastEvaluationNumber || 0
+    ) + 1;
 
   /*
-   * Como el usuario realizará primero el test
-   * y recibirá luego información de pago,
-   * la evaluación comienza habilitada.
+   * La inscripción es única,
+   * pero cada intento crea
+   * una evaluación nueva.
    */
   const evaluation =
     await PsychometricEvaluation.create(
       {
-        inscripcionId: inscripcion.id,
-        testId: test.id,
+        inscripcionId:
+          inscripcion.id,
+
+        testId:
+          test.id,
+
         numeroEvaluacion,
-        estado: "habilitada",
-        fechaHabilitacion: new Date(),
-        testVersion: test.version,
-        resultadoLiberado: false,
+
+        estado:
+          "habilitada",
+
+        fechaHabilitacion:
+          new Date(),
+
+        testVersion:
+          Number(
+            test.version || 1
+          ),
+
+        puntajeTotal:
+          null,
+
+        resultado:
+          null,
+
+        personalityId:
+          null,
+
+        resultadoLiberado:
+          false,
+
+        observacion:
+          null,
       },
       {
         transaction,
@@ -459,8 +479,8 @@ const createEvaluationAccess = async ({
   transaction,
 }) => {
   /*
-   * Desactivamos enlaces anteriores de la misma
-   * evaluación antes de generar uno nuevo.
+   * Desactivamos enlaces anteriores
+   * de la misma evaluación.
    */
   await PsychometricAccessToken.update(
     {
@@ -469,32 +489,44 @@ const createEvaluationAccess = async ({
     },
     {
       where: {
-        evaluationId: evaluation.id,
-        activo: true,
+        evaluationId:
+          evaluation.id,
+
+        activo:
+          true,
       },
 
       transaction,
     }
   );
 
-  const { token, tokenHash } =
-    generateAccessToken();
+  const {
+    token,
+    tokenHash,
+  } = generateAccessToken();
 
   const expiresAt = new Date(
     Date.now() +
-    ACCESS_TOKEN_HOURS *
-    60 *
-    60 *
-    1000
+      ACCESS_TOKEN_HOURS *
+        60 *
+        60 *
+        1000
   );
 
   await PsychometricAccessToken.create(
     {
-      evaluationId: evaluation.id,
+      evaluationId:
+        evaluation.id,
+
       tokenHash,
+
       expiresAt,
-      purpose: "test",
-      activo: true,
+
+      purpose:
+        "test",
+
+      activo:
+        true,
     },
     {
       transaction,
@@ -511,195 +543,210 @@ const createEvaluationAccess = async ({
    ENVIAR CORREO
 ========================================================= */
 
-const sendPsychometricAccessEmail = async ({
-  user,
-  course,
-  evaluation,
-  token,
-  expiresAt,
-}) => {
-  /*
-   * Si tu frontend usa HashRouter:
-   * /#/test-psicotecnico/:token
-   */
-  const link =
-    `${FRONTEND_URL}/#/test-psicotecnico/${token}`;
+const sendPsychometricAccessEmail =
+  async ({
+    user,
+    course,
+    evaluation,
+    token,
+    expiresAt,
+  }) => {
+    /*
+     * HashRouter:
+     * /#/test-psicotecnico/:token
+     */
+    const link =
+      `${FRONTEND_URL}/#/test-psicotecnico/${token}`;
 
-  const expirationDate =
-    expiresAt.toLocaleString("es-EC", {
-      timeZone: "America/Guayaquil",
-      dateStyle: "long",
-      timeStyle: "short",
-    });
+    const expirationDate =
+      expiresAt.toLocaleString(
+        "es-EC",
+        {
+          timeZone:
+            "America/Guayaquil",
 
-  await sendEmail({
-    to: user.email,
+          dateStyle:
+            "long",
 
-    subject:
-      "Acceso al Test Psicotécnico - iDr.Mind",
+          timeStyle:
+            "short",
+        }
+      );
 
-    html: `
-      <div style="
-        margin:0;
-        padding:30px 15px;
-        background:#f1f5f9;
-        font-family:Arial,sans-serif;
-        color:#101828;
-      ">
+    await sendEmail({
+      to:
+        user.email,
+
+      subject:
+        "Acceso al Test Psicotécnico - iDr.Mind",
+
+      html: `
         <div style="
-          max-width:640px;
-          margin:0 auto;
-          background:#ffffff;
-          border-radius:18px;
-          overflow:hidden;
-          box-shadow:0 18px 45px rgba(7,27,63,.16);
+          margin:0;
+          padding:30px 15px;
+          background:#f1f5f9;
+          font-family:Arial,sans-serif;
+          color:#101828;
         ">
-         <div
-  style="
-    padding:28px;
-    text-align:center;
-
-    background-color:#071b3f !important;
-    background:#071b3f;
-    background-image:linear-gradient(
-      135deg,
-      #071b3f 0%,
-      #173a8a 100%
-    );
-  "
->
-  <img
-    src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
-    alt="iDr.Mind"
-    width="165"
-    style="
-      display:block;
-      width:165px;
-      max-width:100%;
-      height:auto;
-      margin:0 auto;
-      border:0;
-    "
-  />
-</div>
-
-          <div style="padding:34px;">
-            <h1 style="
-              margin:0 0 18px;
-              color:#071b3f;
-              font-size:27px;
-            ">
-              Hola ${user.firstName || ""}
-              ${user.lastName || ""}
-            </h1>
-
-            <p style="
-              font-size:16px;
-              line-height:1.7;
-              color:#475467;
-            ">
-              Tu registro para
-              <strong>${course.nombre}</strong>
-              se completó correctamente.
-            </p>
-
-            <p style="
-              font-size:16px;
-              line-height:1.7;
-              color:#475467;
-            ">
-              Lee cuidadosamente las instrucciones,
-              responde con sinceridad y procura completar
-              todas las secciones del test.
-            </p>
-
-            <div style="
-              margin:26px 0;
-              padding:18px;
-              border-radius:12px;
-              background:#eef6ff;
-              border-left:5px solid #28a7e8;
-            ">
-              <p style="
-                margin:0;
-                color:#344054;
-                line-height:1.6;
-              ">
-                Evaluación número:
-                <strong>
-                  ${evaluation.numeroEvaluacion}
-                </strong>
-              </p>
-
-              <p style="
-                margin:6px 0 0;
-                color:#344054;
-                line-height:1.6;
-              ">
-                Enlace válido hasta:
-                <strong>${expirationDate}</strong>
-              </p>
-            </div>
-
-            <div style="
-              text-align:center;
-              margin:30px 0;
-            ">
-<a
-  href="${link}"
-  target="_blank"
-  style="
-    display:inline-block;
-    padding:15px 30px;
-
-    background-color:#173a8a !important;
-    background:#173a8a !important;
-
-    color:#ffffff !important;
-    -webkit-text-fill-color:#ffffff !important;
-
-    text-decoration:none !important;
-    font-family:Arial,Helvetica,sans-serif;
-    font-size:16px;
-    font-weight:700;
-    line-height:20px;
-
-    border:1px solid #173a8a;
-    border-radius:12px;
-  "
->
-  Iniciar test psicotécnico
-</a>
-            </div>
-
-            <p style="
-              font-size:14px;
-              color:#667085;
-              line-height:1.6;
-            ">
-              Puedes volver a abrir el mismo enlace para
-              continuar mientras se encuentre vigente y
-              la evaluación no haya sido finalizada.
-            </p>
-          </div>
-
           <div style="
-            padding:18px;
-            background:#f8fafc;
-            text-align:center;
-            color:#98a2b3;
-            font-size:12px;
+            max-width:640px;
+            margin:0 auto;
+            background:#ffffff;
+            border-radius:18px;
+            overflow:hidden;
+            box-shadow:0 18px 45px rgba(7,27,63,.16);
           ">
-            © ${new Date().getFullYear()}
-            iDr.Mind. Todos los derechos reservados.
+            <div
+              style="
+                padding:28px;
+                text-align:center;
+
+                background-color:#071b3f !important;
+                background:#071b3f;
+                background-image:linear-gradient(
+                  135deg,
+                  #071b3f 0%,
+                  #173a8a 100%
+                );
+              "
+            >
+              <img
+                src="https://res.cloudinary.com/dfq3tzlki/image/upload/v1760413741/1_qvykyo.png"
+                alt="iDr.Mind"
+                width="165"
+                style="
+                  display:block;
+                  width:165px;
+                  max-width:100%;
+                  height:auto;
+                  margin:0 auto;
+                  border:0;
+                "
+              />
+            </div>
+
+            <div style="padding:34px;">
+              <h1 style="
+                margin:0 0 18px;
+                color:#071b3f;
+                font-size:27px;
+              ">
+                Hola ${user.firstName || ""}
+                ${user.lastName || ""}
+              </h1>
+
+              <p style="
+                font-size:16px;
+                line-height:1.7;
+                color:#475467;
+              ">
+                Tu registro para
+                <strong>
+                  ${course.nombre}
+                </strong>
+                se completó correctamente.
+              </p>
+
+              <p style="
+                font-size:16px;
+                line-height:1.7;
+                color:#475467;
+              ">
+                Lee cuidadosamente las instrucciones,
+                responde con sinceridad y procura
+                completar todas las secciones del test.
+              </p>
+
+              <div style="
+                margin:26px 0;
+                padding:18px;
+                border-radius:12px;
+                background:#eef6ff;
+                border-left:5px solid #28a7e8;
+              ">
+                <p style="
+                  margin:0;
+                  color:#344054;
+                  line-height:1.6;
+                ">
+                  Evaluación número:
+                  <strong>
+                    ${evaluation.numeroEvaluacion}
+                  </strong>
+                </p>
+
+                <p style="
+                  margin:6px 0 0;
+                  color:#344054;
+                  line-height:1.6;
+                ">
+                  Enlace válido hasta:
+                  <strong>
+                    ${expirationDate}
+                  </strong>
+                </p>
+              </div>
+
+              <div style="
+                text-align:center;
+                margin:30px 0;
+              ">
+                <a
+                  href="${link}"
+                  target="_blank"
+                  style="
+                    display:inline-block;
+                    padding:15px 30px;
+
+                    background-color:#173a8a !important;
+                    background:#173a8a !important;
+
+                    color:#ffffff !important;
+                    -webkit-text-fill-color:#ffffff !important;
+
+                    text-decoration:none !important;
+                    font-family:Arial,Helvetica,sans-serif;
+                    font-size:16px;
+                    font-weight:700;
+                    line-height:20px;
+
+                    border:1px solid #173a8a;
+                    border-radius:12px;
+                  "
+                >
+                  Iniciar test psicotécnico
+                </a>
+              </div>
+
+              <p style="
+                font-size:14px;
+                color:#667085;
+                line-height:1.6;
+              ">
+                Puedes volver a abrir el mismo enlace
+                para continuar mientras se encuentre
+                vigente y la evaluación no haya sido
+                finalizada.
+              </p>
+            </div>
+
+            <div style="
+              padding:18px;
+              background:#f8fafc;
+              text-align:center;
+              color:#98a2b3;
+              font-size:12px;
+            ">
+              © ${new Date().getFullYear()}
+              iDr.Mind. Todos los derechos reservados.
+            </div>
           </div>
         </div>
-      </div>
-    `,
-  });
+      `,
+    });
 
-  return link;
-};
+    return link;
+  };
 
 /* =========================================================
    POST /psychometric/register
@@ -713,30 +760,90 @@ const registerPsychometric = catchError(
       nombres,
       apellidos,
       celular,
+
+      dateBirth,
+
       grado,
       subsistema,
+
       empresaId,
       seccionId,
+
       courseId,
       aceptacion,
     } = req.body;
 
-    const emailFinal = normalizeText(
-      email
-    ).toLowerCase();
+    const emailFinal =
+      normalizeText(
+        email
+      ).toLowerCase();
+
+    const dateBirthFinal =
+      normalizeDateBirth(
+        dateBirth
+      );
+
+    /* =====================================================
+       VALIDACIONES PRINCIPALES
+    ===================================================== */
 
     if (!emailFinal) {
-      return res.status(400).json({
-        message:
-          "El correo electrónico es requerido.",
-      });
+      return res
+        .status(400)
+        .json({
+          message:
+            "El correo electrónico es requerido.",
+        });
     }
 
     if (!courseId) {
-      return res.status(400).json({
-        message:
-          "El identificador del curso es requerido.",
-      });
+      return res
+        .status(400)
+        .json({
+          message:
+            "El identificador del curso es requerido.",
+        });
+    }
+
+    if (!dateBirthFinal) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "La fecha de nacimiento es requerida y debe ser válida.",
+        });
+    }
+
+    /*
+     * Evitar fechas futuras.
+     */
+    const birthDate =
+      new Date(
+        `${dateBirthFinal}T00:00:00`
+      );
+
+    const today =
+      new Date();
+
+    today.setHours(
+      23,
+      59,
+      59,
+      999
+    );
+
+    if (
+      Number.isNaN(
+        birthDate.getTime()
+      ) ||
+      birthDate > today
+    ) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "La fecha de nacimiento no es válida.",
+        });
     }
 
     const transaction =
@@ -749,38 +856,50 @@ const registerPsychometric = catchError(
          1. VALIDAR CURSO
       ===================================== */
 
-      const course = await Course.findByPk(
-        courseId,
-        {
-          transaction,
-        }
-      );
+      const course =
+        await Course.findByPk(
+          courseId,
+          {
+            transaction,
+          }
+        );
 
       if (!course) {
         await transaction.rollback();
 
-        return res.status(404).json({
-          message:
-            "El test seleccionado no existe.",
-        });
+        return res
+          .status(404)
+          .json({
+            message:
+              "El test seleccionado no existe.",
+          });
       }
 
-      if (course.tipo !== "test_psicotecnico") {
+      if (
+        course.tipo !==
+        "test_psicotecnico"
+      ) {
         await transaction.rollback();
 
-        return res.status(400).json({
-          message:
-            "El curso seleccionado no corresponde a un test psicotécnico.",
-        });
+        return res
+          .status(400)
+          .json({
+            message:
+              "El curso seleccionado no corresponde a un test psicotécnico.",
+          });
       }
 
-      if (course.vigente === false) {
+      if (
+        course.vigente === false
+      ) {
         await transaction.rollback();
 
-        return res.status(400).json({
-          message:
-            "El test seleccionado no está disponible.",
-        });
+        return res
+          .status(400)
+          .json({
+            message:
+              "El test seleccionado no está disponible.",
+          });
       }
 
       /* =====================================
@@ -790,8 +909,11 @@ const registerPsychometric = catchError(
       const test =
         await PsychometricTest.findOne({
           where: {
-            courseId: course.id,
-            activo: true,
+            courseId:
+              course.id,
+
+            activo:
+              true,
           },
 
           transaction,
@@ -800,10 +922,12 @@ const registerPsychometric = catchError(
       if (!test) {
         await transaction.rollback();
 
-        return res.status(404).json({
-          message:
-            "El curso no tiene un test psicotécnico configurado.",
-        });
+        return res
+          .status(404)
+          .json({
+            message:
+              "El curso no tiene un test psicotécnico configurado.",
+          });
       }
 
       /* =====================================
@@ -824,24 +948,46 @@ const registerPsychometric = catchError(
       const {
         user,
         userCreated,
-      } = await findOrCreateUser({
-        email: emailFinal,
-        cedula: normalizeText(cedula),
-        nombres,
-        apellidos,
-        celular: normalizeText(celular),
-        grado: normalizeText(grado),
-        subsistema:
-          normalizeText(subsistema),
+      } =
+        await findOrCreateUser({
+          email:
+            emailFinal,
 
-        empresaId:
-          companyData.empresaId,
+          cedula:
+            normalizeText(
+              cedula
+            ),
 
-        seccionId:
-          companyData.seccionId,
+          nombres,
 
-        transaction,
-      });
+          apellidos,
+
+          celular:
+            normalizeText(
+              celular
+            ),
+
+          dateBirth:
+            dateBirthFinal,
+
+          grado:
+            normalizeText(
+              grado
+            ),
+
+          subsistema:
+            normalizeText(
+              subsistema
+            ),
+
+          empresaId:
+            companyData.empresaId,
+
+          seccionId:
+            companyData.seccionId,
+
+          transaction,
+        });
 
       /* =====================================
          5. BUSCAR O CREAR INSCRIPCIÓN
@@ -850,25 +996,27 @@ const registerPsychometric = catchError(
       const {
         inscripcion,
         inscriptionCreated,
-      } = await findOrCreateInscription({
-        user,
-        course,
-        aceptacion,
-        transaction,
-      });
+      } =
+        await findOrCreateInscription({
+          user,
+          course,
+          aceptacion,
+          transaction,
+        });
 
       /* =====================================
-         6. CREAR O REUTILIZAR EVALUACIÓN
+         6. CREAR EVALUACIÓN
       ===================================== */
 
       const {
         evaluation,
         evaluationCreated,
-      } = await createOrReuseEvaluation({
-        inscripcion,
-        test,
-        transaction,
-      });
+      } =
+        await createOrReuseEvaluation({
+          inscripcion,
+          test,
+          transaction,
+        });
 
       /* =====================================
          7. GENERAR NUEVO ENLACE
@@ -877,10 +1025,11 @@ const registerPsychometric = catchError(
       const {
         token,
         expiresAt,
-      } = await createEvaluationAccess({
-        evaluation,
-        transaction,
-      });
+      } =
+        await createEvaluationAccess({
+          evaluation,
+          transaction,
+        });
 
       await transaction.commit();
 
@@ -892,8 +1041,11 @@ const registerPsychometric = catchError(
         evaluation,
         token,
         expiresAt,
+
         userCreated,
+
         inscriptionCreated,
+
         evaluationCreated,
       };
     } catch (error) {
@@ -901,9 +1053,12 @@ const registerPsychometric = catchError(
 
       if (error.statusCode) {
         return res
-          .status(error.statusCode)
+          .status(
+            error.statusCode
+          )
           .json({
-            message: error.message,
+            message:
+              error.message,
           });
       }
 
@@ -912,24 +1067,32 @@ const registerPsychometric = catchError(
 
     /*
      * Enviamos el correo después del commit.
-     *
-     * De esta manera, si el servidor de correo falla,
-     * no se pierde el registro en la base.
      */
     let emailSent = true;
-    let accessUrl = null;
+
+    let accessUrl =
+      null;
 
     try {
       accessUrl =
-        await sendPsychometricAccessEmail({
-          user: responseData.user,
-          course: responseData.course,
-          evaluation:
-            responseData.evaluation,
-          token: responseData.token,
-          expiresAt:
-            responseData.expiresAt,
-        });
+        await sendPsychometricAccessEmail(
+          {
+            user:
+              responseData.user,
+
+            course:
+              responseData.course,
+
+            evaluation:
+              responseData.evaluation,
+
+            token:
+              responseData.token,
+
+            expiresAt:
+              responseData.expiresAt,
+          }
+        );
     } catch (emailError) {
       emailSent = false;
 
@@ -939,60 +1102,88 @@ const registerPsychometric = catchError(
       );
     }
 
-    return res.status(
-      responseData.evaluationCreated
-        ? 201
-        : 200
-    ).json({
-      message: emailSent
-        ? "Registro completado. Se envió el enlace del test al correo electrónico."
-        : "Registro completado, pero no se pudo enviar el correo. El administrador deberá reenviar el acceso.",
+    return res
+      .status(
+        responseData.evaluationCreated
+          ? 201
+          : 200
+      )
+      .json({
+        message:
+          emailSent
+            ? "Registro completado. Se envió el enlace del test al correo electrónico."
+            : "Registro completado, pero no se pudo enviar el correo. El administrador deberá reenviar el acceso.",
 
-      emailSent,
+        emailSent,
 
-      user: {
-        id: responseData.user.id,
-        email: responseData.user.email,
-        firstName:
-          responseData.user.firstName,
-        lastName:
-          responseData.user.lastName,
-        empresaId:
-          responseData.user.empresaId,
-        seccionId:
-          responseData.user.seccionId,
-      },
+        user: {
+          id:
+            responseData.user.id,
 
-      inscripcion: {
-        id: responseData.inscripcion.id,
-        created:
-          responseData.inscriptionCreated,
-      },
+          email:
+            responseData.user.email,
 
-      evaluation: {
-        id: responseData.evaluation.id,
-        numeroEvaluacion:
-          responseData.evaluation
-            .numeroEvaluacion,
-        estado:
-          responseData.evaluation.estado,
-        created:
-          responseData.evaluationCreated,
-        expiresAt:
-          responseData.expiresAt,
-      },
+          firstName:
+            responseData.user
+              .firstName,
 
-      /*
-       * En producción puedes eliminar accessUrl
-       * de la respuesta para que solo llegue por correo.
-       *
-       * Durante desarrollo es útil para probar.
-       */
-      accessUrl:
-        process.env.NODE_ENV === "production"
-          ? undefined
-          : accessUrl,
-    });
+          lastName:
+            responseData.user
+              .lastName,
+
+          dateBirth:
+            responseData.user
+              .dateBirth,
+
+          empresaId:
+            responseData.user
+              .empresaId,
+
+          seccionId:
+            responseData.user
+              .seccionId,
+        },
+
+        inscripcion: {
+          id:
+            responseData
+              .inscripcion.id,
+
+          created:
+            responseData
+              .inscriptionCreated,
+        },
+
+        evaluation: {
+          id:
+            responseData
+              .evaluation.id,
+
+          numeroEvaluacion:
+            responseData
+              .evaluation
+              .numeroEvaluacion,
+
+          estado:
+            responseData
+              .evaluation
+              .estado,
+
+          created:
+            responseData
+              .evaluationCreated,
+
+          expiresAt:
+            responseData
+              .expiresAt,
+        },
+
+        accessUrl:
+          process.env.NODE_ENV ===
+          "production"
+            ? undefined
+            : accessUrl,
+      });
   }
 );
 

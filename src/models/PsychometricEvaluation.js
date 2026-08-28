@@ -29,7 +29,12 @@ const PsychometricEvaluation = sequelize.define(
     },
 
     /*
-     * Test psicotécnico que se aplicará.
+     * Test psicotécnico aplicado.
+     *
+     * El mismo test puede ser realizado por:
+     * - múltiples empresas
+     * - múltiples secciones
+     * - personas individuales
      */
     testId: {
       type: DataTypes.UUID,
@@ -47,8 +52,9 @@ const PsychometricEvaluation = sequelize.define(
     /*
      * Número histórico de evaluación.
      *
-     * Primera evaluación = 1
-     * Evaluación después de 6 meses = 2
+     * Ejemplo:
+     * primera evaluación = 1
+     * segunda evaluación = 2
      */
     numeroEvaluacion: {
       type: DataTypes.INTEGER,
@@ -59,6 +65,9 @@ const PsychometricEvaluation = sequelize.define(
       },
     },
 
+    /*
+     * Estado del flujo.
+     */
     estado: {
       type: DataTypes.STRING(50),
       allowNull: false,
@@ -87,7 +96,7 @@ const PsychometricEvaluation = sequelize.define(
     },
 
     /*
-     * Momento en que inicia el test.
+     * Momento real de inicio del test.
      */
     fechaInicio: {
       type: DataTypes.DATE,
@@ -95,7 +104,7 @@ const PsychometricEvaluation = sequelize.define(
     },
 
     /*
-     * Momento en que termina.
+     * Momento de finalización.
      */
     fechaFinalizacion: {
       type: DataTypes.DATE,
@@ -105,13 +114,17 @@ const PsychometricEvaluation = sequelize.define(
     /*
      * Versión del test aplicada.
      *
-     * Sirve para conservar resultados antiguos
-     * aunque posteriormente cambien preguntas.
+     * Permite conservar resultados históricos
+     * aunque el test cambie después.
      */
     testVersion: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 1,
+
+      validate: {
+        min: 1,
+      },
     },
 
     /*
@@ -123,12 +136,111 @@ const PsychometricEvaluation = sequelize.define(
     },
 
     /*
-     * Resumen completo del resultado.
+     * Resultado completo calculado.
+     *
+     * Aquí ya guardas:
+     * - animodo
+     * - comunicación
+     * - cerebro
+     * - VAK
+     * - negociación
+     * - persistencia
+     * - etc.
      */
     resultado: {
       type: DataTypes.JSONB,
       allowNull: true,
     },
+
+    /* =====================================================
+       SNAPSHOT HISTÓRICO EMPRESARIAL
+    ===================================================== */
+
+    /*
+     * Empresa a la que pertenecía la persona
+     * cuando realizó/finalizó esta evaluación.
+     *
+     * IMPORTANTE:
+     * No depende del empresaId actual del User.
+     *
+     * Si es una persona individual:
+     * empresaIdSnapshot = null
+     */
+    empresaIdSnapshot: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+
+    /*
+     * Sección a la que pertenecía la persona
+     * en ese momento.
+     *
+     * Si es individual o no tiene sección:
+     * seccionIdSnapshot = null
+     */
+    seccionIdSnapshot: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+
+    /*
+     * Snapshot histórico del participante.
+     *
+     * Permite conservar exactamente cómo estaba
+     * el participante al finalizar la evaluación,
+     * aunque después cambie:
+     *
+     * - empresa
+     * - sección
+     * - correo
+     * - nombres
+     * - datos organizacionales
+     *
+     * Ejemplo:
+     *
+     * {
+     *   user: {
+     *     id: "...",
+     *     cI: "...",
+     *     email: "...",
+     *     firstName: "...",
+     *     lastName: "...",
+     *     cellular: "...",
+     *     dateBirth: "...",
+     *     genre: "..."
+     *   },
+     *
+     *   empresa: {
+     *     id: "...",
+     *     razonSocial: "...",
+     *     nombreComercial: "...",
+     *     sector: "...",
+     *     subSector: "..."
+     *   },
+     *
+     *   seccion: {
+     *     id: "...",
+     *     nombre: "...",
+     *     descripcion: "..."
+     *   },
+     *
+     *   tipoParticipante: "empresa"
+     * }
+     *
+     * Para una persona individual:
+     *
+     * tipoParticipante: "individual"
+     * empresa: null
+     * seccion: null
+     */
+    participantSnapshot: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+
+    /* =====================================================
+       PERSONALIDAD
+    ===================================================== */
 
     /*
      * Personalidad/animal calculado.
@@ -146,9 +258,13 @@ const PsychometricEvaluation = sequelize.define(
       onDelete: "SET NULL",
     },
 
+    /* =====================================================
+       RESULTADO / INFORME
+    ===================================================== */
+
     /*
-     * Indica si el usuario puede consultar
-     * su informe final.
+     * Indica si el participante ya puede
+     * consultar el resultado.
      */
     resultadoLiberado: {
       type: DataTypes.BOOLEAN,
@@ -156,11 +272,18 @@ const PsychometricEvaluation = sequelize.define(
       defaultValue: false,
     },
 
+    /*
+     * Fecha en que se generó/procesó
+     * formalmente el resultado.
+     */
     resultadoGeneradoAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },
 
+    /*
+     * Control del envío del resultado.
+     */
     resultadoEmailEnviado: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -176,8 +299,19 @@ const PsychometricEvaluation = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+
+      validate: {
+        min: 0,
+      },
     },
 
+    /*
+     * Si después guardamos un PDF permanente,
+     * esta URL puede apuntar al archivo.
+     *
+     * Actualmente también puedes seguir
+     * generándolo dinámicamente.
+     */
     resultadoInformeUrl: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -190,37 +324,127 @@ const PsychometricEvaluation = sequelize.define(
   },
   {
     tableName: "psychometric_evaluations",
+
     timestamps: true,
 
     indexes: [
+      /*
+       * Una inscripción/test no puede tener
+       * repetido el mismo número de evaluación.
+       */
       {
         unique: true,
+
         fields: [
           "inscripcionId",
           "testId",
           "numeroEvaluacion",
         ],
+
         name:
           "psychometric_evaluation_number_unique",
       },
 
       {
-        fields: ["inscripcionId"],
+        fields: [
+          "inscripcionId",
+        ],
       },
 
       {
-        fields: ["testId"],
+        fields: [
+          "testId",
+        ],
       },
 
       {
-        fields: ["estado"],
+        fields: [
+          "estado",
+        ],
       },
 
       {
-        fields: ["personalityId"],
+        fields: [
+          "personalityId",
+        ],
+      },
+
+      /*
+       * =================================================
+       * ÍNDICES PARA DASHBOARD PSICOMÉTRICO
+       * =================================================
+       */
+
+      {
+        fields: [
+          "empresaIdSnapshot",
+        ],
+
+        name:
+          "psychometric_evaluations_empresa_snapshot_idx",
+      },
+
+      {
+        fields: [
+          "seccionIdSnapshot",
+        ],
+
+        name:
+          "psychometric_evaluations_seccion_snapshot_idx",
+      },
+
+      {
+        fields: [
+          "empresaIdSnapshot",
+          "seccionIdSnapshot",
+        ],
+
+        name:
+          "psychometric_evaluation_company_section_snapshot_idx",
+      },
+
+      {
+        fields: [
+          "fechaFinalizacion",
+        ],
+
+        name:
+          "psychometric_evaluations_fecha_finalizacion_idx",
+      },
+
+      {
+        fields: [
+          "estado",
+          "fechaFinalizacion",
+        ],
+
+        name:
+          "psychometric_evaluations_estado_fecha_idx",
+      },
+
+      {
+        fields: [
+          "empresaIdSnapshot",
+          "fechaFinalizacion",
+        ],
+
+        name:
+          "psychometric_evaluations_empresa_fecha_idx",
+      },
+
+      {
+        fields: [
+          "empresaIdSnapshot",
+          "seccionIdSnapshot",
+          "fechaFinalizacion",
+        ],
+
+        name:
+          "psychometric_evaluations_empresa_seccion_fecha_idx",
       },
     ],
   }
 );
 
-module.exports = PsychometricEvaluation;
+module.exports =
+  PsychometricEvaluation;

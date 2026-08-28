@@ -24,6 +24,14 @@ const User = require(
     "../models/User"
 );
 
+const Empresa = require(
+    "../models/Empresa"
+);
+
+const EmpresaSeccion = require(
+    "../models/EmpresaSeccion"
+);
+
 const PsychometricTest = require(
     "../models/PsychometricTest"
 );
@@ -795,10 +803,6 @@ const getInitialIdentityVerification = async ({
 
 /* =========================================================
    VALIDAR VERIFICACIÓN INICIAL DE IDENTIDAD
-
-   AÚN NO SE LLAMA DESDE saveAnswers.
-   Se activará cuando el endpoint para guardar
-   la fotografía esté funcionando.
 ========================================================= */
 
 const requireInitialIdentityVerification = async ({
@@ -967,17 +971,6 @@ const saveAnswers = catchError(
                 });
         }
 
-        /*
-         * IMPORTANTE:
-         *
-         * Todavía NO activamos:
-         *
-         * await requireInitialIdentityVerification(...)
-         *
-         * Lo activaremos una vez que exista
-         * el endpoint que registra la fotografía.
-         */
-
         const transaction =
             await sequelize.transaction();
 
@@ -1120,39 +1113,6 @@ const sendPsychometricCompletionEmail =
 
         const paymentUrl =
             `${paymentBaseUrl}/${cleanPaymentToken}`;
-
-        console.log(
-            "=============================================="
-        );
-
-        console.log(
-            "🔗 GENERANDO URL DE PAGO PSICOMÉTRICO"
-        );
-
-        console.log(
-            "PSYCHOMETRIC_PAYMENT_URL ENV:",
-            process.env
-                .PSYCHOMETRIC_PAYMENT_URL
-        );
-
-        console.log(
-            "paymentBaseUrl:",
-            paymentBaseUrl
-        );
-
-        console.log(
-            "paymentToken:",
-            cleanPaymentToken
-        );
-
-        console.log(
-            "URL FINAL DE PAGO:",
-            paymentUrl
-        );
-
-        console.log(
-            "=============================================="
-        );
 
         const expirationText =
             paymentExpiresAt
@@ -1317,8 +1277,9 @@ const sendPsychometricCompletionEmail =
                   y está asociado exclusivamente
                   a tu evaluación.
 
-                  ${expirationText
-                    ? `
+                  ${
+                      expirationText
+                          ? `
                         <br/><br/>
 
                         Disponible hasta:
@@ -1326,8 +1287,8 @@ const sendPsychometricCompletionEmail =
                           ${expirationText}
                         </strong>
                       `
-                    : ""
-                }
+                          : ""
+                  }
                 </p>
 
               </div>
@@ -1442,11 +1403,6 @@ const sendPsychometricCompletionEmail =
             `✅ Correo de pago psicométrico enviado a ${user.email}`
         );
 
-        console.log(
-            "🔗 URL enviada:",
-            paymentUrl
-        );
-
         return paymentUrl;
     };
 
@@ -1483,6 +1439,30 @@ const finishEvaluation = catchError(
 
                                         as:
                                             "user",
+
+                                        include: [
+                                            {
+                                                model:
+                                                    Empresa,
+
+                                                as:
+                                                    "empresa",
+
+                                                required:
+                                                    false,
+                                            },
+
+                                            {
+                                                model:
+                                                    EmpresaSeccion,
+
+                                                as:
+                                                    "empresaSeccion",
+
+                                                required:
+                                                    false,
+                                            },
+                                        ],
                                     },
                                 ],
                             },
@@ -1632,6 +1612,164 @@ const finishEvaluation = catchError(
                 throw error;
             }
 
+            /* =====================================================
+               SNAPSHOT HISTÓRICO DEL PARTICIPANTE
+            ===================================================== */
+
+            const participant =
+                evaluation
+                    .inscripcion
+                    ?.user ||
+                null;
+
+            const participantCompany =
+                participant
+                    ?.empresa ||
+                null;
+
+            const participantSection =
+                participant
+                    ?.empresaSeccion ||
+                null;
+
+            const empresaIdSnapshot =
+                participant
+                    ?.empresaId ||
+                null;
+
+            const seccionIdSnapshot =
+                participant
+                    ?.seccionId ||
+                null;
+
+            const participantSnapshot =
+                participant
+                    ? {
+                        tipoParticipante:
+                            empresaIdSnapshot
+                                ? "empresa"
+                                : "individual",
+
+                        user: {
+                            id:
+                                participant.id,
+
+                            cI:
+                                participant.cI ||
+                                null,
+
+                            email:
+                                participant.email ||
+                                null,
+
+                            firstName:
+                                participant.firstName ||
+                                null,
+
+                            lastName:
+                                participant.lastName ||
+                                null,
+
+                            cellular:
+                                participant.cellular ||
+                                null,
+
+                            grado:
+                                participant.grado ||
+                                null,
+
+                            subsistema:
+                                participant.subsistema ||
+                                null,
+
+                            dateBirth:
+                                participant.dateBirth ||
+                                null,
+
+                            province:
+                                participant.province ||
+                                null,
+
+                            city:
+                                participant.city ||
+                                null,
+
+                            genre:
+                                participant.genre ||
+                                null,
+                        },
+
+                        empresa:
+                            empresaIdSnapshot
+                                ? {
+                                    id:
+                                        empresaIdSnapshot,
+
+                                    razonSocial:
+                                        participantCompany
+                                            ?.razonSocial ||
+                                        null,
+
+                                    nombreComercial:
+                                        participantCompany
+                                            ?.nombreComercial ||
+                                        null,
+
+                                    ruc:
+                                        participantCompany
+                                            ?.ruc ||
+                                        null,
+
+                                    ciudad:
+                                        participantCompany
+                                            ?.ciudad ||
+                                        null,
+
+                                    provincia:
+                                        participantCompany
+                                            ?.provincia ||
+                                        null,
+
+                                    sector:
+                                        participantCompany
+                                            ?.sector ||
+                                        null,
+
+                                    subSector:
+                                        participantCompany
+                                            ?.subSector ||
+                                        null,
+                                }
+                                : null,
+
+                        seccion:
+                            seccionIdSnapshot
+                                ? {
+                                    id:
+                                        seccionIdSnapshot,
+
+                                    nombre:
+                                        participantSection
+                                            ?.nombre ||
+                                        null,
+
+                                    descripcion:
+                                        participantSection
+                                            ?.descripcion ||
+                                        null,
+
+                                    responsable:
+                                        participantSection
+                                            ?.responsable ||
+                                        null,
+                                }
+                                : null,
+
+                        snapshotAt:
+                            new Date().toISOString(),
+                    }
+                    : null;
+
             now = new Date();
 
             await evaluation.update(
@@ -1654,6 +1792,19 @@ const finishEvaluation = catchError(
 
                     resultadoLiberado:
                         false,
+
+                    /* =====================================
+                       SNAPSHOT ORGANIZACIONAL
+                    ===================================== */
+
+                    empresaIdSnapshot:
+                        empresaIdSnapshot,
+
+                    seccionIdSnapshot:
+                        seccionIdSnapshot,
+
+                    participantSnapshot:
+                        participantSnapshot,
                 },
 
                 {
@@ -1715,7 +1866,7 @@ const finishEvaluation = catchError(
                 `✅ Token de pago creado para evaluación ${evaluation.id}`
             );
         } catch (
-        paymentTokenError
+            paymentTokenError
         ) {
             console.error(
                 "❌ No se pudo crear el enlace de pago psicométrico:",
@@ -1788,7 +1939,7 @@ const finishEvaluation = catchError(
                 );
             }
         } catch (
-        emailError
+            emailError
         ) {
             emailSent = false;
 
@@ -1838,6 +1989,14 @@ const finishEvaluation = catchError(
 
                 resultadoLiberado:
                     false,
+
+                empresaIdSnapshot:
+                    evaluation
+                        .empresaIdSnapshot,
+
+                seccionIdSnapshot:
+                    evaluation
+                        .seccionIdSnapshot,
             },
 
             result: {
@@ -1861,11 +2020,6 @@ module.exports = {
     saveAnswers,
     finishEvaluation,
 
-    /*
-     * Se exportan también porque luego podemos
-     * reutilizarlos en otros controladores de
-     * seguridad/identidad.
-     */
     getInitialIdentityVerification,
     requireInitialIdentityVerification,
 };

@@ -1348,6 +1348,22 @@ const calculateCommunicationColors = (
       ]
       : null;
 
+  const percentages =
+    calculatePercentages(
+      scores
+    );
+
+  const extraordinario =
+    percentages
+      .AMARILLO ===
+    percentages.ROJO &&
+    percentages
+      .AMARILLO ===
+    percentages.AZUL &&
+    percentages
+      .AMARILLO ===
+    percentages.VERDE;
+
   return {
     codigo:
       SECTION_CODES
@@ -1373,10 +1389,9 @@ const calculateCommunicationColors = (
      * para el frontend:
      * 21.59, 12.5, etc.
      */
-    percentages:
-      calculatePercentages(
-        scores
-      ),
+    percentages,
+
+    extraordinario,
 
     dominantColor,
 
@@ -1507,6 +1522,95 @@ const calculateBrainTypes = (
       ]
       : null;
 
+  const scoreEntries =
+    Object.entries(
+      scores
+    );
+
+  const maxScore =
+    Math.max(
+      ...scoreEntries.map(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          )
+      )
+    );
+
+  const minScore =
+    Math.min(
+      ...scoreEntries.map(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          )
+      )
+    );
+
+  const maxTiedCategories =
+    scoreEntries
+      .filter(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          ) ===
+          maxScore
+      )
+      .map(
+        ([
+          category,
+        ]) =>
+          category
+      );
+
+  const minTiedCategories =
+    scoreEntries
+      .filter(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          ) ===
+          minScore
+      )
+      .map(
+        ([
+          category,
+        ]) =>
+          category
+      );
+
+  const alerta =
+    maxTiedCategories
+      .length >= 2 ||
+    minTiedCategories
+      .length >= 2;
+
+  const alertaDetalle = {
+    maximo:
+      maxTiedCategories
+        .length >= 2
+        ? maxTiedCategories
+        : [],
+
+    minimo:
+      minTiedCategories
+        .length >= 2
+        ? minTiedCategories
+        : [],
+  };
+
   return {
     codigo:
       SECTION_CODES
@@ -1546,6 +1650,10 @@ const calculateBrainTypes = (
 
     tiedCategories:
       result.winners,
+
+    alerta,
+
+    alertaDetalle,
   };
 };
 
@@ -1636,28 +1744,72 @@ const classifyNegotiationScore = (
       score
     );
 
-  /*
-   * Fórmula exacta BASE!GQ.
-   */
   if (
-    value >= 30 &&
-    value <= 70
+    value >= 81 &&
+    value <= 90
   ) {
-    return "BAJO";
+    return (
+      "Maestro de la Negociación"
+    );
   }
 
   if (
-    value > 70 &&
+    value >= 71 &&
+    value <= 80
+  ) {
+    return (
+      "Estratega de Influencia"
+    );
+  }
+
+  if (
+    value >= 61 &&
+    value <= 70
+  ) {
+    return (
+      "Arquitecto de Acuerdos"
+    );
+  }
+
+  if (
+    value >= 30 &&
+    value <= 60
+  ) {
+    return (
+      "Explorador Estratégico"
+    );
+  }
+
+  return null;
+};
+
+const getNegotiationLevel = (
+  score
+) => {
+  const value =
+    toNumber(
+      score
+    );
+
+  if (
+    value >= 81 &&
+    value <= 90
+  ) {
+    return "ALTO";
+  }
+
+  if (
+    value >= 71 &&
     value <= 80
   ) {
     return "MEDIO";
   }
 
   if (
-    value > 80 &&
-    value <= 90
+    value >= 30 &&
+    value <= 70
   ) {
-    return "ALTO";
+    return "BAJO";
   }
 
   return null;
@@ -1762,6 +1914,11 @@ const calculateNegotiation = (
       totalScore
     );
 
+  const level =
+    getNegotiationLevel(
+      totalScore
+    );
+
   return {
     codigo:
       SECTION_CODES
@@ -1780,6 +1937,13 @@ const calculateNegotiation = (
      * Exactamente GQ
      */
     classification,
+
+    /*
+     * Nivel interno histórico
+     * usado por Persistencia
+     * e Índice de Productividad.
+     */
+    level,
 
     /*
      * Exactamente GR
@@ -1904,6 +2068,95 @@ const calculateVak = (
       ]
     );
 
+  const scoreEntries =
+    Object.entries(
+      scores
+    );
+
+  const maxScore =
+    Math.max(
+      ...scoreEntries.map(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          )
+      )
+    );
+
+  const minScore =
+    Math.min(
+      ...scoreEntries.map(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          )
+      )
+    );
+
+  const maxTiedCategories =
+    scoreEntries
+      .filter(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          ) ===
+          maxScore
+      )
+      .map(
+        ([
+          category,
+        ]) =>
+          category
+      );
+
+  const minTiedCategories =
+    scoreEntries
+      .filter(
+        ([
+          ,
+          value,
+        ]) =>
+          toNumber(
+            value
+          ) ===
+          minScore
+      )
+      .map(
+        ([
+          category,
+        ]) =>
+          category
+      );
+
+  const extraordinario =
+    maxTiedCategories
+      .length >= 2 ||
+    minTiedCategories
+      .length >= 2;
+
+  const extraordinarioDetalle = {
+    maximo:
+      maxTiedCategories
+        .length >= 2
+        ? maxTiedCategories
+        : [],
+
+    minimo:
+      minTiedCategories
+        .length >= 2
+        ? minTiedCategories
+        : [],
+  };
+
   return {
     codigo:
       SECTION_CODES.VAK,
@@ -1940,6 +2193,10 @@ const calculateVak = (
 
     tiedCategories:
       result.winners,
+
+    extraordinario,
+
+    extraordinarioDetalle,
 
     detail,
   };
@@ -2054,7 +2311,7 @@ const calculatePersistence = ({
     ].includes(
       normalizeCode(
         negotiation
-          ?.classification
+          ?.level
       )
     )
       ? 1
@@ -2106,6 +2363,14 @@ const calculatePersistence = ({
     level = "SI";
   }
 
+  const alerta =
+    Object.values(
+      indicators
+    ).every(
+      (value) =>
+        value === 0
+    );
+
   return {
     /*
      * HB
@@ -2116,6 +2381,8 @@ const calculatePersistence = ({
      * HC
      */
     level,
+
+    alerta,
 
     /*
      * GX:HA
@@ -2199,7 +2466,7 @@ const calculateProductivityIndex = ({
 
   const negotiationResult =
     normalize(
-      negotiation?.classification
+      negotiation?.level
     );
 
   const vakResult =
@@ -2365,6 +2632,31 @@ const calculateProductivityIndex = ({
     factor = 0.666;
   }
 
+  const classificationNames = {
+    A:
+      "Élite Productiva",
+
+    B:
+      "Alto Desempeño",
+
+    C:
+      "Productividad Estratégica",
+
+    D:
+      "Productividad Consolidada",
+
+    E:
+      "Productividad Emergente",
+
+    F:
+      "Potencial Productivo",
+  };
+
+  const classificationName =
+    classificationNames[
+    classification
+    ];
+
   const percentage =
     Number(
       (
@@ -2510,6 +2802,8 @@ const calculateProductivityIndex = ({
     maxScore: 6,
 
     classification,
+
+    classificationName,
 
     factor,
 
@@ -3511,6 +3805,12 @@ module.exports = {
   =========================== */
 
   calculatePersistence,
+
+  /* ===========================
+     ÍNDICE DE PRODUCTIVIDAD
+  =========================== */
+
+  calculateProductivityIndex,
 
   /* ===========================
      PERSONALIDAD

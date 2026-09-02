@@ -2817,6 +2817,562 @@ const calculateProductivityIndex = ({
 
 
 /* =========================================================
+   RECOMENDACIONES SEGÚN RESULTADOS
+
+   IMPORTANTE:
+   - recommendations conserva TODAS las causas detectadas.
+     Esto permite que el administrador conozca por qué se
+     generó cada recomendación, incluso cuando el texto de
+     recomendación se repite.
+   - userRecommendations contiene únicamente los textos de
+     recomendación sin duplicados para mostrarlos al usuario.
+========================================================= */
+
+const calculateRecommendations = ({
+  animodo,
+  communication,
+  brain,
+  negotiation,
+  vak,
+  persistence,
+  productivityIndex,
+}) => {
+  const recommendations = [];
+
+  const addRecommendation = ({
+    skill,
+    value,
+    recommendation,
+  }) => {
+    if (
+      !skill ||
+      !value ||
+      !recommendation
+    ) {
+      return;
+    }
+
+    recommendations.push({
+      skill,
+      value,
+      recommendation,
+    });
+  };
+
+  /* =====================================================
+     1. PERSISTENCIA
+
+     NO -> Sesión de COACH
+
+     Según la tabla final entregada, ALERTA no genera una
+     regla adicional independiente en esta sección.
+  ===================================================== */
+
+  if (
+    normalizeCode(
+      persistence?.level
+    ) === "NO"
+  ) {
+    addRecommendation({
+      skill:
+        "PERSISTENCIA",
+
+      value:
+        "NO",
+
+      recommendation:
+        "Sesión de COACH",
+    });
+  }
+
+  /* =====================================================
+     2. TEST DE VAK
+
+     "Bajo" = menor puntaje entre:
+     VISUAL, AUDITIVO y KINESTESICO.
+
+     Si existe empate en el mínimo se registran todas
+     las recomendaciones correspondientes.
+  ===================================================== */
+
+  const vakScores = {
+    VISUAL:
+      toNumber(
+        vak?.scores?.VISUAL,
+        0
+      ),
+
+    AUDITIVO:
+      toNumber(
+        vak?.scores?.AUDITIVO,
+        0
+      ),
+
+    KINESTESICO:
+      toNumber(
+        vak?.scores?.KINESTESICO,
+        0
+      ),
+  };
+
+  const vakValues =
+    Object.values(
+      vakScores
+    );
+
+  if (
+    vakValues.length
+  ) {
+    const minVak =
+      Math.min(
+        ...vakValues
+      );
+
+    const vakRecommendations = {
+      VISUAL: {
+        value:
+          "Visual bajo",
+
+        recommendation:
+          "Mejorar la Visualización Efectiva",
+      },
+
+      AUDITIVO: {
+        value:
+          "Auditivo bajo",
+
+        recommendation:
+          "Mejorar la Escucha Activa",
+      },
+
+      KINESTESICO: {
+        value:
+          "Kinestésico bajo",
+
+        recommendation:
+          "Mejorar la Acción Permanente",
+      },
+    };
+
+    for (
+      const [
+        category,
+        score,
+      ] of Object.entries(
+        vakScores
+      )
+    ) {
+      if (
+        score !== minVak
+      ) {
+        continue;
+      }
+
+      const rule =
+        vakRecommendations[
+          category
+        ];
+
+      addRecommendation({
+        skill:
+          "TEST DE VAK",
+
+        value:
+          rule.value,
+
+        recommendation:
+          rule.recommendation,
+      });
+    }
+  }
+
+  /* =====================================================
+     3. TIPO DE CEREBRO
+
+     - Exactamente dos valores iguales -> Dos iguales
+     - Los tres valores iguales        -> Tres iguales
+
+     No importa si la igualdad se encuentra en el máximo
+     o en el mínimo: la regla se basa en igualdad entre
+     los puntajes finales.
+  ===================================================== */
+
+  const brainScores = [
+    toNumber(
+      brain?.scores
+        ?.IZQUIERDO,
+      0
+    ),
+
+    toNumber(
+      brain?.scores
+        ?.CENTRAL,
+      0
+    ),
+
+    toNumber(
+      brain?.scores
+        ?.DERECHO,
+      0
+    ),
+  ];
+
+  const uniqueBrainScores =
+    new Set(
+      brainScores
+    );
+
+  if (
+    uniqueBrainScores.size ===
+    1
+  ) {
+    addRecommendation({
+      skill:
+        "TIPO DE CEREBRO",
+
+      value:
+        "Tres iguales",
+
+      recommendation:
+        "Sesión de COACH",
+    });
+  } else if (
+    uniqueBrainScores.size ===
+    2
+  ) {
+    addRecommendation({
+      skill:
+        "TIPO DE CEREBRO",
+
+      value:
+        "Dos iguales",
+
+      recommendation:
+        "Sesión de COACH",
+    });
+  }
+
+  /* =====================================================
+     4. ANIMODO
+  ===================================================== */
+
+  const animodoRecommendations = {
+    ABEJA:
+      "Priorización, pensamiento estratégico, objetivos medibles y liderazgo. (IMPACTO)",
+
+    CAMALEON:
+      "Identidad conductual, principios no negociables, consistencia y toma de posición. (CONCIENCIA)",
+
+    DELFIN:
+      "Asertividad, límites, disciplina y capacidad de mantener conversaciones difíciles. (ASERTIVIDAD)",
+
+    CASTOR:
+      "Delegación, escucha, flexibilidad y confianza en el equipo. (DELEGACIÓN)",
+
+    BUHO:
+      "Velocidad de decisión, tolerancia al riesgo y ejecución. (DECISIÓN)",
+  };
+
+  const animodoAnimal =
+    normalizeCode(
+      animodo?.animal
+    );
+
+  if (
+    animodoRecommendations[
+      animodoAnimal
+    ]
+  ) {
+    const displayAnimals = {
+      ABEJA:
+        "Abeja",
+
+      CAMALEON:
+        "Camaleón",
+
+      DELFIN:
+        "Delfín",
+
+      CASTOR:
+        "Castor",
+
+      BUHO:
+        "Búho",
+    };
+
+    addRecommendation({
+      skill:
+        "ANIMODO",
+
+      value:
+        displayAnimals[
+          animodoAnimal
+        ],
+
+      recommendation:
+        animodoRecommendations[
+          animodoAnimal
+        ],
+    });
+  }
+
+  /* =====================================================
+     5. COLOR DE LA COMUNICACIÓN
+
+     "Bajo" = menor puntaje entre los cuatro colores.
+
+     Tabla entregada:
+     AMARILLO -> ARGUMENTOS LÓGICOS
+     ROJO     -> LIDERAZGO
+     AZUL     -> SENSIBILIDAD
+     VERDE    -> VISIÓN FUTURA
+
+     Si dos o más colores empatan en el mínimo se
+     conservan todas las causas/recomendaciones.
+  ===================================================== */
+
+  const communicationScores = {
+    AMARILLO:
+      toNumber(
+        communication?.scores
+          ?.AMARILLO,
+        0
+      ),
+
+    ROJO:
+      toNumber(
+        communication?.scores
+          ?.ROJO,
+        0
+      ),
+
+    AZUL:
+      toNumber(
+        communication?.scores
+          ?.AZUL,
+        0
+      ),
+
+    VERDE:
+      toNumber(
+        communication?.scores
+          ?.VERDE,
+        0
+      ),
+  };
+
+  const communicationValues =
+    Object.values(
+      communicationScores
+    );
+
+  if (
+    communicationValues.length
+  ) {
+    const minCommunication =
+      Math.min(
+        ...communicationValues
+      );
+
+    const communicationRecommendations = {
+      AMARILLO: {
+        value:
+          "Amarillo bajo",
+
+        recommendation:
+          "Trabajo en equipo (ARGUMENTOS LÓGICOS)",
+      },
+
+      ROJO: {
+        value:
+          "Rojo bajo",
+
+        recommendation:
+          "Trabajo en equipo (LIDERAZGO)",
+      },
+
+      AZUL: {
+        value:
+          "Azul bajo",
+
+        recommendation:
+          "Trabajo en equipo (SENSIBILIDAD)",
+      },
+
+      VERDE: {
+        value:
+          "Verde bajo",
+
+        recommendation:
+          "Trabajo en equipo (VISIÓN FUTURA)",
+      },
+    };
+
+    for (
+      const [
+        color,
+        score,
+      ] of Object.entries(
+        communicationScores
+      )
+    ) {
+      if (
+        score !==
+        minCommunication
+      ) {
+        continue;
+      }
+
+      const rule =
+        communicationRecommendations[
+          color
+        ];
+
+      addRecommendation({
+        skill:
+          "COLOR DE LA COMUNICACIÓN",
+
+        value:
+          rule.value,
+
+        recommendation:
+          rule.recommendation,
+      });
+    }
+  }
+
+  /* =====================================================
+     6. NIVEL DE NEGOCIACIÓN
+
+     50 - 60
+     61 - 70
+  ===================================================== */
+
+  const negotiationScore =
+    toNumber(
+      negotiation?.totalScore,
+      0
+    );
+
+  if (
+    negotiationScore >= 50 &&
+    negotiationScore <= 60
+  ) {
+    addRecommendation({
+      skill:
+        "NIVEL DE NEGOCIACIÓN",
+
+      value:
+        "50 - 60",
+
+      recommendation:
+        "Mejorar actividades en VENTAS Y NEGOCIACIÓN",
+    });
+  } else if (
+    negotiationScore >= 61 &&
+    negotiationScore <= 70
+  ) {
+    addRecommendation({
+      skill:
+        "NIVEL DE NEGOCIACIÓN",
+
+      value:
+        "61 - 70",
+
+      recommendation:
+        "Mejorar actividades en PROCESOS DE NEGOCIACIÓN",
+    });
+  }
+
+  /* =====================================================
+     7. ÍNDICE DE PRODUCTIVIDAD
+
+     Se utiliza classificationName, no únicamente
+     la letra A-F.
+  ===================================================== */
+
+  const productivityName =
+    normalizeCode(
+      productivityIndex
+        ?.classificationName
+    );
+
+  const productivityRecommendations = {
+    PRODUCTIVIDAD_CONSOLIDADA: {
+      value:
+        "Productividad Consolidada",
+
+      recommendation:
+        "Mentorías especializadas",
+    },
+
+    PRODUCTIVIDAD_EMERGENTE: {
+      value:
+        "Productividad Emergente",
+
+      recommendation:
+        "Mentorías especializadas",
+    },
+
+    POTENCIAL_PRODUCTIVO: {
+      value:
+        "Potencial Productivo",
+
+      recommendation:
+        "Sesión de COACH",
+    },
+  };
+
+  const productivityRule =
+    productivityRecommendations[
+      productivityName
+    ];
+
+  if (
+    productivityRule
+  ) {
+    addRecommendation({
+      skill:
+        "ÍNDICE DE PRODUCTIVIDAD",
+
+      value:
+        productivityRule
+          .value,
+
+      recommendation:
+        productivityRule
+          .recommendation,
+    });
+  }
+
+  /* =====================================================
+     RECOMENDACIONES PARA USUARIO
+
+     El administrador conserva recommendations completo.
+     El usuario recibe una sola vez cada texto aunque
+     varias habilidades hayan generado la misma acción.
+  ===================================================== */
+
+  const userRecommendations =
+    [
+      ...new Set(
+        recommendations.map(
+          (
+            item
+          ) =>
+            item.recommendation
+        )
+      ),
+    ];
+
+  return {
+    recommendations,
+    userRecommendations,
+  };
+};
+
+
+/* =========================================================
    BUSCAR PERSONALIDAD
 
    Combinación:
@@ -3345,6 +3901,24 @@ const calculateCompleteResult =
       });
 
     /* =====================================================
+       9.1 RECOMENDACIONES SEGÚN RESULTADOS
+    ===================================================== */
+
+    const {
+      recommendations,
+      userRecommendations,
+    } =
+      calculateRecommendations({
+        animodo,
+        communication,
+        brain,
+        negotiation,
+        vak,
+        persistence,
+        productivityIndex,
+      });
+
+    /* =====================================================
        10. LOG DE COMPARACIÓN CON EXCEL
     ===================================================== */
 
@@ -3681,6 +4255,20 @@ const calculateCompleteResult =
         productivityIndex,
 
         /* ===============================================
+           RECOMENDACIONES
+
+           recommendations:
+           detalle completo para administración.
+
+           userRecommendations:
+           textos sin duplicados para el participante.
+        =============================================== */
+
+        recommendations,
+
+        userRecommendations,
+
+        /* ===============================================
            PERSONALIDAD
         =============================================== */
 
@@ -3811,6 +4399,12 @@ module.exports = {
   =========================== */
 
   calculateProductivityIndex,
+
+  /* ===========================
+     RECOMENDACIONES
+  =========================== */
+
+  calculateRecommendations,
 
   /* ===========================
      PERSONALIDAD

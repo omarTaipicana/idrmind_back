@@ -22,7 +22,9 @@ const PsychometricAnswerOption = require("./PsychometricAnswerOption");
 const PsychometricAnswer = require("./PsychometricAnswer");
 const PsychometricAccessToken = require("./PsychometricAccessToken");
 const PsychometricIdentityVerification = require("./PsychometricIdentityVerification");
-
+const PsychometricCompanyAccess = require(
+  "./PsychometricCompanyAccess"
+);
 
 EmailCode.belongsTo(User);
 User.hasOne(EmailCode);
@@ -75,11 +77,11 @@ CourseInstructor.belongsTo(Course, { foreignKey: "courseId" });
 Course.hasMany(CourseInstructor, { foreignKey: "courseId" });
 
 EvaluationResponse.belongsTo(CourseInstructor, {
-    foreignKey: "courseInstructorId",
+  foreignKey: "courseInstructorId",
 });
 
 CourseInstructor.hasMany(EvaluationResponse, {
-    foreignKey: "courseInstructorId",
+  foreignKey: "courseInstructorId",
 });
 
 EvaluationAccessToken.belongsTo(User, { foreignKey: "userId" });
@@ -431,7 +433,7 @@ Pagos.belongsTo(
 
 
 PsychometricEvaluation.hasMany(
- PsychometricIdentityVerification,
+  PsychometricIdentityVerification,
   {
     foreignKey: "evaluationId",
     as: "identityVerifications",
@@ -447,4 +449,30 @@ PsychometricIdentityVerification.belongsTo(
     onDelete: "CASCADE",
   }
 );
+
+
+/* =========================================================
+   EMPRESA ↔ ACCESO RESULTADOS PSICOMÉTRICOS
+========================================================= */
+
+
+
+Empresa.hasMany(
+  PsychometricCompanyAccess,
+  {
+    foreignKey: "empresaId",
+    as: "psychometricCompanyAccesses",
+    onUpdate: "CASCADE",
+    onDelete: "CASCADE",
+  }
+);
+
+PsychometricCompanyAccess.belongsTo(
+  Empresa,
+  {
+    foreignKey: "empresaId",
+    as: "empresa",
+  }
+);
+
 

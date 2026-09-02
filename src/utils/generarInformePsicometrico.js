@@ -2217,6 +2217,704 @@ const drawMultilineList = ({
 };
 
 /* =========================================================
+   ENFOQUE DE MEJORA PERSONAL
+========================================================= */
+
+const drawImprovementPages = ({
+  pdfDoc,
+  recommendations,
+  fullName,
+  logoImage,
+  regularFont,
+  boldFont,
+  startPageNumber = 12,
+}) => {
+  if (
+    !Array.isArray(
+      recommendations
+    ) ||
+    recommendations.length === 0
+  ) {
+    return 0;
+  }
+
+  const safeRecommendations =
+    recommendations.map(
+      (
+        item,
+        index
+      ) => ({
+        skill:
+          normalizeText(
+            item?.skill,
+            "-"
+          ),
+
+        value:
+          normalizeText(
+            item?.value,
+            "-"
+          ),
+
+        recommendation:
+          normalizeText(
+            item?.recommendation,
+            "-"
+          ),
+
+        index,
+      })
+    );
+
+  const columns = {
+    skill: {
+      x: 52,
+      width: 132,
+    },
+
+    value: {
+      x: 184,
+      width: 178,
+    },
+
+    recommendation: {
+      x: 362,
+      width: 181,
+    },
+  };
+
+  const tableWidth = 491;
+  const headerHeight = 42;
+
+  const cellPaddingX = 9;
+  const cellPaddingY = 8;
+
+  const fontSize = 7.2;
+  const lineHeight = 9.5;
+
+  const minRowHeight = 42;
+
+  const calculateRowHeight =
+    (item) => {
+      const skillLines =
+        wrapText({
+          text:
+            item.skill,
+
+          font:
+            boldFont,
+
+          fontSize:
+            fontSize,
+
+          maxWidth:
+            columns.skill.width -
+            cellPaddingX * 2,
+        });
+
+      const valueLines =
+        wrapText({
+          text:
+            item.value,
+
+          font:
+            boldFont,
+
+          fontSize:
+            fontSize,
+
+          maxWidth:
+            columns.value.width -
+            cellPaddingX * 2,
+        });
+
+      const recommendationLines =
+        wrapText({
+          text:
+            item.recommendation,
+
+          font:
+            regularFont,
+
+          fontSize:
+            fontSize,
+
+          maxWidth:
+            columns
+              .recommendation
+              .width -
+            cellPaddingX * 2,
+        });
+
+      const maxLines =
+        Math.max(
+          1,
+          skillLines.length,
+          valueLines.length,
+          recommendationLines.length
+        );
+
+      return Math.max(
+        minRowHeight,
+        maxLines *
+        lineHeight +
+        cellPaddingY * 2
+      );
+    };
+
+  const rowData =
+    safeRecommendations.map(
+      (item) => ({
+        ...item,
+        height:
+          calculateRowHeight(
+            item
+          ),
+      })
+    );
+
+  /*
+   * La primera página incluye el texto introductorio.
+   * Las páginas siguientes conservan el encabezado de tabla
+   * para mantener legibilidad si existen muchas recomendaciones.
+   */
+  const firstTableTop = 525;
+  const continuationTableTop =
+    565;
+
+  const minimumY = 62;
+
+  const chunks = [];
+
+  let currentChunk = [];
+  let currentY =
+    firstTableTop;
+
+  for (
+    const item of rowData
+  ) {
+    if (
+      currentY -
+      item.height <
+      minimumY &&
+      currentChunk.length
+    ) {
+      chunks.push(
+        currentChunk
+      );
+
+      currentChunk = [];
+
+      currentY =
+        continuationTableTop;
+    }
+
+    currentChunk.push(
+      item
+    );
+
+    currentY -=
+      item.height;
+  }
+
+  if (
+    currentChunk.length
+  ) {
+    chunks.push(
+      currentChunk
+    );
+  }
+
+  const drawTableHeader = ({
+    page,
+    topY,
+  }) => {
+    const y =
+      topY -
+      headerHeight;
+
+    page.drawRectangle({
+      x: 52,
+      y,
+
+      width:
+        tableWidth,
+
+      height:
+        headerHeight,
+
+      color:
+        COLORS.navy,
+    });
+
+    page.drawLine({
+      start: {
+        x:
+          columns.value.x,
+        y,
+      },
+
+      end: {
+        x:
+          columns.value.x,
+        y:
+          y +
+          headerHeight,
+      },
+
+      thickness:
+        0.6,
+
+      color:
+        COLORS.blue2,
+    });
+
+    page.drawLine({
+      start: {
+        x:
+          columns
+            .recommendation
+            .x,
+        y,
+      },
+
+      end: {
+        x:
+          columns
+            .recommendation
+            .x,
+        y:
+          y +
+          headerHeight,
+      },
+
+      thickness:
+        0.6,
+
+      color:
+        COLORS.blue2,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        "HABILIDAD",
+
+      x:
+        columns.skill.x +
+        cellPaddingX,
+
+      y:
+        y + 24,
+
+      maxWidth:
+        columns.skill.width -
+        cellPaddingX * 2,
+
+      font:
+        boldFont,
+
+      size: 6.6,
+
+      lineHeight: 8,
+
+      color:
+        COLORS.white,
+
+      maxLines: 2,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        "RESULTADO QUE ACTIVA LA RECOMENDACIÓN",
+
+      x:
+        columns.value.x +
+        cellPaddingX,
+
+      y:
+        y + 27,
+
+      maxWidth:
+        columns.value.width -
+        cellPaddingX * 2,
+
+      font:
+        boldFont,
+
+      size: 6.2,
+
+      lineHeight: 7.5,
+
+      color:
+        COLORS.white,
+
+      maxLines: 3,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        "ENFOQUE RECOMENDADO",
+
+      x:
+        columns
+          .recommendation
+          .x +
+        cellPaddingX,
+
+      y:
+        y + 24,
+
+      maxWidth:
+        columns
+          .recommendation
+          .width -
+        cellPaddingX * 2,
+
+      font:
+        boldFont,
+
+      size: 6.6,
+
+      lineHeight: 8,
+
+      color:
+        COLORS.white,
+
+      maxLines: 2,
+    });
+
+    return y;
+  };
+
+  const drawRow = ({
+    page,
+    item,
+    topY,
+    rowIndex,
+  }) => {
+    const rowY =
+      topY -
+      item.height;
+
+    page.drawRectangle({
+      x: 52,
+      y:
+        rowY,
+
+      width:
+        tableWidth,
+
+      height:
+        item.height,
+
+      color:
+        rowIndex % 2 === 0
+          ? COLORS.white
+          : COLORS.soft,
+
+      borderColor:
+        COLORS.border,
+
+      borderWidth:
+        0.6,
+    });
+
+    page.drawRectangle({
+      x:
+        columns.skill.x,
+
+      y:
+        rowY,
+
+      width:
+        columns.skill.width,
+
+      height:
+        item.height,
+
+      color:
+        COLORS.soft,
+    });
+
+    page.drawLine({
+      start: {
+        x:
+          columns.value.x,
+        y:
+          rowY,
+      },
+
+      end: {
+        x:
+          columns.value.x,
+        y:
+          rowY +
+          item.height,
+      },
+
+      thickness:
+        0.55,
+
+      color:
+        COLORS.border,
+    });
+
+    page.drawLine({
+      start: {
+        x:
+          columns
+            .recommendation
+            .x,
+        y:
+          rowY,
+      },
+
+      end: {
+        x:
+          columns
+            .recommendation
+            .x,
+        y:
+          rowY +
+          item.height,
+      },
+
+      thickness:
+        0.55,
+
+      color:
+        COLORS.border,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        item.skill,
+
+      x:
+        columns.skill.x +
+        cellPaddingX,
+
+      y:
+        topY -
+        cellPaddingY -
+        fontSize,
+
+      maxWidth:
+        columns.skill.width -
+        cellPaddingX * 2,
+
+      font:
+        boldFont,
+
+      size:
+        fontSize,
+
+      lineHeight:
+        lineHeight,
+
+      color:
+        COLORS.text,
+
+      maxLines: null,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        item.value,
+
+      x:
+        columns.value.x +
+        cellPaddingX,
+
+      y:
+        topY -
+        cellPaddingY -
+        fontSize,
+
+      maxWidth:
+        columns.value.width -
+        cellPaddingX * 2,
+
+      font:
+        boldFont,
+
+      size:
+        fontSize,
+
+      lineHeight:
+        lineHeight,
+
+      color:
+        COLORS.text,
+
+      maxLines: null,
+    });
+
+    drawWrappedText({
+      page,
+
+      text:
+        item.recommendation,
+
+      x:
+        columns
+          .recommendation
+          .x +
+        cellPaddingX,
+
+      y:
+        topY -
+        cellPaddingY -
+        fontSize,
+
+      maxWidth:
+        columns
+          .recommendation
+          .width -
+        cellPaddingX * 2,
+
+      font:
+        regularFont,
+
+      size:
+        fontSize,
+
+      lineHeight:
+        lineHeight,
+
+      color:
+        COLORS.textSoft,
+
+      maxLines: null,
+    });
+
+    return rowY;
+  };
+
+  chunks.forEach(
+    (
+      chunk,
+      pageIndex
+    ) => {
+      const page =
+        pdfDoc.addPage([
+          PAGE_WIDTH,
+          PAGE_HEIGHT,
+        ]);
+
+      const pageNumber =
+        startPageNumber +
+        pageIndex;
+
+      drawCorporateHeader({
+        page,
+        fullName,
+        logoImage,
+        boldFont,
+        regularFont,
+      });
+
+      drawSectionTitle({
+        page,
+
+        kicker:
+          "RECOMENDACIONES SEGÚN RESULTADOS",
+
+        title:
+          pageIndex === 0
+            ? "Enfoque de mejora personal"
+            : "Enfoque de mejora personal - continuación",
+
+        y: 665,
+
+        boldFont,
+      });
+
+      let tableTop;
+
+      if (
+        pageIndex === 0
+      ) {
+        drawWrappedText({
+          page,
+
+          text:
+            "Esta sección identifica los resultados que originan cada recomendación y facilita el seguimiento del plan de mejora personal.",
+
+          x: 52,
+          y: 592,
+
+          maxWidth: 491,
+
+          font:
+            regularFont,
+
+          size: 8.5,
+
+          lineHeight: 12,
+
+          color:
+            COLORS.textSoft,
+
+          maxLines: 3,
+        });
+
+        tableTop =
+          firstTableTop;
+      } else {
+        tableTop =
+          continuationTableTop;
+      }
+
+      let currentTop =
+        drawTableHeader({
+          page,
+          topY:
+            tableTop,
+        });
+
+      chunk.forEach(
+        (
+          item,
+          index
+        ) => {
+          currentTop =
+            drawRow({
+              page,
+              item,
+              topY:
+                currentTop,
+              rowIndex:
+                index,
+            });
+        }
+      );
+
+      drawFooter({
+        page,
+
+        number:
+          pageNumber,
+
+        regularFont,
+      });
+    }
+  );
+
+  return chunks.length;
+};
+
+/* =========================================================
    OBTENER DATOS
 ========================================================= */
 
@@ -2397,9 +3095,15 @@ const generarInformePsicometrico =
       result?.productivityIndex ||
       {};
 
+    const recommendations =
+      Array.isArray(
+        result?.recommendations
+      )
+        ? result.recommendations
+        : [];
+
     const fullName =
       [
-        user?.grado,
         user?.firstName,
         user?.lastName,
       ]
@@ -4331,16 +5035,16 @@ const generarInformePsicometrico =
           "-",
 
         x: 290,
-        y: 515,
+        y: 500,
 
         maxWidth: 220,
 
         font:
           boldFont,
 
-        size: 21,
+        size: 19,
 
-        lineHeight: 24,
+        lineHeight: 23,
 
         color:
           negotiation
@@ -4350,32 +5054,6 @@ const generarInformePsicometrico =
             : COLORS.blue,
 
         maxLines: 2,
-      });
-
-      drawWrappedText({
-        page,
-
-        text:
-          negotiation
-            ?.quality ||
-          "Sin descripción adicional.",
-
-        x: 290,
-        y: 465,
-
-        maxWidth: 220,
-
-        font:
-          regularFont,
-
-        size: 9.5,
-
-        lineHeight: 15,
-
-        color:
-          COLORS.textSoft,
-
-        maxLines: 7,
       });
 
       /* ===============================================
@@ -5214,6 +5892,39 @@ const generarInformePsicometrico =
           ippColor,
       });
 
+      const ippClassificationName =
+        normalizeText(
+          productivityIndex
+            ?.classificationName,
+          "-"
+        );
+
+      drawCenteredWrappedText({
+        page,
+
+        text:
+          ippClassificationName,
+
+        centerX:
+          495,
+
+        y: 585,
+
+        maxWidth: 105,
+
+        font:
+          boldFont,
+
+        size: 6.6,
+
+        lineHeight: 8,
+
+        color:
+          COLORS.textSoft,
+
+        maxLines: 3,
+      });
+
       /* =====================================================
          ÍNDICE FINAL
          CUADRO AZUL MÁS ANGOSTO Y CENTRADO
@@ -5378,15 +6089,169 @@ const generarInformePsicometrico =
       });
 
       /* =====================================================
+         RESUMEN DEL RESULTADO
+      ===================================================== */
+
+      const ippSummaryY = 258;
+      const ippSummaryHeight = 58;
+      const ippSummaryGap = 7;
+      const ippSummaryWidth =
+        (
+          491 -
+          ippSummaryGap * 2
+        ) / 3;
+
+      const ippSummaryItems = [
+        {
+          label:
+            "PUNTAJE",
+
+          value:
+            `${normalizeText(
+              productivityIndex
+                ?.score,
+              "-"
+            )} / ${normalizeText(
+              productivityIndex
+                ?.maxScore,
+              "6"
+            )}`,
+        },
+
+        {
+          label:
+            "CLASIFICACIÓN",
+
+          value:
+            `${ippClassification} - ${ippClassificationName}`,
+        },
+
+        {
+          label:
+            "FACTOR",
+
+          value:
+            Number.isFinite(
+              Number(
+                productivityIndex
+                  ?.factor
+              )
+            )
+              ? Number(
+                  productivityIndex
+                    ?.factor
+                ).toFixed(3)
+              : "-",
+        },
+      ];
+
+      ippSummaryItems.forEach(
+        (
+          item,
+          index
+        ) => {
+          const x =
+            52 +
+            index *
+            (
+              ippSummaryWidth +
+              ippSummaryGap
+            );
+
+          page.drawRectangle({
+            x,
+            y:
+              ippSummaryY,
+
+            width:
+              ippSummaryWidth,
+
+            height:
+              ippSummaryHeight,
+
+            color:
+              COLORS.soft,
+
+            borderColor:
+              COLORS.border,
+
+            borderWidth:
+              0.7,
+          });
+
+          drawCenteredTextInBox({
+            page,
+
+            text:
+              item.label,
+
+            x,
+            y:
+              ippSummaryY +
+              38,
+
+            width:
+              ippSummaryWidth,
+
+            font:
+              boldFont,
+
+            size: 6.2,
+
+            color:
+              COLORS.muted,
+          });
+
+          drawCenteredWrappedText({
+            page,
+
+            text:
+              item.value,
+
+            centerX:
+              x +
+              ippSummaryWidth /
+              2,
+
+            y:
+              ippSummaryY +
+              18,
+
+            maxWidth:
+              ippSummaryWidth -
+              14,
+
+            font:
+              boldFont,
+
+            size:
+              index === 1
+                ? 6.2
+                : 8.2,
+
+            lineHeight:
+              7.5,
+
+            color:
+              index === 1
+                ? ippColor
+                : COLORS.navy,
+
+            maxLines: 2,
+          });
+        }
+      );
+
+      /* =====================================================
          EXPLICACIÓN DEL IPP
       ===================================================== */
 
       page.drawRectangle({
         x: 52,
-        y: 115,
+        y: 88,
 
         width: 491,
-        height: 140,
+        height: 135,
 
         color:
           COLORS.blueSoft,
@@ -5405,7 +6270,7 @@ const generarInformePsicometrico =
         "IPP",
         {
           x: 74,
-          y: 220,
+          y: 193,
 
           font:
             boldFont,
@@ -5428,7 +6293,7 @@ const generarInformePsicometrico =
           "El Índice de Productividad Personal integra los principales resultados de la evaluación y permite observar de forma global cómo interactúan la persistencia, comunicación, preferencia conductual, dominancia cerebral, negociación y sistema representacional.",
 
         x: 74,
-        y: 190,
+        y: 163,
 
         maxWidth: 445,
 
@@ -6368,6 +7233,25 @@ const generarInformePsicometrico =
         regularFont,
       });
     }
+
+    /* =====================================================
+       PÁGINA 12+
+       ENFOQUE DE MEJORA PERSONAL
+    ===================================================== */
+
+    drawImprovementPages({
+      pdfDoc,
+
+      recommendations,
+
+      fullName,
+      logoImage,
+
+      regularFont,
+      boldFont,
+
+      startPageNumber: 12,
+    });
 
     /* =====================================================
        METADATA

@@ -179,6 +179,52 @@ router.use(
   psychometricDashboardRouter
 );
 
+
+
+
+
+/* =========================================================
+   NUEVOS IMPORTS
+========================================================= */
+
+const psychometricCompanyAccessRouter = require(
+  "./psychometricCompanyAccess.router"
+);
+
+const psychometricCompanyPublicRouter = require(
+  "./psychometricCompanyPublic.router"
+);
+
+/* =========================================================
+   RUTA PÚBLICA
+   Colócala junto a psychometricRouter
+========================================================= */
+
+router.use(
+  psychometricCompanyPublicRouter
+);
+
+/* =========================================================
+   DASHBOARD PSICOMÉTRICO ADMIN
+========================================================= */
+
+router.use(
+  "/psychometric/dashboard",
+  psychometricDashboardRouter
+);
+
+router.use(
+  "/psychometric/dashboard",
+  psychometricCompanyAccessRouter
+);
+
+
+
+
+
+
+
+
 /* =========================================
    EXPORT
 ========================================= */

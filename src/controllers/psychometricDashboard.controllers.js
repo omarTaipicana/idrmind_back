@@ -26,6 +26,14 @@ const Pagos = require(
   "../models/Pagos"
 );
 
+const Empresa = require(
+  "../models/Empresa"
+);
+
+const EmpresaSeccion = require(
+  "../models/EmpresaSeccion"
+);
+
 /* =========================================================
    CONSTANTES
 ========================================================= */
@@ -43,6 +51,20 @@ const VALID_PARTICIPANT_TYPES = [
   "empresa",
   "individual",
 ];
+
+const VALID_AGE_GROUPS = [
+  "GEN_0",
+  "GEN_1",
+  "GEN_2",
+  "GEN_3",
+];
+
+const AGE_GROUP_LABELS = {
+  GEN_0: "Menor de 18",
+  GEN_1: "18 - 35",
+  GEN_2: "36 - 45",
+  GEN_3: "46 en adelante",
+};
 
 /* =========================================================
    UTILIDADES GENERALES
@@ -183,6 +205,300 @@ const normalizeText = (
 };
 
 /* =========================================================
+   DATOS DEMOGRÁFICOS
+========================================================= */
+
+const normalizeGenre = (
+  value
+) => {
+  const normalized =
+    String(
+      value || ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (!normalized) {
+    return null;
+  }
+
+  if (
+    [
+      "M",
+      "MASCULINO",
+      "HOMBRE",
+      "MALE",
+    ].includes(
+      normalized
+    )
+  ) {
+    return "MASCULINO";
+  }
+
+  if (
+    [
+      "F",
+      "FEMENINO",
+      "MUJER",
+      "FEMALE",
+    ].includes(
+      normalized
+    )
+  ) {
+    return "FEMENINO";
+  }
+
+  return normalized;
+};
+
+const getGuayaquilDateParts = (
+  value
+) => {
+  const date =
+    value
+      ? new Date(value)
+      : new Date();
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return null;
+  }
+
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-CA",
+      {
+        timeZone:
+          "America/Guayaquil",
+
+        year:
+          "numeric",
+
+        month:
+          "2-digit",
+
+        day:
+          "2-digit",
+      }
+    ).formatToParts(
+      date
+    );
+
+  const values = {};
+
+  for (
+    const part
+    of parts
+  ) {
+    if (
+      part.type !==
+      "literal"
+    ) {
+      values[
+        part.type
+      ] =
+        Number(
+          part.value
+        );
+    }
+  }
+
+  return {
+    year:
+      values.year,
+
+    month:
+      values.month,
+
+    day:
+      values.day,
+  };
+};
+
+const calculateAge = (
+  dateBirth,
+  referenceDate
+) => {
+  if (!dateBirth) {
+    return null;
+  }
+
+  const birthText =
+    String(
+      dateBirth
+    )
+      .trim()
+      .slice(
+        0,
+        10
+      );
+
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+      birthText
+    );
+
+  if (!match) {
+    return null;
+  }
+
+  const birthYear =
+    Number(
+      match[1]
+    );
+
+  const birthMonth =
+    Number(
+      match[2]
+    );
+
+  const birthDay =
+    Number(
+      match[3]
+    );
+
+  if (
+    !birthYear ||
+    birthMonth < 1 ||
+    birthMonth > 12 ||
+    birthDay < 1 ||
+    birthDay > 31
+  ) {
+    return null;
+  }
+
+  const reference =
+    getGuayaquilDateParts(
+      referenceDate ||
+      new Date()
+    );
+
+  if (!reference) {
+    return null;
+  }
+
+  let age =
+    reference.year -
+    birthYear;
+
+  const birthdayPassed =
+    reference.month >
+      birthMonth ||
+    (
+      reference.month ===
+        birthMonth &&
+      reference.day >=
+        birthDay
+    );
+
+  if (
+    !birthdayPassed
+  ) {
+    age -= 1;
+  }
+
+  if (
+    age < 0 ||
+    age > 130
+  ) {
+    return null;
+  }
+
+  return age;
+};
+
+const getAgeGroup = (
+  age
+) => {
+  if (
+    age === null ||
+    age === undefined ||
+    !Number.isFinite(
+      Number(age)
+    )
+  ) {
+    return null;
+  }
+
+  const numericAge =
+    Number(age);
+
+  if (
+    numericAge < 18
+  ) {
+    return "GEN_0";
+  }
+
+  if (
+    numericAge <= 35
+  ) {
+    return "GEN_1";
+  }
+
+  if (
+    numericAge <= 45
+  ) {
+    return "GEN_2";
+  }
+
+  return "GEN_3";
+};
+
+const getParticipantDemographics = (
+  evaluation
+) => {
+  const snapshot =
+    evaluation
+      ?.participantSnapshot ||
+    {};
+
+  const dateBirth =
+    snapshot.user
+      ?.dateBirth ||
+    null;
+
+  const genre =
+    normalizeGenre(
+      snapshot.user
+        ?.genre
+    );
+
+  /*
+   * Para conservar consistencia histórica,
+   * la edad se calcula a la fecha en que
+   * terminó la evaluación.
+   *
+   * Si no existe fechaFinalizacion,
+   * se usa createdAt como respaldo.
+   */
+  const age =
+    calculateAge(
+      dateBirth,
+      evaluation
+        ?.fechaFinalizacion ||
+      evaluation
+        ?.createdAt ||
+      new Date()
+    );
+
+  return {
+    genre,
+
+    dateBirth,
+
+    age,
+
+    ageGroup:
+      getAgeGroup(
+        age
+      ),
+  };
+};
+
+/* =========================================================
    ANIMODO PARA DASHBOARD
 
    IMPORTANTE:
@@ -285,6 +601,7 @@ const validateGeneralFilters = (
     fechaHasta,
     estado,
     tipoParticipante,
+    rangoEtario,
   } = filters;
 
   if (
@@ -332,6 +649,19 @@ const validateGeneralFilters = (
     )
   ) {
     return "tipoParticipante debe ser empresa o individual.";
+  }
+
+  if (
+    rangoEtario &&
+    !VALID_AGE_GROUPS.includes(
+      String(
+        rangoEtario
+      )
+        .trim()
+        .toUpperCase()
+    )
+  ) {
+    return "rangoEtario debe ser GEN_0, GEN_1, GEN_2 o GEN_3.";
   }
 
   return null;
@@ -504,7 +834,45 @@ const evaluationMatchesPsychometricFilters = (
     persistencia,
     productividad,
     personalidad,
+    genero,
+    rangoEtario,
   } = filters;
+
+  /* =========================
+     GÉNERO / RANGO ETARIO
+  ========================= */
+
+  if (
+    genero ||
+    rangoEtario
+  ) {
+    const demographics =
+      getParticipantDemographics(
+        evaluation
+      );
+
+    if (
+      genero &&
+      demographics.genre !==
+        normalizeGenre(
+          genero
+        )
+    ) {
+      return false;
+    }
+
+    if (
+      rangoEtario &&
+      demographics.ageGroup !==
+        String(
+          rangoEtario
+        )
+          .trim()
+          .toUpperCase()
+    ) {
+      return false;
+    }
+  }
 
   /* =========================
      ANIMODO
@@ -665,7 +1033,9 @@ const hasPsychometricFilters = (
     filters.vak ||
     filters.persistencia ||
     filters.productividad ||
-    filters.personalidad
+    filters.personalidad ||
+    filters.genero ||
+    filters.rangoEtario
   );
 };
 
@@ -817,6 +1187,10 @@ const buildPsychometricAnalytics = (
     productividad: {},
 
     personalidad: {},
+
+    genero: {},
+
+    rangoEtario: {},
   };
 
   let productivityScoreSum =
@@ -909,6 +1283,25 @@ const buildPsychometricAnalytics = (
     const resultado =
       evaluation.resultado ||
       {};
+
+    /* ===================================================
+       DATOS DEMOGRÁFICOS
+    =================================================== */
+
+    const demographics =
+      getParticipantDemographics(
+        evaluation
+      );
+
+    increment(
+      analytics.genero,
+      demographics.genre
+    );
+
+    increment(
+      analytics.rangoEtario,
+      demographics.ageGroup
+    );
 
     /* ===================================================
        ANIMODO
@@ -1236,6 +1629,43 @@ const buildPsychometricAnalytics = (
   return {
     totalResultados:
       total,
+
+    genero: {
+      counts:
+        analytics.genero,
+
+      distribution:
+        objectDistribution(
+          analytics.genero,
+          total
+        ),
+    },
+
+    rangoEtario: {
+      counts:
+        analytics.rangoEtario,
+
+      labels:
+        AGE_GROUP_LABELS,
+
+      distribution:
+        objectDistribution(
+          analytics.rangoEtario,
+          total
+        ).map(
+          (
+            item
+          ) => ({
+            ...item,
+
+            label:
+              AGE_GROUP_LABELS[
+                item.key
+              ] ||
+              item.key,
+          })
+        ),
+    },
 
     animodo: {
       counts:
@@ -2370,6 +2800,16 @@ const getPsychometricDashboardSummary =
             filters
               .personalidad ||
             null,
+
+          genero:
+            filters
+              .genero ||
+            null,
+
+          rangoEtario:
+            filters
+              .rangoEtario ||
+            null,
         },
 
         kpis: {
@@ -2592,6 +3032,16 @@ const getPsychometricDashboardAnalytics =
             filters
               .personalidad ||
             null,
+
+          genero:
+            filters
+              .genero ||
+            null,
+
+          rangoEtario:
+            filters
+              .rangoEtario ||
+            null,
         },
 
         analytics,
@@ -2601,6 +3051,12 @@ const getPsychometricDashboardAnalytics =
 
 /* =========================================================
    3. GET /psychometric/dashboard/filters
+
+   IMPORTANTE:
+   - Las empresas NO desaparecen al seleccionar una.
+   - Los valores psicométricos/demográficos son catálogos
+     estables y no se reducen por filtros cruzados.
+   - Las secciones sí dependen de empresaId cuando existe.
 ========================================================= */
 
 const getPsychometricDashboardFilters =
@@ -2628,37 +3084,105 @@ const getPsychometricDashboardFilters =
           });
       }
 
-      /*
-       * En filters usamos solamente filtros
-       * estructurales para no desaparecer
-       * las demás opciones cuando el usuario
-       * selecciona una categoría psicométrica.
-       */
+      /* ===================================================
+         EMPRESAS: LISTADO ESTABLE
+      =================================================== */
 
-      const structuralFilters = {
-        fechaDesde:
-          filters.fechaDesde,
+      const empresas =
+        await Empresa.findAll({
+          attributes: [
+            "id",
+            "razonSocial",
+            "nombreComercial",
+            "sector",
+            "subSector",
+            "correo",
+            "activo",
+          ],
 
-        fechaHasta:
-          filters.fechaHasta,
+          order: [
+            [
+              "nombreComercial",
+              "ASC",
+            ],
+            [
+              "razonSocial",
+              "ASC",
+            ],
+          ],
+        });
 
-        empresaId:
-          filters.empresaId,
+      /* ===================================================
+         SECCIONES
 
-        seccionId:
-          filters.seccionId,
+         ÚNICA DEPENDENCIA PERMITIDA:
+         Si hay empresaId, devuelve solamente
+         las secciones de esa empresa.
+      =================================================== */
 
-        testId:
-          filters.testId,
+      const sectionWhere = {};
 
-        tipoParticipante:
-          filters
-            .tipoParticipante,
-      };
+      if (
+        filters.empresaId
+      ) {
+        sectionWhere.empresaId =
+          filters.empresaId;
+      }
 
-      const where =
+      const secciones =
+        await EmpresaSeccion.findAll({
+          where:
+            sectionWhere,
+
+          attributes: [
+            "id",
+            "empresaId",
+            "nombre",
+            "descripcion",
+            "responsable",
+            "correo",
+            "activo",
+          ],
+
+          order: [
+            [
+              "nombre",
+              "ASC",
+            ],
+          ],
+        });
+
+      /* ===================================================
+         TESTS: CATÁLOGO ESTABLE
+      =================================================== */
+
+      const tests =
+        await PsychometricTest.findAll({
+          attributes: [
+            "id",
+            "nombre",
+            "version",
+            "activo",
+          ],
+
+          order: [
+            [
+              "nombre",
+              "ASC",
+            ],
+          ],
+        });
+
+      /* ===================================================
+         RESULTADOS: CATÁLOGO ESTABLE
+
+         No usamos empresaId, sección ni filtros cruzados.
+         Así las opciones disponibles no desaparecen.
+      =================================================== */
+
+      const catalogWhere =
         buildEvaluationWhere(
-          structuralFilters,
+          {},
           {
             onlyCompleted:
               true,
@@ -2670,19 +3194,13 @@ const getPsychometricDashboardFilters =
 
       const evaluations =
         await getAnalyticEvaluations(
-          where
+          catalogWhere
         );
 
-      const companiesMap =
-        new Map();
-
-      const sectionsMap =
-        new Map();
-
-      const testsMap =
-        new Map();
-
       const values = {
+        genero:
+          new Set(),
+
         animodo:
           new Set(),
 
@@ -2712,140 +3230,18 @@ const getPsychometricDashboardFilters =
         const evaluation
         of evaluations
       ) {
-        /* =================================================
-           EMPRESA
-        ================================================= */
+        const demographics =
+          getParticipantDemographics(
+            evaluation
+          );
 
         if (
-          evaluation
-            .empresaIdSnapshot
+          demographics.genre
         ) {
-          const empresa =
-            getCompanySnapshot(
-              evaluation
-            );
-
-          const id =
-            String(
-              evaluation
-                .empresaIdSnapshot
-            );
-
-          if (
-            !companiesMap.has(
-              id
-            )
-          ) {
-            companiesMap.set(
-              id,
-              {
-                id,
-
-                razonSocial:
-                  empresa
-                    ?.razonSocial ||
-                  null,
-
-                nombreComercial:
-                  empresa
-                    ?.nombreComercial ||
-                  null,
-
-                nombre:
-                  empresa
-                    ?.nombreComercial ||
-                  empresa
-                    ?.razonSocial ||
-                  "Empresa histórica",
-
-                sector:
-                  empresa
-                    ?.sector ||
-                  null,
-
-                subSector:
-                  empresa
-                    ?.subSector ||
-                  null,
-              }
-            );
-          }
-        }
-
-        /* =================================================
-           SECCIÓN
-        ================================================= */
-
-        if (
-          evaluation
-            .seccionIdSnapshot
-        ) {
-          const section =
-            getSectionSnapshot(
-              evaluation
-            );
-
-          const id =
-            String(
-              evaluation
-                .seccionIdSnapshot
-            );
-
-          if (
-            !sectionsMap.has(
-              id
-            )
-          ) {
-            sectionsMap.set(
-              id,
-              {
-                id,
-
-                empresaId:
-                  evaluation
-                    .empresaIdSnapshot ||
-                  null,
-
-                nombre:
-                  section
-                    ?.nombre ||
-                  "Sección histórica",
-
-                descripcion:
-                  section
-                    ?.descripcion ||
-                  null,
-
-                responsable:
-                  section
-                    ?.responsable ||
-                  null,
-              }
-            );
-          }
-        }
-
-        /* =================================================
-           TEST
-        ================================================= */
-
-        if (
-          evaluation.testId
-        ) {
-          testsMap.set(
-            String(
-              evaluation.testId
-            ),
-            {
-              id:
-                evaluation.testId,
-            }
+          values.genero.add(
+            demographics.genre
           );
         }
-
-        /* =================================================
-           RESULTADOS
-        ================================================= */
 
         const resultado =
           evaluation.resultado ||
@@ -2942,88 +3338,92 @@ const getPsychometricDashboardFilters =
         }
       }
 
-      /* ===================================================
-         TESTS
-      =================================================== */
-
-      const testIds =
-        Array.from(
-          testsMap.keys()
-        );
-
-      let tests =
-        [];
-
-      if (
-        testIds.length >
-        0
-      ) {
-        tests =
-          await PsychometricTest.findAll({
-            where: {
-              id: {
-                [Op.in]:
-                  testIds,
-              },
-            },
-
-            attributes: [
-              "id",
-              "nombre",
-              "version",
-              "activo",
-            ],
-
-            order: [
-              [
-                "nombre",
-                "ASC",
-              ],
-            ],
-          });
-      }
-
       return res.json({
         message:
           "Filtros del dashboard psicométrico obtenidos correctamente.",
 
         empresas:
-          Array.from(
-            companiesMap.values()
-          ).sort(
+          empresas.map(
             (
-              a,
-              b
-            ) =>
-              String(
-                a.nombre
-              ).localeCompare(
-                String(
-                  b.nombre
-                )
-              )
+              empresa
+            ) => ({
+              id:
+                empresa.id,
+
+              razonSocial:
+                empresa.razonSocial,
+
+              nombreComercial:
+                empresa.nombreComercial,
+
+              nombre:
+                empresa.nombreComercial ||
+                empresa.razonSocial,
+
+              sector:
+                empresa.sector,
+
+              subSector:
+                empresa.subSector,
+
+              correo:
+                empresa.correo,
+
+              activo:
+                empresa.activo,
+            })
           ),
 
         secciones:
-          Array.from(
-            sectionsMap.values()
-          ).sort(
+          secciones.map(
             (
-              a,
-              b
-            ) =>
-              String(
-                a.nombre
-              ).localeCompare(
-                String(
-                  b.nombre
-                )
-              )
+              section
+            ) => ({
+              id:
+                section.id,
+
+              empresaId:
+                section.empresaId,
+
+              nombre:
+                section.nombre,
+
+              descripcion:
+                section.descripcion,
+
+              responsable:
+                section.responsable,
+
+              correo:
+                section.correo,
+
+              activo:
+                section.activo,
+            })
           ),
 
         tests,
 
         resultados: {
+          genero:
+            Array.from(
+              values.genero
+            ).sort(),
+
+          rangoEtario:
+            VALID_AGE_GROUPS.map(
+              (
+                key
+              ) => ({
+                key,
+
+                label:
+                  AGE_GROUP_LABELS[
+                    key
+                  ],
+              })
+            ),
+
           animodo:
             Array.from(
               values.animodo
@@ -3070,6 +3470,11 @@ const getPsychometricDashboardFilters =
 
 /* =========================================================
    4. GET /psychometric/dashboard/organizations
+
+   IMPORTANTE:
+   - El listado de empresas siempre permanece completo.
+   - empresaId y seccionId NO eliminan empresas del listado.
+   - Los demás filtros sí pueden recalcular sus estadísticas.
 ========================================================= */
 
 const getPsychometricDashboardOrganizations =
@@ -3097,9 +3502,79 @@ const getPsychometricDashboardOrganizations =
           });
       }
 
+      /* ===================================================
+         CATÁLOGO REAL DE EMPRESAS Y SECCIONES
+      =================================================== */
+
+      const companyRows =
+        await Empresa.findAll({
+          attributes: [
+            "id",
+            "razonSocial",
+            "nombreComercial",
+            "ruc",
+            "correo",
+            "telefono",
+            "gerente",
+            "correoGerente",
+            "sector",
+            "subSector",
+            "numeroEmpleados",
+            "logoUrl",
+            "activo",
+          ],
+
+          order: [
+            [
+              "nombreComercial",
+              "ASC",
+            ],
+            [
+              "razonSocial",
+              "ASC",
+            ],
+          ],
+        });
+
+      const sectionRows =
+        await EmpresaSeccion.findAll({
+          attributes: [
+            "id",
+            "empresaId",
+            "nombre",
+            "descripcion",
+            "responsable",
+            "correo",
+            "telefono",
+            "activo",
+          ],
+
+          order: [
+            [
+              "nombre",
+              "ASC",
+            ],
+          ],
+        });
+
+      /* ===================================================
+         EVALUACIONES PARA ANALÍTICA
+
+         Quitamos empresaId y seccionId para que seleccionar
+         una empresa en el dashboard no haga desaparecer
+         las demás de esta vista.
+      =================================================== */
+
+      const analyticsFilters = {
+        ...filters,
+      };
+
+      delete analyticsFilters.empresaId;
+      delete analyticsFilters.seccionId;
+
       const where =
         buildEvaluationWhere(
-          filters,
+          analyticsFilters,
           {
             onlyCompleted:
               true,
@@ -3117,10 +3592,13 @@ const getPsychometricDashboardOrganizations =
       evaluations =
         applyPsychometricFilters(
           evaluations,
-          filters
+          analyticsFilters
         );
 
-      const companyMap =
+      const evaluationsByCompany =
+        new Map();
+
+      const evaluationsBySection =
         new Map();
 
       for (
@@ -3128,78 +3606,34 @@ const getPsychometricDashboardOrganizations =
         of evaluations
       ) {
         if (
-          !evaluation
+          evaluation
             .empresaIdSnapshot
         ) {
-          continue;
+          const companyId =
+            String(
+              evaluation
+                .empresaIdSnapshot
+            );
+
+          if (
+            !evaluationsByCompany.has(
+              companyId
+            )
+          ) {
+            evaluationsByCompany.set(
+              companyId,
+              []
+            );
+          }
+
+          evaluationsByCompany
+            .get(
+              companyId
+            )
+            .push(
+              evaluation
+            );
         }
-
-        const companyId =
-          String(
-            evaluation
-              .empresaIdSnapshot
-          );
-
-        const companySnapshot =
-          getCompanySnapshot(
-            evaluation
-          );
-
-        if (
-          !companyMap.has(
-            companyId
-          )
-        ) {
-          companyMap.set(
-            companyId,
-            {
-              id:
-                companyId,
-
-              razonSocial:
-                companySnapshot
-                  ?.razonSocial ||
-                null,
-
-              nombreComercial:
-                companySnapshot
-                  ?.nombreComercial ||
-                null,
-
-              nombre:
-                companySnapshot
-                  ?.nombreComercial ||
-                companySnapshot
-                  ?.razonSocial ||
-                "Empresa histórica",
-
-              sector:
-                companySnapshot
-                  ?.sector ||
-                null,
-
-              subSector:
-                companySnapshot
-                  ?.subSector ||
-                null,
-
-              evaluaciones:
-                [],
-
-              sectionsMap:
-                new Map(),
-            }
-          );
-        }
-
-        const company =
-          companyMap.get(
-            companyId
-          );
-
-        company.evaluaciones.push(
-          evaluation
-        );
 
         if (
           evaluation
@@ -3211,96 +3645,112 @@ const getPsychometricDashboardOrganizations =
                 .seccionIdSnapshot
             );
 
-          const sectionSnapshot =
-            getSectionSnapshot(
-              evaluation
-            );
-
           if (
-            !company.sectionsMap.has(
+            !evaluationsBySection.has(
               sectionId
             )
           ) {
-            company.sectionsMap.set(
+            evaluationsBySection.set(
               sectionId,
-              {
-                id:
-                  sectionId,
-
-                nombre:
-                  sectionSnapshot
-                    ?.nombre ||
-                  "Sección histórica",
-
-                descripcion:
-                  sectionSnapshot
-                    ?.descripcion ||
-                  null,
-
-                responsable:
-                  sectionSnapshot
-                    ?.responsable ||
-                  null,
-
-                evaluaciones:
-                  [],
-              }
+              []
             );
           }
 
-          company.sectionsMap
+          evaluationsBySection
             .get(
               sectionId
             )
-            .evaluaciones
             .push(
               evaluation
             );
         }
       }
 
+      const sectionsByCompany =
+        new Map();
+
+      for (
+        const section
+        of sectionRows
+      ) {
+        const companyId =
+          String(
+            section.empresaId
+          );
+
+        if (
+          !sectionsByCompany.has(
+            companyId
+          )
+        ) {
+          sectionsByCompany.set(
+            companyId,
+            []
+          );
+        }
+
+        const sectionEvaluations =
+          evaluationsBySection.get(
+            String(
+              section.id
+            )
+          ) ||
+          [];
+
+        sectionsByCompany
+          .get(
+            companyId
+          )
+          .push({
+            id:
+              section.id,
+
+            empresaId:
+              section.empresaId,
+
+            nombre:
+              section.nombre,
+
+            descripcion:
+              section.descripcion,
+
+            responsable:
+              section.responsable,
+
+            correo:
+              section.correo,
+
+            telefono:
+              section.telefono,
+
+            activo:
+              section.activo,
+
+            totalResultados:
+              sectionEvaluations.length,
+
+            analytics:
+              buildPsychometricAnalytics(
+                sectionEvaluations
+              ),
+          });
+      }
+
       const companies =
-        Array.from(
-          companyMap.values()
-        ).map(
+        companyRows.map(
           (
             company
           ) => {
-            const companyAnalytics =
-              buildPsychometricAnalytics(
-                company.evaluaciones
+            const companyId =
+              String(
+                company.id
               );
 
-            const sections =
-              Array.from(
-                company.sectionsMap.values()
-              ).map(
-                (
-                  section
-                ) => ({
-                  id:
-                    section.id,
-
-                  nombre:
-                    section.nombre,
-
-                  descripcion:
-                    section.descripcion,
-
-                  responsable:
-                    section.responsable,
-
-                  totalResultados:
-                    section
-                      .evaluaciones
-                      .length,
-
-                  analytics:
-                    buildPsychometricAnalytics(
-                      section.evaluaciones
-                    ),
-                })
-              );
+            const companyEvaluations =
+              evaluationsByCompany.get(
+                companyId
+              ) ||
+              [];
 
             return {
               id:
@@ -3313,7 +3763,23 @@ const getPsychometricDashboardOrganizations =
                 company.nombreComercial,
 
               nombre:
-                company.nombre,
+                company.nombreComercial ||
+                company.razonSocial,
+
+              ruc:
+                company.ruc,
+
+              correo:
+                company.correo,
+
+              telefono:
+                company.telefono,
+
+              gerente:
+                company.gerente,
+
+              correoGerente:
+                company.correoGerente,
 
               sector:
                 company.sector,
@@ -3321,35 +3787,45 @@ const getPsychometricDashboardOrganizations =
               subSector:
                 company.subSector,
 
+              numeroEmpleados:
+                company.numeroEmpleados,
+
+              logoUrl:
+                company.logoUrl,
+
+              activo:
+                company.activo,
+
               totalResultados:
-                company
-                  .evaluaciones
-                  .length,
+                companyEvaluations.length,
 
               analytics:
-                companyAnalytics,
+                buildPsychometricAnalytics(
+                  companyEvaluations
+                ),
 
               secciones:
-                sections.sort(
+                (
+                  sectionsByCompany.get(
+                    companyId
+                  ) ||
+                  []
+                ).sort(
                   (
                     a,
                     b
                   ) =>
-                    b.totalResultados -
-                    a.totalResultados
+                    String(
+                      a.nombre
+                    ).localeCompare(
+                      String(
+                        b.nombre
+                      )
+                    )
                 ),
             };
           }
         );
-
-      companies.sort(
-        (
-          a,
-          b
-        ) =>
-          b.totalResultados -
-          a.totalResultados
-      );
 
       return res.json({
         message:
@@ -3541,6 +4017,11 @@ const getPsychometricDashboardParticipants =
                 evaluation
               );
 
+            const demographics =
+              getParticipantDemographics(
+                evaluation
+              );
+
             return {
               evaluationId:
                 evaluation.id,
@@ -3628,6 +4109,31 @@ const getPsychometricDashboardParticipants =
                   snapshot.user
                     ?.subsistema ||
                   null,
+
+                dateBirth:
+                  demographics
+                    .dateBirth,
+
+                genre:
+                  demographics
+                    .genre,
+
+                edad:
+                  demographics
+                    .age,
+
+                rangoEtario:
+                  demographics
+                    .ageGroup,
+
+                rangoEtarioLabel:
+                  demographics
+                    .ageGroup
+                    ? AGE_GROUP_LABELS[
+                        demographics
+                          .ageGroup
+                      ]
+                    : null,
               },
 
               empresa: {
@@ -4011,6 +4517,11 @@ const getPsychometricDashboardParticipantDetail =
           evaluation
         );
 
+      const demographics =
+        getParticipantDemographics(
+          evaluation
+        );
+
       return res.json({
         message:
           "Detalle psicométrico obtenido correctamente.",
@@ -4083,8 +4594,32 @@ const getPsychometricDashboardParticipantDetail =
             ),
 
           user:
-            snapshot.user ||
-            null,
+            snapshot.user
+              ? {
+                  ...snapshot.user,
+
+                  genre:
+                    demographics
+                      .genre,
+
+                  edad:
+                    demographics
+                      .age,
+
+                  rangoEtario:
+                    demographics
+                      .ageGroup,
+
+                  rangoEtarioLabel:
+                    demographics
+                      .ageGroup
+                      ? AGE_GROUP_LABELS[
+                          demographics
+                            .ageGroup
+                        ]
+                      : null,
+                }
+              : null,
 
           empresa:
             snapshot.empresa ||

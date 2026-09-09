@@ -80,6 +80,338 @@ const sendEmail = require(
     "../utils/sendEmail"
 );
 
+/* =========================================================
+   NOTIFICACIÓN ADMINISTRATIVA - PROYECTO PENSAR
+========================================================= */
+
+const PROJECT_PENSAR_ADMIN_EMAIL =
+    process.env
+        .PROJECT_PENSAR_ADMIN_EMAIL ||
+    "nask.corp@gmail.com";
+
+const escapeHtml = (
+    value
+) => {
+    return String(
+        value ??
+        ""
+    )
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+};
+
+const getWhatsAppNumber = (
+    value
+) => {
+    let digits =
+        String(
+            value ||
+            ""
+        ).replace(
+            /\D/g,
+            ""
+        );
+
+    if (!digits) {
+        return "";
+    }
+
+    /*
+     * Números ecuatorianos:
+     * 09XXXXXXXX -> 5939XXXXXXXX
+     */
+    if (
+        digits.length === 10 &&
+        digits.startsWith(
+            "0"
+        )
+    ) {
+        digits =
+            `593${digits.slice(1)}`;
+    }
+
+    return digits;
+};
+
+const getWhatsAppUrl = ({
+    cellular,
+    message = "",
+}) => {
+    const number =
+        getWhatsAppNumber(
+            cellular
+        );
+
+    if (!number) {
+        return null;
+    }
+
+    const query =
+        message
+            ? `?text=${encodeURIComponent(
+                message
+            )}`
+            : "";
+
+    return `https://wa.me/${number}${query}`;
+};
+
+const sendProjectPensarCompletionAdminEmail =
+    async ({
+        user,
+        course,
+        evaluation,
+        company = null,
+        section = null,
+    }) => {
+        if (!user) {
+            return false;
+        }
+
+        const fullName =
+            `${user.firstName || ""} ${user.lastName || ""}`
+                .trim() ||
+            "Usuario sin nombre";
+
+        const whatsappUrl =
+            getWhatsAppUrl({
+                cellular:
+                    user.cellular,
+
+                message:
+                    `Hola ${fullName}, te contactamos de iDr.Mind sobre tu evaluación de Proyecto Pensar.`,
+            });
+
+        const finishedAt =
+            evaluation
+                ?.fechaFinalizacion
+                ? new Date(
+                    evaluation
+                        .fechaFinalizacion
+                ).toLocaleString(
+                    "es-EC",
+                    {
+                        timeZone:
+                            "America/Guayaquil",
+
+                        dateStyle:
+                            "long",
+
+                        timeStyle:
+                            "short",
+                    }
+                )
+                : new Date()
+                    .toLocaleString(
+                        "es-EC",
+                        {
+                            timeZone:
+                                "America/Guayaquil",
+
+                            dateStyle:
+                                "long",
+
+                            timeStyle:
+                                "short",
+                        }
+                    );
+
+        await sendEmail({
+            to:
+                PROJECT_PENSAR_ADMIN_EMAIL,
+
+            subject:
+                `✅ Proyecto Pensar: ${fullName} culminó su evaluación`,
+
+            html: `
+                <div style="
+                    margin:0;
+                    padding:28px 14px;
+                    background:#f1f5f9;
+                    font-family:Arial,Helvetica,sans-serif;
+                    color:#101828;
+                ">
+                    <div style="
+                        max-width:680px;
+                        margin:0 auto;
+                        background:#ffffff;
+                        border-radius:18px;
+                        overflow:hidden;
+                        box-shadow:0 18px 45px rgba(7,27,63,.14);
+                    ">
+                        <div style="
+                            padding:24px 28px;
+                            background:#071b3f;
+                            background-image:linear-gradient(
+                                135deg,
+                                #071b3f 0%,
+                                #173a8a 100%
+                            );
+                            color:#ffffff;
+                        ">
+                            <div style="
+                                font-size:12px;
+                                font-weight:700;
+                                letter-spacing:.08em;
+                                text-transform:uppercase;
+                                opacity:.78;
+                            ">
+                                Proyecto Pensar · iDr.Mind
+                            </div>
+
+                            <h1 style="
+                                margin:8px 0 0;
+                                font-size:24px;
+                                line-height:1.3;
+                            ">
+                                Evaluación culminada
+                            </h1>
+                        </div>
+
+                        <div style="padding:30px;">
+                            <p style="
+                                margin:0 0 20px;
+                                color:#475467;
+                                font-size:15px;
+                                line-height:1.7;
+                            ">
+                                Un participante finalizó correctamente
+                                su evaluación de Proyecto Pensar.
+                            </p>
+
+                            <div style="
+                                padding:18px;
+                                border:1px solid #e4e7ec;
+                                border-radius:14px;
+                                background:#f8fafc;
+                            ">
+                                <p style="margin:0 0 8px;">
+                                    <strong>Nombre:</strong>
+                                    ${escapeHtml(fullName)}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Cédula:</strong>
+                                    ${escapeHtml(user.cI || "No registrada")}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Correo:</strong>
+                                    ${escapeHtml(user.email || "No registrado")}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Celular:</strong>
+                                    ${escapeHtml(user.cellular || "No registrado")}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Empresa:</strong>
+                                    ${escapeHtml(
+                                        company?.nombreComercial ||
+                                        company?.razonSocial ||
+                                        "Participante individual"
+                                    )}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Sección:</strong>
+                                    ${escapeHtml(
+                                        section?.nombre ||
+                                        "No aplica"
+                                    )}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Evaluación:</strong>
+                                    N.º ${escapeHtml(
+                                        evaluation?.numeroEvaluacion ||
+                                        evaluation?.id ||
+                                        "—"
+                                    )}
+                                </p>
+
+                                <p style="margin:0 0 8px;">
+                                    <strong>Test:</strong>
+                                    ${escapeHtml(
+                                        course?.nombre ||
+                                        "Proyecto Pensar"
+                                    )}
+                                </p>
+
+                                <p style="margin:0;">
+                                    <strong>Finalización:</strong>
+                                    ${escapeHtml(finishedAt)}
+                                </p>
+                            </div>
+
+                            ${
+                                whatsappUrl
+                                    ? `
+                                        <div style="
+                                            margin-top:24px;
+                                            text-align:center;
+                                        ">
+                                            <a
+                                                href="${whatsappUrl}"
+                                                target="_blank"
+                                                rel="noopener"
+                                                style="
+                                                    display:inline-block;
+                                                    padding:14px 24px;
+                                                    border-radius:10px;
+                                                    background:#25D366;
+                                                    color:#ffffff !important;
+                                                    text-decoration:none;
+                                                    font-size:15px;
+                                                    font-weight:700;
+                                                "
+                                            >
+                                                💬 Contactar por WhatsApp
+                                            </a>
+                                        </div>
+                                    `
+                                    : `
+                                        <div style="
+                                            margin-top:20px;
+                                            padding:12px 14px;
+                                            border-radius:10px;
+                                            background:#fff4e5;
+                                            color:#9a6700;
+                                            font-size:13px;
+                                        ">
+                                            El usuario no tiene un número
+                                            de celular registrado para WhatsApp.
+                                        </div>
+                                    `
+                            }
+                        </div>
+                    </div>
+                </div>
+            `,
+        });
+
+        return true;
+    };
+
 const {
     calculateCompleteResult,
 } = require(
@@ -1946,6 +2278,53 @@ const finishEvaluation = catchError(
             console.error(
                 "❌ No se pudo enviar el correo de finalización:",
                 emailError
+            );
+        }
+
+        /*
+         * Notificación administrativa independiente.
+         * Un fallo aquí NO afecta la finalización del test.
+         */
+        try {
+            const adminUser =
+                evaluation
+                    .inscripcion
+                    ?.user;
+
+            const adminCourse =
+                evaluation
+                    .test
+                    ?.course;
+
+            await sendProjectPensarCompletionAdminEmail({
+                user:
+                    adminUser,
+
+                course:
+                    adminCourse,
+
+                evaluation,
+
+                company:
+                    adminUser
+                        ?.empresa ||
+                    null,
+
+                section:
+                    adminUser
+                        ?.empresaSeccion ||
+                    null,
+            });
+
+            console.log(
+                `✅ Notificación de culminación enviada a ${PROJECT_PENSAR_ADMIN_EMAIL}`
+            );
+        } catch (
+            adminEmailError
+        ) {
+            console.error(
+                "❌ No se pudo enviar la notificación administrativa de culminación:",
+                adminEmailError
             );
         }
 

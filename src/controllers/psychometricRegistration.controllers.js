@@ -68,6 +68,24 @@ const capitalizeWords = (value) => {
 };
 
 /* =========================================================
+   NORMALIZAR GÉNERO
+========================================================= */
+
+const normalizeGenre = (value) => {
+  const genre = normalizeText(value).toUpperCase();
+
+  if (["M", "MASCULINO", "HOMBRE"].includes(genre)) {
+    return "MASCULINO";
+  }
+
+  if (["F", "FEMENINO", "MUJER"].includes(genre)) {
+    return "FEMENINO";
+  }
+
+  return null;
+};
+
+/* =========================================================
    NORMALIZAR FECHA DE NACIMIENTO
 ========================================================= */
 
@@ -214,6 +232,7 @@ const findOrCreateUser = async ({
   apellidos,
   celular,
   dateBirth,
+  genre,
   grado,
   subsistema,
   empresaId,
@@ -247,6 +266,9 @@ const findOrCreateUser = async ({
 
         dateBirth:
           dateBirth || null,
+
+        genre:
+          genre || null,
 
         grado:
           grado || null,
@@ -310,6 +332,11 @@ const findOrCreateUser = async ({
     dateBirth:
       user.dateBirth ||
       dateBirth ||
+      null,
+
+    genre:
+      user.genre ||
+      genre ||
       null,
 
     grado:
@@ -762,6 +789,7 @@ const registerPsychometric = catchError(
       celular,
 
       dateBirth,
+      genre,
 
       grado,
       subsistema,
@@ -781,6 +809,11 @@ const registerPsychometric = catchError(
     const dateBirthFinal =
       normalizeDateBirth(
         dateBirth
+      );
+
+    const genreFinal =
+      normalizeGenre(
+        genre
       );
 
     /* =====================================================
@@ -811,6 +844,15 @@ const registerPsychometric = catchError(
         .json({
           message:
             "La fecha de nacimiento es requerida y debe ser válida.",
+        });
+    }
+
+    if (!genreFinal) {
+      return res
+        .status(400)
+        .json({
+          message:
+            "El género es requerido y debe ser Masculino o Femenino.",
         });
     }
 
@@ -969,6 +1011,9 @@ const registerPsychometric = catchError(
 
           dateBirth:
             dateBirthFinal,
+
+          genre:
+            genreFinal,
 
           grado:
             normalizeText(
@@ -1134,6 +1179,10 @@ const registerPsychometric = catchError(
           dateBirth:
             responseData.user
               .dateBirth,
+
+          genre:
+            responseData.user
+              .genre,
 
           empresaId:
             responseData.user

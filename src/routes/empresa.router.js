@@ -15,8 +15,14 @@ const verifyJWT = require(
   "../utils/verifyJWT"
 );
 
-const empresaRouter =
-  express.Router();
+const {
+  uploadEmpresaLogo,
+  generateEmpresaLogoUrl,
+} = require(
+  "../utils/uploadEmpresaLogo"
+);
+
+const empresaRouter = express.Router();
 
 /* =========================================
    RUTA PÚBLICA
@@ -25,9 +31,7 @@ const empresaRouter =
 
 empresaRouter
   .route("/empresas/public")
-  .get(
-    getPublicActiveEmpresas
-  );
+  .get(getPublicActiveEmpresas);
 
 /* =========================================
    RUTAS ADMINISTRATIVAS PROTEGIDAS
@@ -41,6 +45,8 @@ empresaRouter
   )
   .post(
     verifyJWT,
+    uploadEmpresaLogo.single("logo"),
+    generateEmpresaLogoUrl,
     create
   );
 
@@ -52,6 +58,8 @@ empresaRouter
   )
   .put(
     verifyJWT,
+    uploadEmpresaLogo.single("logo"),
+    generateEmpresaLogoUrl,
     update
   )
   .delete(
@@ -59,5 +67,4 @@ empresaRouter
     remove
   );
 
-module.exports =
-  empresaRouter;
+module.exports = empresaRouter;

@@ -6,6 +6,10 @@ const catchError = require(
   "../utils/catchError"
 );
 
+const generarInformePsicometricoEmpresa = require(
+  "../utils/generarInformePsicometricoEmpresa"
+);
+
 /* =========================================================
    MODELOS
 ========================================================= */
@@ -4686,6 +4690,165 @@ const getPsychometricDashboardParticipantDetail =
     }
   );
 
+
+/* =========================================================
+   7. GET /psychometric/dashboard/organizations/:empresaId/pdf-preview
+
+   Vista previa administrativa del informe empresarial.
+   - No guarda archivos.
+   - No modifica datos.
+   - Reutiliza el generador empresarial real.
+   - Admite los mismos filtros empresariales enviados por query.
+========================================================= */
+
+const getPsychometricDashboardOrganizationPdfPreview =
+  catchError(
+    async (
+      req,
+      res
+    ) => {
+      const {
+        empresaId,
+      } = req.params;
+
+      if (
+        !empresaId
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "El ID de la empresa es requerido.",
+          });
+      }
+
+      /*
+       * Solamente pasamos al generador los filtros
+       * que realmente entiende el informe empresarial.
+       *
+       * El parámetro "v" lo usa el frontend únicamente
+       * para evitar caché y no debe formar parte del análisis.
+       */
+      const filters = {
+        seccionId:
+          req.query
+            .seccionId ||
+          null,
+
+        genero:
+          req.query
+            .genero ||
+          null,
+
+        rangoEtario:
+          req.query
+            .rangoEtario ||
+          null,
+
+        animodo:
+          req.query
+            .animodo ||
+          null,
+
+        comunicacion:
+          req.query
+            .comunicacion ||
+          null,
+
+        cerebro:
+          req.query
+            .cerebro ||
+          null,
+
+        negociacion:
+          req.query
+            .negociacion ||
+          null,
+
+        vak:
+          req.query
+            .vak ||
+          null,
+
+        persistencia:
+          req.query
+            .persistencia ||
+          null,
+
+        productividad:
+          req.query
+            .productividad ||
+          null,
+
+        personalidad:
+          req.query
+            .personalidad ||
+          null,
+      };
+
+      /*
+       * Eliminamos valores vacíos para que la portada
+       * no muestre filtros que no están activos.
+       */
+      const cleanFilters =
+        Object.fromEntries(
+          Object.entries(
+            filters
+          ).filter(
+            ([
+              ,
+              value,
+            ]) =>
+              value !==
+                null &&
+              value !==
+                undefined &&
+              String(
+                value
+              ).trim() !==
+                ""
+          )
+        );
+
+      const pdfBuffer =
+        await generarInformePsicometricoEmpresa({
+          empresaId,
+          filters:
+            cleanFilters,
+        });
+
+      const timestamp =
+        Date.now();
+
+      res.set({
+        "Content-Type":
+          "application/pdf",
+
+        "Content-Disposition":
+          `inline; filename="preview-informe-empresarial-${empresaId}-${timestamp}.pdf"`,
+
+        "Content-Length":
+          pdfBuffer.length,
+
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+
+        Pragma:
+          "no-cache",
+
+        Expires:
+          "0",
+
+        "Surrogate-Control":
+          "no-store",
+      });
+
+      return res.send(
+        pdfBuffer
+      );
+    }
+  );
+
 /* =========================================================
    EXPORTACIONES
 ========================================================= */
@@ -4702,4 +4865,6 @@ module.exports = {
   getPsychometricDashboardParticipants,
 
   getPsychometricDashboardParticipantDetail,
+
+  getPsychometricDashboardOrganizationPdfPreview,
 };

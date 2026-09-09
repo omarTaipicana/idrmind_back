@@ -31,11 +31,21 @@ const BRAND = {
     "../assets/test_logo.png"
   ),
 
+  logoUrl:
+    "https://idrmind.com/images/test_logo.png",
+
+  /*
+   * Logo iDr.Mind adicional para la portada.
+   * Se carga directamente desde la web.
+   */
+  idrmindLogoUrl:
+    "https://idrmind.com/images/idrmind_logo_fa.png",
+
   website:
     "www.idrmind.com",
 
   city:
-    "Quito, Ecuador",
+    "Mitad del Mundo, Quito, Ecuador",
 
   email:
     "info@idrmind.com / idrmind@gmail.com",
@@ -220,6 +230,26 @@ const SEMANTIC_COLORS = {
 
     "CAMALEÓN":
       COLORS.green,
+  },
+
+  productividad: {
+    A:
+      COLORS.green,
+
+    B:
+      COLORS.green,
+
+    C:
+      COLORS.blue,
+
+    D:
+      COLORS.yellow,
+
+    E:
+      COLORS.red,
+
+    F:
+      COLORS.gray,
   },
 };
 
@@ -654,6 +684,250 @@ const getPersonalityKey = (
   result?.personality
     ?.animal ||
   null;
+
+
+/* =========================================================
+   ETIQUETAS EMPRESARIALES
+
+   Comunicación:
+   COLOR - TIPO DE COMUNICACIÓN
+
+   Cerebro:
+   CATEGORÍA - TIPO DE CEREBRO
+
+   Primero se toma el valor real guardado en el resultado
+   individual. Los mapas solamente funcionan como respaldo
+   para evaluaciones antiguas.
+========================================================= */
+
+const COMMUNICATION_TYPE_BY_COLOR = {
+  AMARILLO:
+    "LÓGICO",
+
+  ROJO:
+    "RETADOR",
+
+  AZUL:
+    "EMOCIONAL",
+
+  VERDE:
+    "VISIONARIO",
+};
+
+const BRAIN_TYPE_BY_CATEGORY = {
+  IZQUIERDO:
+    "PENSANTE",
+
+  CENTRAL:
+    "REPTILIANO",
+
+  DERECHO:
+    "EMOCIONAL",
+};
+
+const getCommunicationType = (
+  result = {}
+) => {
+  const color =
+    normalizeUpper(
+      result
+        ?.communication
+        ?.dominantColor ||
+      result
+        ?.personality
+        ?.colorPecho
+    );
+
+  const type =
+    result
+      ?.communication
+      ?.communicationType ||
+    result
+      ?.personality
+      ?.tipoComunicacion ||
+    COMMUNICATION_TYPE_BY_COLOR[
+      color
+    ] ||
+    null;
+
+  return type
+    ? normalizeText(
+        type,
+        ""
+      )
+    : null;
+};
+
+const getCommunicationAggregateLabel = (
+  result = {}
+) => {
+  const color =
+    result
+      ?.communication
+      ?.dominantColor ||
+    result
+      ?.personality
+      ?.colorPecho ||
+    null;
+
+  if (!color) {
+    return null;
+  }
+
+  const type =
+    getCommunicationType(
+      result
+    );
+
+  return type
+    ? `${normalizeText(
+        color
+      )} - ${normalizeText(
+        type
+      )}`
+    : normalizeText(
+        color
+      );
+};
+
+const getBrainType = (
+  result = {}
+) => {
+  const category =
+    normalizeUpper(
+      result
+        ?.brain
+        ?.brainCategory
+    );
+
+  const type =
+    result
+      ?.brain
+      ?.brainType ||
+    result
+      ?.personality
+      ?.tipoCerebro ||
+    BRAIN_TYPE_BY_CATEGORY[
+      category
+    ] ||
+    null;
+
+  if (!type) {
+    return null;
+  }
+
+  let cleanType =
+    normalizeText(
+      type,
+      ""
+    );
+
+  /*
+   * Algunos resultados antiguos guardaron:
+   * "CENTRAL / HACER", "IZQUIERDO / PENSAR", etc.
+   * Como la categoría ya se muestra antes del guion,
+   * eliminamos el prefijo repetido.
+   */
+  if (
+    category &&
+    normalizeUpper(
+      cleanType
+    ).startsWith(
+      `${category} /`
+    )
+  ) {
+    cleanType =
+      cleanType
+        .slice(
+          category.length +
+            2
+        )
+        .trim();
+  }
+
+  return cleanType ||
+    null;
+};
+
+const getBrainAggregateLabel = (
+  result = {}
+) => {
+  const category =
+    result
+      ?.brain
+      ?.brainCategory ||
+    null;
+
+  if (!category) {
+    return null;
+  }
+
+  const type =
+    getBrainType(
+      result
+    );
+
+  return type
+    ? `${normalizeText(
+        category
+      )} - ${normalizeText(
+        type
+      )}`
+    : normalizeText(
+        category
+      );
+};
+
+
+const PRODUCTIVITY_CLASSIFICATION_NAMES = {
+  A:
+    "Élite Productiva",
+
+  B:
+    "Alto Desempeño",
+
+  C:
+    "Productividad Estratégica",
+
+  D:
+    "Productividad Consolidada",
+
+  E:
+    "Productividad Emergente",
+
+  F:
+    "Potencial Productivo",
+};
+
+const getProductivityAggregateLabel = (
+  result = {}
+) => {
+  const classification =
+    normalizeUpper(
+      result
+        ?.productivityIndex
+        ?.classification
+    );
+
+  if (!classification) {
+    return null;
+  }
+
+  const classificationName =
+    result
+      ?.productivityIndex
+      ?.classificationName ||
+    PRODUCTIVITY_CLASSIFICATION_NAMES[
+      classification
+    ] ||
+    null;
+
+  return classificationName
+    ? `${classification} - ${normalizeText(
+        classificationName
+      )}`
+    : classification;
+};
 
 const ageAtDate = (
   dateBirth,
@@ -1219,16 +1493,16 @@ const buildAnalytics = (
 
     addCounter(
       counters.comunicacion,
-      result
-        ?.communication
-        ?.dominantColor
+      getCommunicationAggregateLabel(
+        result
+      )
     );
 
     addCounter(
       counters.cerebro,
-      result
-        ?.brain
-        ?.brainCategory
+      getBrainAggregateLabel(
+        result
+      )
     );
 
     addCounter(
@@ -1253,9 +1527,9 @@ const buildAnalytics = (
 
     addCounter(
       counters.productividad,
-      result
-        ?.productivityIndex
-        ?.classification
+      getProductivityAggregateLabel(
+        result
+      )
     );
 
     addCounter(
@@ -1672,6 +1946,39 @@ const loadLogo = async ({
   };
 };
 
+
+const loadBrandLogo = async ({
+  pdfDoc,
+}) => {
+  const localLogo =
+    await loadLocalImage({
+      pdfDoc,
+      filePath:
+        BRAND.logoPath,
+    });
+
+  if (localLogo) {
+    return localLogo;
+  }
+
+  return await loadRemoteImage({
+    pdfDoc,
+    url:
+      BRAND.logoUrl,
+  });
+};
+
+
+const loadIdrmindFooterLogo = async ({
+  pdfDoc,
+}) => {
+  return await loadRemoteImage({
+    pdfDoc,
+    url:
+      BRAND.idrmindLogoUrl,
+  });
+};
+
 const drawContainedImage = ({
   page,
   image,
@@ -1683,14 +1990,20 @@ const drawContainedImage = ({
     COLORS.white,
   padding = 8,
 }) => {
-  page.drawRectangle({
-    x,
-    y,
-    width,
-    height,
-    color:
-      background,
-  });
+  /*
+   * Si background es null no dibujamos rectángulo detrás.
+   * Esto permite conservar transparencias PNG.
+   */
+  if (background) {
+    page.drawRectangle({
+      x,
+      y,
+      width,
+      height,
+      color:
+        background,
+    });
+  }
 
   if (!image) {
     return;
@@ -1751,26 +2064,224 @@ const drawContainedImage = ({
    COMPONENTES PDF
 ========================================================= */
 
-const drawPageHeader = ({
+const drawCorporatePageHeader = ({
   page,
   regularFont,
   boldFont,
   title,
   subtitle,
+  brandLogoImage,
 }) => {
+  /*
+   * Logo institucional.
+   */
+  if (brandLogoImage) {
+    const maxWidth =
+      118;
+
+    const maxHeight =
+      36;
+
+    const scale =
+      Math.min(
+        maxWidth /
+          brandLogoImage.width,
+        maxHeight /
+          brandLogoImage.height
+      );
+
+    const width =
+      brandLogoImage.width *
+      scale;
+
+    const height =
+      brandLogoImage.height *
+      scale;
+
+    page.drawImage(
+      brandLogoImage,
+      {
+        x:
+          MARGIN,
+        y:
+          PAGE_HEIGHT -
+          55,
+
+        width,
+        height,
+      }
+    );
+  } else {
+    page.drawText(
+      "iDr.Mind.",
+      {
+        x:
+          MARGIN,
+        y:
+          PAGE_HEIGHT -
+          36,
+
+        font:
+          boldFont,
+
+        size:
+          16,
+
+        color:
+          COLORS.blue,
+      }
+    );
+  }
+
+  /*
+   * Datos institucionales.
+   */
+  const contactX =
+    354;
+
+  page.drawText(
+    BRAND.city,
+    {
+      x:
+        contactX,
+      y:
+        PAGE_HEIGHT -
+        24,
+
+      font:
+        regularFont,
+      size:
+        6.5,
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.phone,
+    {
+      x:
+        contactX,
+      y:
+        PAGE_HEIGHT -
+        36,
+
+      font:
+        regularFont,
+      size:
+        6.5,
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.email,
+    {
+      x:
+        contactX,
+      y:
+        PAGE_HEIGHT -
+        48,
+
+      font:
+        regularFont,
+      size:
+        6.5,
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  page.drawText(
+    BRAND.website,
+    {
+      x:
+        contactX,
+      y:
+        PAGE_HEIGHT -
+        60,
+
+      font:
+        regularFont,
+      size:
+        6.5,
+      color:
+        COLORS.textSoft,
+    }
+  );
+
+  /*
+   * Línea institucional de cuatro colores.
+   */
+  const lineY =
+    PAGE_HEIGHT -
+    73;
+
+  const segmentWidth =
+    CONTENT_WIDTH /
+    4;
+
   page.drawRectangle({
-    x: 0,
+    x:
+      MARGIN,
     y:
-      PAGE_HEIGHT -
-      88,
+      lineY,
     width:
-      PAGE_WIDTH,
+      segmentWidth,
     height:
-      88,
+      2.2,
     color:
-      COLORS.navy,
+      COLORS.blue,
   });
 
+  page.drawRectangle({
+    x:
+      MARGIN +
+      segmentWidth,
+    y:
+      lineY,
+    width:
+      segmentWidth,
+    height:
+      2.2,
+    color:
+      COLORS.yellow,
+  });
+
+  page.drawRectangle({
+    x:
+      MARGIN +
+      segmentWidth *
+        2,
+    y:
+      lineY,
+    width:
+      segmentWidth,
+    height:
+      2.2,
+    color:
+      COLORS.green,
+  });
+
+  page.drawRectangle({
+    x:
+      MARGIN +
+      segmentWidth *
+        3,
+    y:
+      lineY,
+    width:
+      segmentWidth,
+    height:
+      2.2,
+    color:
+      COLORS.red,
+  });
+
+  /*
+   * Título de la página.
+   */
   page.drawText(
     normalizeText(
       title
@@ -1780,18 +2291,18 @@ const drawPageHeader = ({
         MARGIN,
       y:
         PAGE_HEIGHT -
-        47,
+        101,
+
       font:
         boldFont,
-      size: 17,
+      size:
+        16,
       color:
-        COLORS.white,
+        COLORS.navy,
     }
   );
 
-  if (
-    subtitle
-  ) {
+  if (subtitle) {
     drawWrappedText({
       page,
       text:
@@ -1800,21 +2311,17 @@ const drawPageHeader = ({
         MARGIN,
       y:
         PAGE_HEIGHT -
-        66,
+        119,
       maxWidth:
         CONTENT_WIDTH,
       font:
         regularFont,
       size:
-        8.5,
+        8,
       lineHeight:
-        11,
+        10,
       color:
-        rgb(
-          220 / 255,
-          230 / 255,
-          248 / 255
-        ),
+        COLORS.textSoft,
       maxLines:
         2,
     });
@@ -1899,12 +2406,14 @@ const drawKpi = ({
   color =
     COLORS.blue,
 }) => {
+  const height =
+    94;
+
   page.drawRectangle({
     x,
     y,
     width,
-    height:
-      94,
+    height,
     color:
       COLORS.white,
     borderColor:
@@ -1917,32 +2426,49 @@ const drawKpi = ({
     x,
     y:
       y +
-      88,
+      height -
+      6,
     width,
     height:
       6,
     color,
   });
 
-  page.drawText(
-    normalizeText(
-      label
-    ),
-    {
-      x:
-        x +
-        13,
-      y:
-        y +
-        67,
-      font:
-        boldFont,
-      size:
-        7,
-      color:
-        COLORS.muted,
-    }
-  );
+  /*
+   * El título se envuelve dentro de la tarjeta.
+   * Esto evita que IPEL y otros títulos largos
+   * se monten sobre la tarjeta vecina.
+   */
+  drawWrappedText({
+    page,
+    text:
+      label,
+    x:
+      x +
+      12,
+    y:
+      y +
+      68,
+    maxWidth:
+      width -
+      24,
+    font:
+      boldFont,
+    size:
+      String(
+        label ||
+        ""
+      ).length >
+        28
+        ? 5.8
+        : 6.8,
+    lineHeight:
+      7.2,
+    color:
+      COLORS.muted,
+    maxLines:
+      3,
+  });
 
   const valueText =
     normalizeText(
@@ -1954,14 +2480,19 @@ const drawKpi = ({
     {
       x:
         x +
-        13,
+        12,
       y:
         y +
-        34,
+        31,
       font:
         boldFont,
       size:
-        22,
+        String(
+          valueText
+        ).length >
+          8
+          ? 17
+          : 21,
       color,
     }
   );
@@ -1976,22 +2507,22 @@ const drawKpi = ({
         font:
           regularFont,
         size:
-          7.2,
+          6.8,
         maxWidth:
           width -
-          26,
+          24,
       }),
       {
         x:
           x +
-          13,
+          12,
         y:
           y +
-          14,
+          12,
         font:
           regularFont,
         size:
-          7.2,
+          6.8,
         color:
           COLORS.muted,
       }
@@ -2004,10 +2535,21 @@ const getSemanticColor = (
   value,
   index = 0
 ) => {
-  const key =
+  const fullKey =
     normalizeUpper(
       value
     );
+
+  const key =
+    fullKey.includes(
+      " - "
+    )
+      ? fullKey
+          .split(
+            " - "
+          )[0]
+          .trim()
+      : fullKey;
 
   if (
     SEMANTIC_COLORS[
@@ -2052,6 +2594,8 @@ const drawHorizontalBarChart = ({
   dimension,
   labelFormatter = null,
   maxItems = 8,
+  labelWidth = null,
+  barHeight = 9,
 }) => {
   page.drawRectangle({
     x,
@@ -2142,23 +2686,51 @@ const drawHorizontalBarChart = ({
         rows.length
     );
 
-  const labelWidth =
-    Math.min(
-      125,
-      width *
-        0.38
-    );
+  const resolvedLabelWidth =
+    labelWidth !==
+      null &&
+    labelWidth !==
+      undefined
+      ? Math.min(
+          Number(
+            labelWidth
+          ),
+          width *
+            0.52
+        )
+      : Math.min(
+          135,
+          width *
+            0.40
+        );
 
   const chartX =
     x +
     13 +
-    labelWidth;
+    resolvedLabelWidth;
+
+  /*
+   * Reservamos siempre espacio real para:
+   * - etiqueta izquierda
+   * - barra
+   * - valor "cantidad (porcentaje)"
+   *
+   * IMPORTANTE:
+   * antes se usaba labelWidth directamente.
+   * Cuando era null JavaScript lo convertía a 0,
+   * haciendo que las barras salieran del cuadro.
+   */
+  const valueAreaWidth =
+    66;
 
   const chartWidth =
-    width -
-    26 -
-    labelWidth -
-    54;
+    Math.max(
+      24,
+      width -
+        26 -
+        resolvedLabelWidth -
+        valueAreaWidth
+    );
 
   rows.forEach(
     (
@@ -2188,7 +2760,7 @@ const drawHorizontalBarChart = ({
           size:
             7.2,
           maxWidth:
-            labelWidth -
+            resolvedLabelWidth -
             8,
         }),
         {
@@ -2216,7 +2788,7 @@ const drawHorizontalBarChart = ({
         width:
           chartWidth,
         height:
-          10,
+          barHeight,
         color:
           COLORS.soft,
       });
@@ -2243,7 +2815,7 @@ const drawHorizontalBarChart = ({
             barWidth
           ),
         height:
-          10,
+          barHeight,
         color:
           getSemanticColor(
             dimension,
@@ -2257,20 +2829,46 @@ const drawHorizontalBarChart = ({
           item.porcentaje
         )})`;
 
+      const valueSize =
+        6.5;
+
+      const valueTextWidth =
+        boldFont.widthOfTextAtSize(
+          valueText,
+          valueSize
+        );
+
+      const valueRightEdge =
+        x +
+        width -
+        10;
+
+      const valueX =
+        Math.min(
+          chartX +
+            chartWidth +
+            6,
+          valueRightEdge -
+            valueTextWidth
+        );
+
       page.drawText(
         valueText,
         {
           x:
-            chartX +
-            chartWidth +
-            6,
+            Math.max(
+              chartX +
+                chartWidth +
+                4,
+              valueX
+            ),
           y:
             rowY -
             2,
           font:
             boldFont,
           size:
-            6.8,
+            valueSize,
           color:
             COLORS.text,
         }
@@ -2472,7 +3070,7 @@ const drawFilterSummary = ({
       "Género",
 
     rangoEtario:
-      "Rango etario",
+      "Cambio Generacional",
 
     animodo:
       "Animodo",
@@ -2546,6 +3144,208 @@ const drawFilterSummary = ({
 };
 
 /* =========================================================
+   PÁGINA FINAL - INTERPRETACIÓN
+========================================================= */
+
+const drawInterpretationClosingPage = ({
+  pdfDoc,
+  regularFont,
+  boldFont,
+  brandLogoImage,
+  companyName,
+  pageNumber,
+}) => {
+  const page =
+    pdfDoc.addPage([
+      PAGE_WIDTH,
+      PAGE_HEIGHT,
+    ]);
+
+  drawCorporatePageHeader({
+    page,
+    regularFont,
+    boldFont,
+    brandLogoImage,
+    title:
+      "Interpretación del informe",
+    subtitle:
+      "Convierte los resultados en acciones concretas para la organización.",
+  });
+
+  page.drawRectangle({
+    x:
+      MARGIN,
+    y:
+      402,
+    width:
+      CONTENT_WIDTH,
+    height:
+      230,
+    color:
+      COLORS.blueSoft,
+    borderColor:
+      COLORS.border,
+    borderWidth:
+      0.8,
+  });
+
+  page.drawText(
+    "SIGUIENTE PASO",
+    {
+      x:
+        MARGIN +
+        24,
+      y:
+        590,
+      font:
+        boldFont,
+      size:
+        8,
+      color:
+        COLORS.blue,
+    }
+  );
+
+  drawWrappedText({
+    page,
+    text:
+      "Agenda una cita para la interpretación de los resultados",
+    x:
+      MARGIN +
+      24,
+    y:
+      552,
+    maxWidth:
+      CONTENT_WIDTH -
+      48,
+    font:
+      boldFont,
+    size:
+      20,
+    lineHeight:
+      25,
+    color:
+      COLORS.navy,
+    maxLines:
+      3,
+  });
+
+  drawWrappedText({
+    page,
+    text:
+      `El informe de ${normalizeText(
+        companyName
+      )} presenta tendencias consolidadas. Una sesión de interpretación permite relacionar estos hallazgos con la realidad de la empresa, sus equipos, liderazgo, comunicación, negociación y productividad, y convertirlos en oportunidades de desarrollo.`,
+    x:
+      MARGIN +
+      24,
+    y:
+      475,
+    maxWidth:
+      CONTENT_WIDTH -
+      48,
+    font:
+      regularFont,
+    size:
+      9.5,
+    lineHeight:
+      14,
+    color:
+      COLORS.textSoft,
+    maxLines:
+      7,
+  });
+
+  page.drawRectangle({
+    x:
+      MARGIN,
+    y:
+      250,
+    width:
+      CONTENT_WIDTH,
+    height:
+      112,
+    color:
+      COLORS.navy,
+  });
+
+  page.drawText(
+    "AGENDA TU CITA DE INTERPRETACIÓN",
+    {
+      x:
+        MARGIN +
+        24,
+      y:
+        325,
+      font:
+        boldFont,
+      size:
+        10,
+      color:
+        COLORS.cyan,
+    }
+  );
+
+  page.drawText(
+    BRAND.phone,
+    {
+      x:
+        MARGIN +
+        24,
+      y:
+        296,
+      font:
+        boldFont,
+      size:
+        10,
+      color:
+        COLORS.white,
+    }
+  );
+
+  page.drawText(
+    BRAND.email,
+    {
+      x:
+        MARGIN +
+        24,
+      y:
+        275,
+      font:
+        regularFont,
+      size:
+        8.3,
+      color:
+        COLORS.white,
+    }
+  );
+
+  page.drawText(
+    BRAND.website,
+    {
+      x:
+        PAGE_WIDTH -
+        MARGIN -
+        150,
+      y:
+        296,
+      font:
+        boldFont,
+      size:
+        9,
+      color:
+        COLORS.white,
+    }
+  );
+
+  drawFooter({
+    page,
+    regularFont,
+    pageNumber,
+  });
+};
+
+/* =========================================================
    TABLA DE PARTICIPANTES
 ========================================================= */
 
@@ -2575,7 +3375,7 @@ const drawParticipantsTablePages = ({
         PAGE_HEIGHT,
       ]);
 
-    drawPageHeader({
+    drawCorporatePageHeader({
       page,
       regularFont,
       boldFont,
@@ -2914,6 +3714,22 @@ const generarInformePsicometricoEmpresa =
         empresa,
       });
 
+    /*
+     * El encabezado interior siempre utiliza
+     * la identidad institucional iDr.Mind.
+     * La portada puede seguir usando el logo
+     * de la empresa cuando esté disponible.
+     */
+    const brandLogoImage =
+      await loadBrandLogo({
+        pdfDoc,
+      });
+
+    const idrmindFooterLogoImage =
+      await loadIdrmindFooterLogo({
+        pdfDoc,
+      });
+
     const companyName =
       empresa
         ?.nombreComercial ||
@@ -3030,6 +3846,7 @@ const generarInformePsicometricoEmpresa =
             COLORS.white,
         }
       );
+
 
       drawWrappedText({
         page,
@@ -3165,6 +3982,38 @@ const generarInformePsicometricoEmpresa =
             ),
         }
       );
+
+      /*
+       * Logo iDr.Mind frente al bloque:
+       * - Fecha de generación
+       * - Documento de análisis organizacional
+       * - Web / ubicación
+       *
+       * Imagen utilizada:
+       * https://idrmind.com/images/idrmind_logo_fa.png
+       * Se conserva su transparencia: letras blancas sin fondo.
+       */
+      if (
+        idrmindFooterLogoImage
+      ) {
+        drawContainedImage({
+          page,
+          image:
+            idrmindFooterLogoImage,
+          x:
+            375,
+          y:
+            45,
+          width:
+            180,
+          height:
+            90,
+          background:
+            null,
+          padding:
+            0,
+        });
+      }
     }
 
     pageNumber +=
@@ -3181,10 +4030,11 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Resumen ejecutivo",
         subtitle:
@@ -3206,7 +4056,7 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          626,
+          616,
         width:
           kpiWidth,
         label:
@@ -3228,11 +4078,11 @@ const generarInformePsicometricoEmpresa =
           kpiWidth +
           gap,
         y:
-          626,
+          616,
         width:
           kpiWidth,
         label:
-          "PRODUCTIVIDAD",
+          "IPEL - Indice de Productividad Empresarial Laboral",
         value:
           formatPercent(
             analytics
@@ -3256,11 +4106,11 @@ const generarInformePsicometricoEmpresa =
           ) *
             2,
         y:
-          626,
+          616,
         width:
           kpiWidth,
         label:
-          "NEGOCIACIÓN",
+          "NIVEL DE NEGOCIACIÓN",
         value:
           analytics
             .negociacionPromedio,
@@ -3272,6 +4122,10 @@ const generarInformePsicometricoEmpresa =
           COLORS.cyan,
       });
 
+      /*
+       * Distribución compacta y equilibrada.
+       * Se evita dejar grandes zonas vacías.
+       */
       drawHorizontalBarChart({
         page,
         title:
@@ -3281,16 +4135,20 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          342,
+          398,
         width:
-          318,
+          305,
         height:
-          254,
+          188,
         regularFont,
         boldFont,
         dimension:
           "secciones",
         maxItems:
+          8,
+        labelWidth:
+          92,
+        barHeight:
           8,
       });
 
@@ -3301,35 +4159,39 @@ const generarInformePsicometricoEmpresa =
         data:
           analytics.genero,
         x:
-          370,
+          357,
         y:
-          469,
+          496,
         width:
-          183,
+          196,
         height:
-          127,
+          90,
         regularFont,
         boldFont,
         dimension:
           "genero",
         maxItems:
           4,
+        labelWidth:
+          72,
+        barHeight:
+          8,
       });
 
       drawHorizontalBarChart({
         page,
         title:
-          "Rango etario",
+          "Cambio Generacional",
         data:
           analytics.rangoEtario,
         x:
-          370,
+          357,
         y:
-          342,
+          398,
         width:
-          183,
+          196,
         height:
-          117,
+          90,
         regularFont,
         boldFont,
         dimension:
@@ -3343,6 +4205,10 @@ const generarInformePsicometricoEmpresa =
           key,
         maxItems:
           4,
+        labelWidth:
+          78,
+        barHeight:
+          8,
       });
 
       const insights =
@@ -3359,7 +4225,7 @@ const generarInformePsicometricoEmpresa =
           x:
             MARGIN,
           y:
-            310,
+            365,
           font:
             boldFont,
           size:
@@ -3379,9 +4245,9 @@ const generarInformePsicometricoEmpresa =
             x:
               MARGIN,
             y:
-              210 -
+              270 -
               index *
-                86,
+                82,
             width:
               CONTENT_WIDTH,
             title:
@@ -3415,14 +4281,15 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Perfil conductual y comunicación",
         subtitle:
-          "Distribución agregada de Animodo y colores de la comunicación.",
+          "Distribución agregada de Animodo. En comunicación se muestra COLOR - TIPO DE COMUNICACIÓN.",
       });
 
       drawHorizontalBarChart({
@@ -3434,11 +4301,11 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          425,
+          405,
         width:
           CONTENT_WIDTH,
         height:
-          300,
+          260,
         regularFont,
         boldFont,
         dimension:
@@ -3450,17 +4317,17 @@ const generarInformePsicometricoEmpresa =
       drawHorizontalBarChart({
         page,
         title:
-          "Colores de la comunicación",
+          "Colores y tipos de comunicación",
         data:
           analytics.comunicacion,
         x:
           MARGIN,
         y:
-          112,
+          105,
         width:
           CONTENT_WIDTH,
         height:
-          286,
+          265,
         regularFont,
         boldFont,
         dimension:
@@ -3490,30 +4357,31 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Procesamiento y sistema representacional",
         subtitle:
-          "Preferencias de cerebro y canales VAK observados en la empresa.",
+          "En cerebro se muestra CATEGORÍA - TIPO DE CEREBRO, junto con los canales VAK observados en la empresa.",
       });
 
       drawHorizontalBarChart({
         page,
         title:
-          "Tipos de cerebro",
+          "Tipo de cerebro",
         data:
           analytics.cerebro,
         x:
           MARGIN,
         y:
-          425,
+          405,
         width:
           CONTENT_WIDTH,
         height:
-          300,
+          260,
         regularFont,
         boldFont,
         dimension:
@@ -3531,11 +4399,11 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          112,
+          105,
         width:
           CONTENT_WIDTH,
         height:
-          286,
+          265,
         regularFont,
         boldFont,
         dimension:
@@ -3565,10 +4433,11 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Negociación, persistencia y productividad",
         subtitle:
@@ -3591,11 +4460,11 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          430,
+          405,
         width:
           chartWidth,
         height:
-          295,
+          260,
         regularFont,
         boldFont,
         dimension:
@@ -3615,11 +4484,11 @@ const generarInformePsicometricoEmpresa =
           chartWidth +
           10,
         y:
-          430,
+          405,
         width:
           chartWidth,
         height:
-          295,
+          260,
         regularFont,
         boldFont,
         dimension:
@@ -3631,23 +4500,27 @@ const generarInformePsicometricoEmpresa =
       drawHorizontalBarChart({
         page,
         title:
-          "Productividad",
+          "IPEL - Indice de Productividad Empresarial Laboral",
         data:
           analytics.productividad,
         x:
           MARGIN,
         y:
-          112,
+          105,
         width:
           CONTENT_WIDTH,
         height:
-          288,
+          265,
         regularFont,
         boldFont,
         dimension:
           "productividad",
         maxItems:
           8,
+        labelWidth:
+          205,
+        barHeight:
+          9,
       });
 
       drawFooter({
@@ -3671,10 +4544,11 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Distribución de personalidad",
         subtitle:
@@ -3690,28 +4564,32 @@ const generarInformePsicometricoEmpresa =
         x:
           MARGIN,
         y:
-          348,
+          360,
         width:
           CONTENT_WIDTH,
         height:
-          377,
+          305,
         regularFont,
         boldFont,
         dimension:
           "personalidad",
         maxItems:
           10,
+        labelWidth:
+          185,
+        barHeight:
+          9,
       });
 
       page.drawRectangle({
         x:
           MARGIN,
         y:
-          112,
+          105,
         width:
           CONTENT_WIDTH,
         height:
-          205,
+          225,
         color:
           COLORS.blueSoft,
         borderColor:
@@ -3727,7 +4605,7 @@ const generarInformePsicometricoEmpresa =
             MARGIN +
             18,
           y:
-            286,
+            292,
           font:
             boldFont,
           size:
@@ -3745,7 +4623,7 @@ const generarInformePsicometricoEmpresa =
           MARGIN +
           18,
         y:
-          260,
+          266,
         maxWidth:
           CONTENT_WIDTH -
           36,
@@ -3782,10 +4660,11 @@ const generarInformePsicometricoEmpresa =
           PAGE_HEIGHT,
         ]);
 
-      drawPageHeader({
+      drawCorporatePageHeader({
         page,
         regularFont,
         boldFont,
+        brandLogoImage,
         title:
           "Conclusiones empresariales",
         subtitle:
@@ -3959,6 +4838,23 @@ const generarInformePsicometricoEmpresa =
         startPageNumber:
           pageNumber,
       });
+
+    /* =====================================================
+       PÁGINA FINAL
+       CITA DE INTERPRETACIÓN
+    ===================================================== */
+
+    drawInterpretationClosingPage({
+      pdfDoc,
+      regularFont,
+      boldFont,
+      brandLogoImage,
+      companyName,
+      pageNumber,
+    });
+
+    pageNumber +=
+      1;
 
     /* =====================================================
        METADATA

@@ -21,6 +21,8 @@ const {
   getPsychometricDashboardParticipants,
 
   getPsychometricDashboardParticipantDetail,
+
+  getPsychometricDashboardOrganizationPdfPreview,
 } = require(
   "../controllers/psychometricDashboard.controllers"
 );
@@ -41,7 +43,9 @@ const verifyJWT = require(
 
 router.get(
   "/summary",
+
   verifyJWT,
+
   getPsychometricDashboardSummary
 );
 
@@ -53,7 +57,9 @@ router.get(
 
 router.get(
   "/analytics",
+
   verifyJWT,
+
   getPsychometricDashboardAnalytics
 );
 
@@ -65,7 +71,9 @@ router.get(
 
 router.get(
   "/filters",
+
   verifyJWT,
+
   getPsychometricDashboardFilters
 );
 
@@ -77,8 +85,29 @@ router.get(
 
 router.get(
   "/organizations",
+
   verifyJWT,
+
   getPsychometricDashboardOrganizations
+);
+
+/* =========================================================
+   PREVIEW PDF EMPRESARIAL
+
+   IMPORTANTE:
+   Debe declararse antes de cualquier ruta dinámica
+   que pudiera interceptar "organizations/:empresaId".
+
+   GET
+   /psychometric/dashboard/organizations/:empresaId/pdf-preview
+========================================================= */
+
+router.get(
+  "/organizations/:empresaId/pdf-preview",
+
+  verifyJWT,
+
+  getPsychometricDashboardOrganizationPdfPreview
 );
 
 /* =========================================================
@@ -89,7 +118,9 @@ router.get(
 
 router.get(
   "/participants",
+
   verifyJWT,
+
   getPsychometricDashboardParticipants
 );
 
@@ -102,7 +133,9 @@ router.get(
 
 router.get(
   "/participants/:evaluationId",
+
   verifyJWT,
+
   getPsychometricDashboardParticipantDetail
 );
 

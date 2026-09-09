@@ -23,6 +23,371 @@ const { Op, Sequelize } = require("sequelize");
 
 const TZ = "America/Guayaquil";
 
+/* =========================================================
+   NOTIFICACIÓN ADMINISTRATIVA - PROYECTO PENSAR
+========================================================= */
+
+const PROJECT_PENSAR_ADMIN_EMAIL =
+  process.env
+    .PROJECT_PENSAR_ADMIN_EMAIL ||
+  "nask.corp@gmail.com";
+
+const escapeHtml = (
+  value
+) => {
+  return String(
+    value ??
+    ""
+  )
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    )
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+    .replace(
+      /'/g,
+      "&#039;"
+    );
+};
+
+const getWhatsAppNumber = (
+  value
+) => {
+  let digits =
+    String(
+      value ||
+      ""
+    ).replace(
+      /\D/g,
+      ""
+    );
+
+  if (!digits) {
+    return "";
+  }
+
+  if (
+    digits.length === 10 &&
+    digits.startsWith(
+      "0"
+    )
+  ) {
+    digits =
+      `593${digits.slice(1)}`;
+  }
+
+  return digits;
+};
+
+const getWhatsAppUrl = ({
+  cellular,
+  message = "",
+}) => {
+  const number =
+    getWhatsAppNumber(
+      cellular
+    );
+
+  if (!number) {
+    return null;
+  }
+
+  const query =
+    message
+      ? `?text=${encodeURIComponent(
+        message
+      )}`
+      : "";
+
+  return `https://wa.me/${number}${query}`;
+};
+
+const sendProjectPensarPaymentAdminEmail =
+  async ({
+    user,
+    course,
+    evaluation,
+    payment,
+    comprobanteUrl = null,
+  }) => {
+    if (!user || !payment) {
+      return false;
+    }
+
+    const fullName =
+      `${user.firstName || ""} ${user.lastName || ""}`
+        .trim() ||
+      "Usuario sin nombre";
+
+    const whatsappUrl =
+      getWhatsAppUrl({
+        cellular:
+          user.cellular,
+
+        message:
+          `Hola ${fullName}, te contactamos de iDr.Mind sobre el pago registrado de Proyecto Pensar.`,
+      });
+
+    const paymentDate =
+      payment.createdAt
+        ? new Date(
+          payment.createdAt
+        ).toLocaleString(
+          "es-EC",
+          {
+            timeZone:
+              "America/Guayaquil",
+
+            dateStyle:
+              "long",
+
+            timeStyle:
+              "short",
+          }
+        )
+        : new Date()
+          .toLocaleString(
+            "es-EC",
+            {
+              timeZone:
+                "America/Guayaquil",
+
+              dateStyle:
+                "long",
+
+              timeStyle:
+                "short",
+            }
+          );
+
+    await sendEmail({
+      to:
+        PROJECT_PENSAR_ADMIN_EMAIL,
+
+      subject:
+        `💳 Proyecto Pensar: ${fullName} registró un pago`,
+
+      html: `
+        <div style="
+          margin:0;
+          padding:28px 14px;
+          background:#f1f5f9;
+          font-family:Arial,Helvetica,sans-serif;
+          color:#101828;
+        ">
+          <div style="
+            max-width:680px;
+            margin:0 auto;
+            background:#ffffff;
+            border-radius:18px;
+            overflow:hidden;
+            box-shadow:0 18px 45px rgba(7,27,63,.14);
+          ">
+            <div style="
+              padding:24px 28px;
+              background:#071b3f;
+              background-image:linear-gradient(
+                135deg,
+                #071b3f 0%,
+                #173a8a 100%
+              );
+              color:#ffffff;
+            ">
+              <div style="
+                font-size:12px;
+                font-weight:700;
+                letter-spacing:.08em;
+                text-transform:uppercase;
+                opacity:.78;
+              ">
+                Proyecto Pensar · iDr.Mind
+              </div>
+
+              <h1 style="
+                margin:8px 0 0;
+                font-size:24px;
+                line-height:1.3;
+              ">
+                Nuevo pago registrado
+              </h1>
+            </div>
+
+            <div style="padding:30px;">
+              <p style="
+                margin:0 0 20px;
+                color:#475467;
+                font-size:15px;
+                line-height:1.7;
+              ">
+                Un participante registró el comprobante
+                de pago de Proyecto Pensar.
+              </p>
+
+              <div style="
+                padding:18px;
+                border:1px solid #e4e7ec;
+                border-radius:14px;
+                background:#f8fafc;
+              ">
+                <p style="margin:0 0 8px;">
+                  <strong>Nombre:</strong>
+                  ${escapeHtml(fullName)}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Cédula:</strong>
+                  ${escapeHtml(user.cI || "No registrada")}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Correo:</strong>
+                  ${escapeHtml(user.email || "No registrado")}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Celular:</strong>
+                  ${escapeHtml(user.cellular || "No registrado")}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Evaluación:</strong>
+                  N.º ${escapeHtml(
+                    evaluation?.numeroEvaluacion ||
+                    evaluation?.id ||
+                    "—"
+                  )}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Test:</strong>
+                  ${escapeHtml(
+                    course?.nombre ||
+                    "Proyecto Pensar"
+                  )}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Valor registrado:</strong>
+                  $${Number(
+                    payment.valorDepositado ||
+                    0
+                  ).toFixed(2)}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>Entidad:</strong>
+                  ${escapeHtml(
+                    payment.entidad ||
+                    "No registrada"
+                  )}
+                </p>
+
+                <p style="margin:0 0 8px;">
+                  <strong>ID depósito:</strong>
+                  ${escapeHtml(
+                    payment.idDeposito ||
+                    "No registrado"
+                  )}
+                </p>
+
+                <p style="margin:0;">
+                  <strong>Fecha:</strong>
+                  ${escapeHtml(paymentDate)}
+                </p>
+              </div>
+
+              <div style="
+                margin-top:24px;
+                text-align:center;
+              ">
+                ${
+                  whatsappUrl
+                    ? `
+                      <a
+                        href="${whatsappUrl}"
+                        target="_blank"
+                        rel="noopener"
+                        style="
+                          display:inline-block;
+                          margin:4px;
+                          padding:14px 22px;
+                          border-radius:10px;
+                          background:#25D366;
+                          color:#ffffff !important;
+                          text-decoration:none;
+                          font-size:15px;
+                          font-weight:700;
+                        "
+                      >
+                        💬 Contactar por WhatsApp
+                      </a>
+                    `
+                    : ""
+                }
+
+                ${
+                  comprobanteUrl
+                    ? `
+                      <a
+                        href="${comprobanteUrl}"
+                        target="_blank"
+                        rel="noopener"
+                        style="
+                          display:inline-block;
+                          margin:4px;
+                          padding:14px 22px;
+                          border-radius:10px;
+                          background:#173a8a;
+                          color:#ffffff !important;
+                          text-decoration:none;
+                          font-size:15px;
+                          font-weight:700;
+                        "
+                      >
+                        📄 Ver comprobante
+                      </a>
+                    `
+                    : ""
+                }
+              </div>
+
+              ${
+                !whatsappUrl
+                  ? `
+                    <div style="
+                      margin-top:18px;
+                      padding:12px 14px;
+                      border-radius:10px;
+                      background:#fff4e5;
+                      color:#9a6700;
+                      font-size:13px;
+                    ">
+                      El usuario no tiene un número
+                      de celular registrado para WhatsApp.
+                    </div>
+                  `
+                  : ""
+              }
+            </div>
+          </div>
+        </div>
+      `,
+    });
+
+    return true;
+  };
+
 const getFechaEcuador = (date) => {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TZ,
@@ -1986,6 +2351,39 @@ const create = catchError(async (req, res) => {
     );
   }
 
+  /*
+   * Notificación administrativa SOLO para
+   * pagos psicométricos de Proyecto Pensar.
+   */
+  if (
+    tipoPagoFinal ===
+    "test_psicometrico"
+  ) {
+    try {
+      await sendProjectPensarPaymentAdminEmail({
+        user,
+        course:
+          cursoData,
+        evaluation,
+        payment:
+          result,
+        comprobanteUrl:
+          url,
+      });
+
+      console.log(
+        `✅ Notificación de pago Proyecto Pensar enviada a ${PROJECT_PENSAR_ADMIN_EMAIL}`
+      );
+    } catch (
+      adminEmailError
+    ) {
+      console.error(
+        "❌ No se pudo enviar la notificación administrativa del pago de Proyecto Pensar:",
+        adminEmailError
+      );
+    }
+  }
+
   /* =========================================
      SOCKET
   ========================================= */
@@ -3466,6 +3864,33 @@ const createPsychometricPayment =
       console.error(
         "No se pudo enviar el correo de confirmación del pago psicométrico:",
         emailError
+      );
+    }
+
+    /*
+     * Notificación administrativa de Proyecto Pensar.
+     * Este correo es independiente del correo enviado
+     * al participante.
+     */
+    try {
+      await sendProjectPensarPaymentAdminEmail({
+        user,
+        course,
+        evaluation,
+        payment,
+        comprobanteUrl:
+          url,
+      });
+
+      console.log(
+        `✅ Notificación de pago Proyecto Pensar enviada a ${PROJECT_PENSAR_ADMIN_EMAIL}`
+      );
+    } catch (
+      adminEmailError
+    ) {
+      console.error(
+        "❌ No se pudo enviar la notificación administrativa del pago de Proyecto Pensar:",
+        adminEmailError
       );
     }
 

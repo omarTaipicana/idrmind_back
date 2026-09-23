@@ -22,6 +22,8 @@ const {
 
   getPsychometricDashboardParticipantDetail,
 
+  updatePsychometricDashboardParticipantOrganization,
+
   getPsychometricDashboardOrganizationPdfPreview,
 } = require(
   "../controllers/psychometricDashboard.controllers"
@@ -122,6 +124,26 @@ router.get(
   verifyJWT,
 
   getPsychometricDashboardParticipants
+);
+
+/* =========================================================
+   VINCULAR EMPRESA Y SECCIÓN A UNA EVALUACIÓN
+
+   PUT /psychometric/dashboard/participants/:evaluationId/organization
+
+   Body:
+   {
+     "empresaId": "uuid",
+     "seccionId": "uuid"
+   }
+========================================================= */
+
+router.put(
+  "/participants/:evaluationId/organization",
+
+  verifyJWT,
+
+  updatePsychometricDashboardParticipantOrganization
 );
 
 /* =========================================================

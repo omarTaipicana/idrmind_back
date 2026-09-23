@@ -38,6 +38,14 @@ const EmpresaSeccion = require(
   "../models/EmpresaSeccion"
 );
 
+const User = require(
+  "../models/User"
+);
+
+const sequelize = require(
+  "../utils/connection"
+);
+
 /* =========================================================
    CONSTANTES
 ========================================================= */
@@ -4850,6 +4858,392 @@ const getPsychometricDashboardOrganizationPdfPreview =
   );
 
 /* =========================================================
+   7. PUT /psychometric/dashboard/participants/:evaluationId/organization
+
+   VINCULAR / CORREGIR EMPRESA Y SECCIÓN DE UNA EVALUACIÓN
+
+   Reglas:
+   - Actualiza la empresa y sección actuales del User.
+   - Actualiza el snapshot histórico SOLO de esta evaluación.
+   - Si el User cambia después de empresa/sección, esta evaluación
+     conserva la asignación guardada aquí.
+   - Empresa y sección se validan antes de modificar datos.
+   - Todo se ejecuta dentro de una transacción.
+========================================================= */
+
+const updatePsychometricDashboardParticipantOrganization =
+  catchError(
+    async (
+      req,
+      res
+    ) => {
+      const {
+        evaluationId,
+      } = req.params;
+
+      const {
+        empresaId,
+        seccionId,
+      } = req.body || {};
+
+      if (
+        !empresaId ||
+        !seccionId
+      ) {
+        return res
+          .status(400)
+          .json({
+            message:
+              "Debe seleccionar una empresa y una sección.",
+          });
+      }
+
+      const transaction =
+        await sequelize.transaction();
+
+      try {
+        const evaluation =
+          await PsychometricEvaluation.findOne({
+            where: {
+              id:
+                evaluationId,
+
+              estado:
+                "completada",
+            },
+
+            attributes: [
+              "id",
+              "inscripcionId",
+              "empresaIdSnapshot",
+              "seccionIdSnapshot",
+              "participantSnapshot",
+            ],
+
+            transaction,
+
+            lock:
+              transaction.LOCK.UPDATE,
+          });
+
+        if (
+          !evaluation
+        ) {
+          await transaction.rollback();
+
+          return res
+            .status(404)
+            .json({
+              message:
+                "Evaluación psicométrica completada no encontrada.",
+            });
+        }
+
+        const empresa =
+          await Empresa.findOne({
+            where: {
+              id:
+                empresaId,
+
+              activo:
+                true,
+            },
+
+            attributes: [
+              "id",
+              "razonSocial",
+              "nombreComercial",
+              "ruc",
+              "ciudad",
+              "provincia",
+              "sector",
+              "subSector",
+            ],
+
+            transaction,
+          });
+
+        if (
+          !empresa
+        ) {
+          await transaction.rollback();
+
+          return res
+            .status(400)
+            .json({
+              message:
+                "La empresa seleccionada no existe o no está activa.",
+            });
+        }
+
+        const seccion =
+          await EmpresaSeccion.findOne({
+            where: {
+              id:
+                seccionId,
+
+              empresaId:
+                empresa.id,
+
+              activo:
+                true,
+            },
+
+            attributes: [
+              "id",
+              "empresaId",
+              "nombre",
+              "descripcion",
+              "responsable",
+            ],
+
+            transaction,
+          });
+
+        if (
+          !seccion
+        ) {
+          await transaction.rollback();
+
+          return res
+            .status(400)
+            .json({
+              message:
+                "La sección seleccionada no pertenece a la empresa o no está activa.",
+            });
+        }
+
+        const currentSnapshot =
+          evaluation.participantSnapshot &&
+          typeof evaluation.participantSnapshot ===
+            "object"
+            ? evaluation.participantSnapshot
+            : {};
+
+        const snapshotUserId =
+          currentSnapshot.user
+            ?.id ||
+          null;
+
+        if (
+          !snapshotUserId
+        ) {
+          await transaction.rollback();
+
+          return res
+            .status(400)
+            .json({
+              message:
+                "La evaluación no contiene el identificador histórico del usuario y no puede vincularse automáticamente.",
+            });
+        }
+
+        const user =
+          await User.findByPk(
+            snapshotUserId,
+            {
+              transaction,
+              lock:
+                transaction.LOCK.UPDATE,
+            }
+          );
+
+        if (
+          !user
+        ) {
+          await transaction.rollback();
+
+          return res
+            .status(404)
+            .json({
+              message:
+                "El usuario asociado a la evaluación ya no existe.",
+            });
+        }
+
+        /* =================================================
+           1. ACTUALIZAR VINCULACIÓN ACTUAL DEL USUARIO
+        ================================================= */
+
+        await user.update(
+          {
+            empresaId:
+              empresa.id,
+
+            seccionId:
+              seccion.id,
+          },
+          {
+            transaction,
+          }
+        );
+
+        /* =================================================
+           2. ACTUALIZAR SNAPSHOT HISTÓRICO DE ESTE TEST
+
+           Los datos personales ya existentes en el snapshot
+           se conservan. Solo se completa/corrige la pertenencia
+           organizacional de esta evaluación.
+        ================================================= */
+
+        const participantSnapshot = {
+          ...currentSnapshot,
+
+          tipoParticipante:
+            "empresa",
+
+          user: {
+            ...(currentSnapshot.user || {}),
+
+            id:
+              user.id,
+          },
+
+          empresa: {
+            id:
+              empresa.id,
+
+            razonSocial:
+              empresa.razonSocial ||
+              null,
+
+            nombreComercial:
+              empresa.nombreComercial ||
+              null,
+
+            ruc:
+              empresa.ruc ||
+              null,
+
+            ciudad:
+              empresa.ciudad ||
+              null,
+
+            provincia:
+              empresa.provincia ||
+              null,
+
+            sector:
+              empresa.sector ||
+              null,
+
+            subSector:
+              empresa.subSector ||
+              null,
+          },
+
+          seccion: {
+            id:
+              seccion.id,
+
+            nombre:
+              seccion.nombre ||
+              null,
+
+            descripcion:
+              seccion.descripcion ||
+              null,
+
+            responsable:
+              seccion.responsable ||
+              null,
+          },
+
+          /*
+           * Conservamos snapshotAt si ya existía porque representa
+           * la finalización original. Registramos aparte cuándo se
+           * corrigió manualmente la vinculación organizacional.
+           */
+          snapshotAt:
+            currentSnapshot.snapshotAt ||
+            null,
+
+          organizationLinkedAt:
+            new Date().toISOString(),
+        };
+
+        await evaluation.update(
+          {
+            empresaIdSnapshot:
+              empresa.id,
+
+            seccionIdSnapshot:
+              seccion.id,
+
+            participantSnapshot,
+          },
+          {
+            transaction,
+          }
+        );
+
+        await transaction.commit();
+
+        return res.json({
+          message:
+            "Empresa y sección vinculadas correctamente al participante y a esta evaluación.",
+
+          data: {
+            evaluationId:
+              evaluation.id,
+
+            user: {
+              id:
+                user.id,
+
+              empresaId:
+                empresa.id,
+
+              seccionId:
+                seccion.id,
+            },
+
+            empresa: {
+              id:
+                empresa.id,
+
+              razonSocial:
+                empresa.razonSocial,
+
+              nombreComercial:
+                empresa.nombreComercial,
+            },
+
+            seccion: {
+              id:
+                seccion.id,
+
+              nombre:
+                seccion.nombre,
+            },
+
+            evaluationSnapshot: {
+              empresaIdSnapshot:
+                empresa.id,
+
+              seccionIdSnapshot:
+                seccion.id,
+
+              tipoParticipante:
+                "empresa",
+            },
+          },
+        });
+      } catch (
+        error
+      ) {
+        if (
+          !transaction.finished
+        ) {
+          await transaction.rollback();
+        }
+
+        throw error;
+      }
+    }
+  );
+
+/* =========================================================
    EXPORTACIONES
 ========================================================= */
 
@@ -4865,6 +5259,8 @@ module.exports = {
   getPsychometricDashboardParticipants,
 
   getPsychometricDashboardParticipantDetail,
+
+  updatePsychometricDashboardParticipantOrganization,
 
   getPsychometricDashboardOrganizationPdfPreview,
 };

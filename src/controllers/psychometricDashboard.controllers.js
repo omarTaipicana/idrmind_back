@@ -1892,6 +1892,455 @@ const buildPsychometricAnalytics = (
 };
 
 /* =========================================================
+   RESUMEN INTERPRETATIVO DEL GRUPO
+
+   IMPORTANTE:
+   - Se construye exclusivamente con las evaluaciones que
+     ya pasaron por los mismos filtros del dashboard.
+   - Reutiliza interpretaciones y recomendaciones guardadas
+     en resultado; no recalcula el test ni modifica resultados.
+========================================================= */
+
+const getFirstDistributionItem = (
+  distribution = []
+) => {
+  return Array.isArray(
+    distribution
+  ) && distribution.length > 0
+    ? distribution[0]
+    : null;
+};
+
+const cleanInterpretiveText = (
+  value,
+  maxLength = 520
+) => {
+  const text = String(
+    value || ""
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) {
+    return "";
+  }
+
+  if (
+    text.length <=
+    maxLength
+  ) {
+    return text;
+  }
+
+  return `${text
+    .slice(0, maxLength)
+    .trim()}…`;
+};
+
+const getMostFrequentRecommendation = (
+  evaluations = []
+) => {
+  const map =
+    new Map();
+
+  for (
+    const evaluation
+    of evaluations
+  ) {
+    const recommendations =
+      evaluation.resultado
+        ?.recommendations;
+
+    if (
+      !Array.isArray(
+        recommendations
+      )
+    ) {
+      continue;
+    }
+
+    for (
+      const item
+      of recommendations
+    ) {
+      const recommendation =
+        cleanInterpretiveText(
+          item?.recommendation,
+          420
+        );
+
+      if (
+        !recommendation
+      ) {
+        continue;
+      }
+
+      const skill =
+        cleanInterpretiveText(
+          item?.skill,
+          120
+        );
+
+      const key =
+        `${skill}||${recommendation}`;
+
+      const current =
+        map.get(key) || {
+          skill,
+          recommendation,
+          cantidad: 0,
+        };
+
+      current.cantidad +=
+        1;
+
+      map.set(
+        key,
+        current
+      );
+    }
+  }
+
+  return Array.from(
+    map.values()
+  ).sort(
+    (a, b) =>
+      b.cantidad -
+      a.cantidad
+  )[0] || null;
+};
+
+const getDominantPersonalityInterpretation = (
+  evaluations = [],
+  dominantPersonalityKey = null
+) => {
+  if (
+    !dominantPersonalityKey
+  ) {
+    return null;
+  }
+
+  const evaluation =
+    evaluations.find(
+      (item) => {
+        const personality =
+          item.resultado
+            ?.personality;
+
+        const key =
+          personality?.codigo ||
+          personality?.nombre ||
+          personality?.animal;
+
+        return (
+          key ===
+          dominantPersonalityKey
+        );
+      }
+    );
+
+  const personality =
+    evaluation?.resultado
+      ?.personality;
+
+  if (!personality) {
+    return null;
+  }
+
+  return {
+    codigo:
+      personality.codigo ||
+      null,
+
+    nombre:
+      personality.nombre ||
+      personality.codigo ||
+      personality.animal ||
+      null,
+
+    descripcion:
+      cleanInterpretiveText(
+        personality.descripcion,
+        560
+      ),
+
+    formaPensar:
+      cleanInterpretiveText(
+        personality.formaPensar,
+        420
+      ),
+
+    formaAprender:
+      cleanInterpretiveText(
+        personality.formaAprender,
+        420
+      ),
+
+    descripcionComunicacion:
+      cleanInterpretiveText(
+        personality
+          .descripcionComunicacion,
+        420
+      ),
+  };
+};
+
+const buildGroupInterpretation = ({
+  evaluations = [],
+  analytics = {},
+  context = {},
+}) => {
+  const total =
+    toNumber(
+      analytics.totalResultados
+    );
+
+  const scope =
+    context.seccionNombre &&
+    context.empresaNombre
+      ? `La sección ${context.seccionNombre} de la empresa ${context.empresaNombre}`
+      : context.empresaNombre
+        ? `La empresa ${context.empresaNombre}`
+        : context.seccionNombre
+          ? `La sección ${context.seccionNombre}`
+          : "El grupo analizado";
+
+  if (
+    total <= 0
+  ) {
+    return {
+      title:
+        "Resumen interpretativo del grupo",
+
+      scope,
+
+      totalResultados: 0,
+
+      introduction:
+        `${scope} no tiene resultados completados que coincidan con los filtros actuales.`,
+
+      summary: "",
+
+      strengths: [],
+
+      attention: [],
+
+      dominantPersonality:
+        null,
+
+      recommendation:
+        null,
+    };
+  }
+
+  const communication =
+    getFirstDistributionItem(
+      analytics.comunicacion
+        ?.distribution
+    );
+
+  const brain =
+    getFirstDistributionItem(
+      analytics.cerebro
+        ?.distribution
+    );
+
+  const vak =
+    getFirstDistributionItem(
+      analytics.vak
+        ?.distribution
+    );
+
+  const animodo =
+    getFirstDistributionItem(
+      analytics.animodo
+        ?.distribution
+    );
+
+  const negotiation =
+    getFirstDistributionItem(
+      analytics.negociacion
+        ?.distribution
+    );
+
+  const persistence =
+    getFirstDistributionItem(
+      analytics.persistencia
+        ?.distribution
+    );
+
+  const productivity =
+    getFirstDistributionItem(
+      analytics.productividad
+        ?.distribution
+    );
+
+  const personality =
+    getFirstDistributionItem(
+      analytics.personalidad
+        ?.distribution
+    );
+
+  const dominantPersonality =
+    getDominantPersonalityInterpretation(
+      evaluations,
+      personality?.key
+    );
+
+  const frequentRecommendation =
+    getMostFrequentRecommendation(
+      evaluations
+    );
+
+  const introduction =
+    `${scope}, considerando ${total} ${
+      total === 1
+        ? "resultado analizado"
+        : "resultados analizados"
+    }, presenta el siguiente perfil psicométrico consolidado según los filtros activos.`;
+
+  const profileParts = [];
+
+  if (communication) {
+    profileParts.push(
+      `En comunicación predomina ${communication.key} (${communication.porcentaje} %; ${communication.cantidad} ${communication.cantidad === 1 ? "persona" : "personas"}).`
+    );
+  }
+
+  if (brain) {
+    profileParts.push(
+      `En tipo de cerebro la mayor presencia corresponde a ${brain.key} (${brain.porcentaje} %).`
+    );
+  }
+
+  if (vak) {
+    profileParts.push(
+      `En VAK predomina ${vak.key} (${vak.porcentaje} %), lo que identifica el canal de representación más frecuente dentro del grupo.`
+    );
+  }
+
+  if (animodo) {
+    profileParts.push(
+      `En Animodo, la categoría con mayor representación es ${animodo.key} (${animodo.porcentaje} %).`
+    );
+  }
+
+  const performanceParts = [];
+
+  if (
+    analytics.negociacion
+      ?.promedioPuntaje !==
+    undefined
+  ) {
+    performanceParts.push(
+      `La negociación registra un promedio de ${analytics.negociacion.promedioPuntaje} puntos${negotiation ? ` y la clasificación más frecuente es ${negotiation.key}` : ""}.`
+    );
+  }
+
+  if (
+    analytics.persistencia
+      ?.promedioPuntaje !==
+    undefined
+  ) {
+    performanceParts.push(
+      `La persistencia promedio es ${analytics.persistencia.promedioPuntaje} de 4${persistence ? `, con mayor presencia del nivel ${persistence.key}` : ""}.`
+    );
+  }
+
+  if (
+    analytics.productividad
+      ?.promedioPorcentaje !==
+    undefined
+  ) {
+    performanceParts.push(
+      `El índice promedio de productividad es ${analytics.productividad.promedioPorcentaje} %${productivity ? ` y la clasificación más frecuente es ${productivity.key}` : ""}.`
+    );
+  }
+
+  const strengths = [];
+
+  if (
+    dominantPersonality
+      ?.descripcion
+  ) {
+    strengths.push(
+      `La personalidad predominante es ${dominantPersonality.nombre}. ${dominantPersonality.descripcion}`
+    );
+  }
+
+  if (
+    dominantPersonality
+      ?.formaPensar
+  ) {
+    strengths.push(
+      `Forma de pensar predominante: ${dominantPersonality.formaPensar}`
+    );
+  }
+
+  if (
+    dominantPersonality
+      ?.formaAprender
+  ) {
+    strengths.push(
+      `Forma de aprender predominante: ${dominantPersonality.formaAprender}`
+    );
+  }
+
+  const attention = [];
+
+  if (
+    frequentRecommendation
+  ) {
+    attention.push(
+      `${frequentRecommendation.skill ? `${frequentRecommendation.skill}: ` : ""}${frequentRecommendation.recommendation}`
+    );
+  }
+
+  if (
+    dominantPersonality
+      ?.descripcionComunicacion
+  ) {
+    attention.push(
+      `Para la gestión de la comunicación del grupo: ${dominantPersonality.descripcionComunicacion}`
+    );
+  }
+
+  return {
+    title:
+      "Resumen interpretativo del grupo",
+
+    scope,
+
+    totalResultados:
+      total,
+
+    introduction,
+
+    summary: [
+      ...profileParts,
+      ...performanceParts,
+    ].join(" "),
+
+    strengths:
+      strengths.slice(
+        0,
+        3
+      ),
+
+    attention:
+      attention.slice(
+        0,
+        2
+      ),
+
+    dominantPersonality,
+
+    recommendation:
+      frequentRecommendation,
+  };
+};
+
+/* =========================================================
    TIMELINE EVALUACIONES
 ========================================================= */
 
@@ -2971,6 +3420,89 @@ const getPsychometricDashboardAnalytics =
           evaluations
         );
 
+      let empresaNombre =
+        null;
+
+      let seccionNombre =
+        null;
+
+      if (
+        filters.empresaId
+      ) {
+        const empresa =
+          await Empresa.findByPk(
+            filters.empresaId,
+            {
+              attributes: [
+                "id",
+                "razonSocial",
+                "nombreComercial",
+              ],
+            }
+          );
+
+        empresaNombre =
+          empresa
+            ? empresa.nombreComercial ||
+              empresa.razonSocial ||
+              null
+            : null;
+      }
+
+      if (
+        filters.seccionId
+      ) {
+        const seccion =
+          await EmpresaSeccion.findByPk(
+            filters.seccionId,
+            {
+              attributes: [
+                "id",
+                "nombre",
+                "empresaId",
+              ],
+            }
+          );
+
+        seccionNombre =
+          seccion?.nombre ||
+          null;
+
+        if (
+          !empresaNombre &&
+          seccion?.empresaId
+        ) {
+          const empresa =
+            await Empresa.findByPk(
+              seccion.empresaId,
+              {
+                attributes: [
+                  "id",
+                  "razonSocial",
+                  "nombreComercial",
+                ],
+              }
+            );
+
+          empresaNombre =
+            empresa
+              ? empresa.nombreComercial ||
+                empresa.razonSocial ||
+                null
+              : null;
+        }
+      }
+
+      const groupInterpretation =
+        buildGroupInterpretation({
+          evaluations,
+          analytics,
+          context: {
+            empresaNombre,
+            seccionNombre,
+          },
+        });
+
       return res.json({
         message:
           "Analítica psicométrica obtenida correctamente.",
@@ -3057,6 +3589,8 @@ const getPsychometricDashboardAnalytics =
         },
 
         analytics,
+
+        groupInterpretation,
       });
     }
   );

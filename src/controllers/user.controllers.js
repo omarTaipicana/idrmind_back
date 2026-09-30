@@ -10,6 +10,8 @@ const Course = require("../models/Course");
 const Inscripcion = require("../models/Inscripcion");
 const Pagos = require("../models/Pagos");
 const Certificado = require("../models/Certificado");
+const PsychometricEvaluation = require("../models/PsychometricEvaluation");
+const sequelize = require("../utils/connection");
 
 // ========================== GET ALL USERS ==========================
 
@@ -813,27 +815,167 @@ const update = catchError(async (req, res) => {
     subsistema,
     isVerified,
   } = req.body;
+
   const { id } = req.params;
-  const result = await User.update(
-    {
-      cI,
-      email,
-      firstName,
-      lastName,
-      cellular,
-      dateBirth,
-      province,
-      city,
-      genre,
-      role,
-      grado,
-      subsistema,
-      isVerified,
-    },
-    { where: { id }, returning: true }
-  );
-  if (result[0] === 0) return res.sendStatus(404);
-  return res.json(result[1][0]);
+
+  const transaction =
+    await sequelize.transaction();
+
+  try {
+    const user =
+      await User.findByPk(id, {
+        transaction,
+      });
+
+    if (!user) {
+      await transaction.rollback();
+      return res.sendStatus(404);
+    }
+
+    /*
+     * La fecha de nacimiento es un dato biográfico
+     * corregible, no un dato histórico variable.
+     *
+     * Si cambia desde UserEdit, también corregimos
+     * la fecha guardada en participantSnapshot de
+     * TODAS las evaluaciones psicométricas del usuario.
+     *
+     * No se modifica ningún otro dato histórico:
+     * empresa, sección, resultados, puntajes, etc.
+     */
+    const previousDateBirth =
+      user.dateBirth
+        ? String(user.dateBirth).substring(0, 10)
+        : null;
+
+    const nextDateBirth =
+      dateBirth
+        ? String(dateBirth).substring(0, 10)
+        : null;
+
+    const dateBirthChanged =
+      previousDateBirth !== nextDateBirth;
+
+    await user.update(
+      {
+        cI,
+        email,
+        firstName,
+        lastName,
+        cellular,
+        dateBirth: nextDateBirth,
+        province,
+        city,
+        genre,
+        role,
+        grado,
+        subsistema,
+        isVerified,
+      },
+      {
+        transaction,
+      }
+    );
+
+    let updatedPsychometricSnapshots = 0;
+
+    if (dateBirthChanged) {
+      const inscriptions =
+        await Inscripcion.findAll({
+          where: {
+            userId: user.id,
+          },
+          attributes: ["id"],
+          transaction,
+        });
+
+      const inscriptionIds =
+        inscriptions.map(
+          (item) => item.id
+        );
+
+      if (inscriptionIds.length > 0) {
+        const evaluations =
+          await PsychometricEvaluation.findAll({
+            where: {
+              inscripcionId:
+                inscriptionIds,
+            },
+            transaction,
+          });
+
+        for (const evaluation of evaluations) {
+          const currentSnapshot =
+            evaluation.participantSnapshot;
+
+          /*
+           * Solo se corrige un snapshot que realmente
+           * pertenece al usuario editado. En snapshots
+           * antiguos sin user.id usamos la relación de
+           * la inscripción como respaldo.
+           */
+          const snapshotUserId =
+            currentSnapshot?.user?.id
+              ? String(
+                  currentSnapshot.user.id
+                )
+              : null;
+
+          if (
+            snapshotUserId &&
+            snapshotUserId !==
+              String(user.id)
+          ) {
+            continue;
+          }
+
+          const nextSnapshot = {
+            ...(currentSnapshot || {}),
+            user: {
+              ...(currentSnapshot?.user || {}),
+              id:
+                currentSnapshot?.user?.id ||
+                user.id,
+              dateBirth:
+                nextDateBirth,
+            },
+          };
+
+          await evaluation.update(
+            {
+              participantSnapshot:
+                nextSnapshot,
+            },
+            {
+              transaction,
+            }
+          );
+
+          updatedPsychometricSnapshots += 1;
+        }
+      }
+    }
+
+    await transaction.commit();
+
+    const response =
+      user.toJSON();
+
+    /*
+     * Metadato informativo para administración.
+     * No cambia la estructura de User en BD.
+     */
+    response.psychometricDateBirthSync = {
+      changed: dateBirthChanged,
+      evaluationsUpdated:
+        updatedPsychometricSnapshots,
+    };
+
+    return res.json(response);
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 });
 
 const login = catchError(async (req, res) => {

@@ -106,6 +106,54 @@ const normalizeDateBirth = (value) => {
     return null;
   }
 
+  const parsedDate =
+    new Date(`${dateBirth}T00:00:00`);
+
+  if (
+    Number.isNaN(
+      parsedDate.getTime()
+    )
+  ) {
+    return null;
+  }
+
+  const today = new Date();
+
+  if (parsedDate > today) {
+    return null;
+  }
+
+  let age =
+    today.getFullYear() -
+    parsedDate.getFullYear();
+
+  const monthDifference =
+    today.getMonth() -
+    parsedDate.getMonth();
+
+  if (
+    monthDifference < 0 ||
+    (
+      monthDifference === 0 &&
+      today.getDate() <
+        parsedDate.getDate()
+    )
+  ) {
+    age -= 1;
+  }
+
+  /*
+   * Evita fechas evidentemente incoherentes
+   * como 1074. Se admite cualquier edad entre
+   * 0 y 120 años.
+   */
+  if (
+    age < 0 ||
+    age > 120
+  ) {
+    return null;
+  }
+
   return dateBirth;
 };
 

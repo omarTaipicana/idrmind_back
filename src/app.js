@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const router = require('./routes');
 const errorHandler = require('./utils/errorHandler');
+const { corsOptions } = require('./utils/securityOrigins');
 require('dotenv').config();
 require("./models")
 
@@ -17,7 +18,7 @@ app.use(express.json());
 app.use(helmet({
     crossOriginResourcePolicy: false,
 }));
-app.use(cors());
+app.use(cors(corsOptions()));
 
 // Servir la carpeta 'uploads' de forma pública
 app.use('/uploads', express.static(path.join(__dirname, "..", "uploads")));

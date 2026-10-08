@@ -660,18 +660,16 @@ const getAnimodoCategory = (
       raw
     );
 
-  if (
-    normalized.startsWith(
-      "ENTRE "
-    )
-  ) {
+  const withoutAccents = normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (withoutAccents.startsWith("ENTRE ") || withoutAccents === "CAMALEON") {
     return "CAMALEÓN";
   }
-
-  return (
-    raw ||
-    null
-  );
+  if (withoutAccents === "BUHO") return "BÚHO";
+  if (withoutAccents === "DELFIN") return "DELFÍN";
+  return normalizeText(raw, "") || null;
 };
 
 const getPersonalityKey = (
@@ -1182,14 +1180,8 @@ const evaluationMatchesFilters = (
 
   if (
     animodo &&
-    normalizeUpper(
-      getAnimodoCategory(
-        result
-      )
-    ) !==
-      normalizeUpper(
-        animodo
-      )
+    normalizeUpper(getAnimodoCategory(result)).normalize("NFD").replace(/[\u0300-\u036f]/g, "") !==
+      normalizeUpper(animodo).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   ) {
     return false;
   }
@@ -2581,6 +2573,31 @@ const getSemanticColor = (
   ];
 };
 
+const NEGOTIATION_RANGES = {
+  "MAESTRO DE LA NEGOCIACIÓN": "81-90 puntos",
+  "ESTRATEGA DE INFLUENCIA": "71-80 puntos",
+  "ARQUITECTO DE ACUERDOS": "61-70 puntos",
+  "EXPLORADOR ESTRATÉGICO": "30-60 puntos",
+};
+
+const IPEL_PERCENTAGES = {
+  A: "100%", B: "91.6%", C: "83%", D: "75%", E: "66.6%", F: "56.6%",
+};
+
+const formatNegotiationRange = (value) => {
+  const label = normalizeText(value, "");
+  const key = normalizeUpper(label);
+  const range = NEGOTIATION_RANGES[key];
+  return range ? `${label} (${range})` : label;
+};
+
+const formatProductivityRange = (value) => {
+  const label = normalizeText(value, "");
+  const key = normalizeUpper(label).split(" - ")[0].trim();
+  const percentage = IPEL_PERCENTAGES[key];
+  return percentage ? `${label} (${percentage})` : label;
+};
+
 const drawHorizontalBarChart = ({
   page,
   title,
@@ -2750,6 +2767,18 @@ const drawHorizontalBarChart = ({
               item.key
             )
           : item.key;
+       if (dimension === "negociacion" || dimension === "productividad") {
+         const parts = String(label).match(/^(.*?)\s*\(([^)]+)\)$/);
+         const main = parts ? parts[1] : String(label);
+         const range = parts ? parts[2] : "";
+         page.drawText(truncateText({ text: main, font: regularFont, size: 6.5, maxWidth: resolvedLabelWidth - 7 }), {
+           x: x + 13, y: rowY + 3, font: regularFont, size: 6.5, color: COLORS.textSoft,
+         });
+         if (range) page.drawText(range, {
+           x: x + 13, y: rowY - 6, font: boldFont, size: 6.2, color: COLORS.blue,
+         });
+       } else {
+
 
       page.drawText(
         truncateText({
@@ -2778,6 +2807,7 @@ const drawHorizontalBarChart = ({
             COLORS.textSoft,
         }
       );
+       }
 
       page.drawRectangle({
         x:
@@ -3051,11 +3081,11 @@ const drawFilterSummary = ({
         x,
         y,
         font:
-          regularFont,
+          boldFont,
         size:
-          8,
+          10.5,
         color:
-          COLORS.textSoft,
+          COLORS.white,
       }
     );
 
@@ -4469,6 +4499,8 @@ const generarInformePsicometricoEmpresa =
         boldFont,
         dimension:
           "negociacion",
+        labelFormatter: formatNegotiationRange,
+        labelWidth: 128,
         maxItems:
           7,
       });
@@ -4515,6 +4547,7 @@ const generarInformePsicometricoEmpresa =
         boldFont,
         dimension:
           "productividad",
+        labelFormatter: formatProductivityRange,
         maxItems:
           8,
         labelWidth:

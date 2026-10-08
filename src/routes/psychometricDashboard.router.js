@@ -36,6 +36,11 @@ const {
 const verifyJWT = require(
   "../utils/verifyJWT"
 );
+const requirePsychometricAdmin = require("../utils/requirePsychometricAdmin");
+router.use(verifyJWT, requirePsychometricAdmin);
+const { requestDeletion, confirmDeletion } = require("../controllers/psychometricDeletion.controllers");
+router.post("/participants/:evaluationId/delete-code", verifyJWT, requestDeletion);
+router.post("/participants/:evaluationId/confirm-delete", verifyJWT, confirmDeletion);
 
 /* =========================================================
    RESUMEN GENERAL

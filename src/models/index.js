@@ -13,6 +13,8 @@ const EvaluationAccessToken = require("./EvaluationAccessToken");
 const Empresa = require("./Empresa");
 const EmpresaSeccion = require("./EmpresaSeccion");
 const PsychometricEvaluation = require("./PsychometricEvaluation");
+require("./UserSession");
+require("./SensitiveActionCode");
 const PsychometricTest = require("./PsychometricTest");
 const PsychometricPersonality = require("./PsychometricPersonality");
 const PsychometricOption = require("./PsychometricOption");

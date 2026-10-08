@@ -3,6 +3,7 @@ require("dotenv").config();
 const http = require("http");
 const { Server } = require("socket.io");
 const app = require("./app"); // tu Express app
+const { allowedOrigins } = require("./utils/securityOrigins");
 const sequelize = require("./utils/connection");
 const sequelizeM = require("./utils/connectionM");
 const startContificoCron = require("./jobs/contifico.cron");
@@ -24,7 +25,7 @@ const main = async () => {
     // Crear instancia de Socket.IO
     const io = new Server(server, {
       cors: {
-        origin: "*", // O la URL de tu frontend: "http://localhost:5173"
+        origin: allowedOrigins,
         methods: ["GET", "POST", "PUT", "DELETE"],
       },
     });

@@ -12,6 +12,8 @@ const Pagos = require("../models/Pagos");
 const Certificado = require("../models/Certificado");
 const PsychometricEvaluation = require("../models/PsychometricEvaluation");
 const sequelize = require("../utils/connection");
+const UserSession = require("../models/UserSession");
+const { issueToken, validateSession, isSuperAdmin } = require("../utils/sessionSecurity");
 
 // ========================== GET ALL USERS ==========================
 
@@ -770,7 +772,7 @@ const getOne = catchError(async (req, res) => {
       };
     });
 
-    res.json({ ...user, courses: coursesWithData });
+    res.json({ ...user, courses: coursesWithData, isSuperAdmin: isSuperAdmin(user) });
   } catch (error) {
     console.error("Error en getOne:", error);
     res.status(500).json({ error: "Error al obtener los datos." });
@@ -990,11 +992,9 @@ const login = catchError(async (req, res) => {
       .status(401)
       .json({ message: "El usuario no ha verificado su correo electrónico" });
 
-  const token = jwt.sign({ user }, process.env.TOKEN_SECRET, {
-    expiresIn: "2h",
-  });
-
-  return res.json({ token });
+  const session = await UserSession.create({ userId: user.id, lastActivityAt: new Date() });
+  const token = issueToken(user, session);
+  return res.json({ token, isSuperAdmin: isSuperAdmin(user) });
 });
 
 const verifyCode = catchError(async (req, res) => {
@@ -1416,7 +1416,7 @@ const getLoggedUser = catchError(async (req, res) => {
       };
     });
 
-    res.json({ ...user, courses: coursesWithData });
+    res.json({ ...user, courses: coursesWithData, isSuperAdmin: isSuperAdmin(user) });
   } catch (error) {
     console.error("Error en getLoggedUser:", error);
     res.status(500).json({ error: "Error al obtener los datos." });

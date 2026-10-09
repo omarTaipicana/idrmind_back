@@ -11,6 +11,7 @@ const inscripcionRouter = require("./inscripcion.router");
 const courseRouter = require("./course.router");
 
 const contactanosRouter = require("./contactanos.router");
+const collaborationRouter = require("./collaboration.router");
 
 const pagosRouter = require("./pagos.router");
 
@@ -103,6 +104,7 @@ router.use(
 );
 
 router.use(
+  collaborationRouter,
   contactanosRouter
 );
 

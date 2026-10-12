@@ -3034,6 +3034,7 @@ const certificado = catchError(async (req, res) => {
       where: {
         inscripcionId,
         curso: cursoSigla,
+        tipo: "cert_emp",
       },
     });
 

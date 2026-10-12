@@ -15,6 +15,31 @@ const sequelize = require("../utils/connection");
 const UserSession = require("../models/UserSession");
 const { issueToken, validateSession, isSuperAdmin } = require("../utils/sessionSecurity");
 
+// Normaliza URLs de certificados antiguos (rutas relativas) sin modificar registros.
+const normalizeCertificateUrl = (url) => {
+  if (!url) return url;
+  if (/^https?:\/\//i.test(url)) return url;
+  const base = (process.env.PUBLIC_API_URL || process.env.API_URL || "http://localhost:8081").replace(/\/+$/, "");
+  return `${base}/${String(url).replace(/^\/+/, "")}`;
+};
+const certificateView = (c) => ({
+  id: c.id,
+  tipo: c.tipo || "cert_emp",
+  grupo: c.grupo,
+  fecha: c.createdAt,
+  url: normalizeCertificateUrl(c.url),
+});
+const certificateGroups = (certificados) => {
+  const groups = {};
+  certificados.forEach((c) => {
+    if (!c.inscripcionId) return;
+    const key = String(c.inscripcionId);
+    (groups[key] ||= []).push(c);
+  });
+  Object.values(groups).forEach((list) => list.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+  return groups;
+};
+
 // ========================== GET ALL USERS ==========================
 
 const getAll = catchError(async (req, res) => {
@@ -255,14 +280,7 @@ const getAll = catchError(async (req, res) => {
     });
 
 
-    const certMap = {};
-    certificadosData.forEach((c) => {
-      const inscId = c.inscripcionId != null ? String(c.inscripcionId) : null;
-      if (!inscId) return;
-
-      // si llegaran a existir varios certificados por inscripcion, aquí se queda el último
-      certMap[inscId] = c;
-    });
+    const certMap = certificateGroups(certificadosData);
 
 
 
@@ -345,9 +363,10 @@ const getAll = catchError(async (req, res) => {
 
 
 
-          const cert = certMap[String(insc.id)];
+          const certList = certMap[String(insc.id)] || [];
+          const cert = certList[0];
           const certData = cert
-            ? { grupo: cert.grupo, fecha: cert.createdAt, url: cert.url }
+            ? { grupo: cert.grupo, fecha: cert.createdAt, url: normalizeCertificateUrl(cert.url), tipo: cert.tipo || "cert_emp" }
             : null;
 
 
@@ -368,6 +387,7 @@ const getAll = catchError(async (req, res) => {
             userId: insc.userId,
             pagos: pagosList,
             certificado: certData,
+            certificados: certList.map(certificateView),
           };
         })
         .filter((courseItem) => {
@@ -710,14 +730,7 @@ const getOne = catchError(async (req, res) => {
       pagosMap[p.inscripcionId].push(p);
     });
 
-    const certMap = {};
-    certificados.forEach((c) => {
-      const inscId = c.inscripcionId != null ? String(c.inscripcionId) : null;
-      if (!inscId) return;
-
-      // si hubiera más de uno, se queda el último
-      certMap[inscId] = c;
-    });
+    const certMap = certificateGroups(certificados);
 
 
     // ========================== COURSES MERGED ==========================
@@ -732,12 +745,14 @@ const getOne = catchError(async (req, res) => {
       const pagosList = pagosMap[insc.id] || [];
 
       let certData = {};
-      const cert = certMap[String(insc.id)];
+      const certList = certMap[String(insc.id)] || [];
+          const cert = certList[0];
       if (cert) {
         certData = {
           grupo: cert.grupo,
           fecha: cert.createdAt,
-          url: cert.url,
+          url: normalizeCertificateUrl(cert.url),
+          tipo: cert.tipo || "cert_emp",
         };
       }
 
@@ -1362,11 +1377,7 @@ const getLoggedUser = catchError(async (req, res) => {
     });
 
     // Map certificados
-    const certMap = {};
-    certificados.forEach((c) => {
-      if (!c.inscripcionId) return;
-      certMap[String(c.inscripcionId)] = c;
-    });
+    const certMap = certificateGroups(certificados);
 
     // Merge final
     const coursesWithData = userCourses.map((course) => {
@@ -1397,12 +1408,14 @@ const getLoggedUser = catchError(async (req, res) => {
       }
 
       if (insc) {
-        const cert = certMap[String(insc.id)];
+        const certList = certMap[String(insc.id)] || [];
+          const cert = certList[0];
         if (cert) {
           certData = {
             grupo: cert.grupo,
             fecha: cert.createdAt,
-            url: cert.url,
+            url: normalizeCertificateUrl(cert.url),
+          tipo: cert.tipo || "cert_emp",
           };
         }
       }
@@ -1413,6 +1426,7 @@ const getLoggedUser = catchError(async (req, res) => {
         inscripcion: inscripcionData,
         pagos: pagosData,
         certificado: Object.keys(certData).length ? certData : null,
+        certificados: insc ? (certMap[String(insc.id)] || []).map(certificateView) : [],
       };
     });
 

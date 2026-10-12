@@ -5,6 +5,15 @@ const Inscripcion = require("../models/Inscripcion");
 const Pagos = require("../models/Pagos");
 const User = require("../models/User");
 
+// Compatibilidad con certificados MDT antiguos guardados con URL relativa.
+const absoluteCertificateUrl = (value) => {
+  if (!value || typeof value !== "string") return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (!value.startsWith("/uploads/")) return value;
+  const base = (process.env.PUBLIC_API_URL || "http://localhost:8081").trim();
+  try { return `${new URL(base).origin}${value}`; } catch { return value; }
+};
+
 const getAll = catchError(async (req, res) => {
   const rows = await Certificado.findAll({
     include: [
@@ -47,7 +56,9 @@ const getAll = catchError(async (req, res) => {
       curso: obj.curso,
       grupo: obj.grupo,
       certificadoCreatedAt: obj.createdAt,
-      url: obj.url,
+      url: absoluteCertificateUrl(obj.url),
+      tipo: obj.tipo,
+      inscripcionId: obj.inscripcionId,
       entregado: obj.entregado,
 
       cedula: u?.cI ?? null,

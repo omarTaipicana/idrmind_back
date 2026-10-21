@@ -38,6 +38,7 @@ const getAll = catchError(async (req, res) => {
     ],
   });
 
+  const couponRows = await require("../models/BenefitCouponRedemption").findAll({where:{id:rows.map(r=>r.couponRedemptionId).filter(Boolean)}});
   const results = rows.map((r) => {
     const obj = r.get({ plain: true });
 
@@ -68,6 +69,8 @@ const getAll = catchError(async (req, res) => {
 
       urlDeposito: pagoUrl,
       deposito: deposito,
+      metodoAutorizacion: obj.couponRedemptionId ? "cupon_o_pago_con_descuento" : "pago",
+      cupon: obj.couponRedemptionId ? couponRows.find(c=>c.id===obj.couponRedemptionId)?.couponSnapshot?.codigo || null : null,
     };
   });
 

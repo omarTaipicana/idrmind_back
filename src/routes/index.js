@@ -70,6 +70,7 @@ const psychometricRouter = require(
 );
 
 const router = express.Router();
+router.use(require("./benefitCoupon.router"));
 
 /* =========================================
    RUTAS PÚBLICAS DEL TEST PSICOMÉTRICO

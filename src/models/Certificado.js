@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../utils/connection");
 
 const Certificado = sequelize.define("certificado", {
+  couponRedemptionId: { type: DataTypes.UUID, allowNull: true },
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,

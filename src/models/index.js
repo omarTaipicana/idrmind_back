@@ -1,3 +1,5 @@
+require("./BenefitCoupon");
+require("./BenefitCouponRedemption");
 const User = require("./User");
 const EmailCode = require("./EmailCode");
 const Inscripcion = require("./Inscripcion");

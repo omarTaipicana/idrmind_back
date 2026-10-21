@@ -7,7 +7,9 @@
     "start": "node src/server",
     "dev": "nodemon src/server",
     "seed:psychometric": "node src/scripts/runPsychometricSeed.js",
-    "seed:psychometric-content": "node src/scripts/runPsychometricContentSeed.js"
+    "seed:psychometric-content": "node src/scripts/runPsychometricContentSeed.js",
+    "db:migrate": "node scripts/runMigrations.js",
+    "db:migration": "npm run db:migrate"
   },
   "keywords": [],
   "author": "",

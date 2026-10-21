@@ -1,3 +1,4 @@
+const requirePaymentAdmin = require("../utils/requirePsychometricAdmin");
 const {
   getAll,
   getDashboardPagos,
@@ -113,6 +114,7 @@ pagosRouter
   .delete(remove)
   .put(
     verifyJWT,
+    requirePaymentAdmin,
     update
   );
 
@@ -126,6 +128,7 @@ pagosRouter
   )
   .post(
     verifyJWT,
+    requirePaymentAdmin,
     certificado
   );
 
@@ -140,6 +143,7 @@ pagosRouter
   )
   .post(
     verifyJWT,
+    requirePaymentAdmin,
     generatePsychometricResult
   );
 

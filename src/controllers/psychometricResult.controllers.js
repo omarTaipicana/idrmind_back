@@ -1666,7 +1666,7 @@ const getPublicResultByToken =
                       "pagos",
 
                     required:
-                      true,
+                      false,
 
                     where: {
                       verificado:
@@ -1797,8 +1797,9 @@ const getPublicResultByToken =
               "test_psicometrico"
         );
 
+      const couponAuthorization = await require("../utils/benefitCoupon.service").fullEvaluation(evaluation.id);
       if (
-        !verifiedPayment
+        !verifiedPayment && !couponAuthorization
       ) {
         return res
           .status(403)
@@ -2089,7 +2090,9 @@ const getPublicResultByToken =
         result:
           evaluation.resultado,
 
-        payment: {
+        authorizationMethod: couponAuthorization ? "cupon" : "pago",
+        coupon: couponAuthorization ? require("../utils/benefitCoupon.service").summary(couponAuthorization) : null,
+        payment: verifiedPayment ? {
           id:
             verifiedPayment.id,
 
@@ -2136,7 +2139,7 @@ const getPublicResultByToken =
           contificoUrlXml:
             verifiedPayment
               .contificoUrlXml,
-        },
+        } : null,
       });
     }
   );

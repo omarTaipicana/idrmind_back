@@ -4,6 +4,7 @@ const sequelize = require("../utils/connection");
 const Pagos = sequelize.define(
   "pagos",
   {
+    couponRedemptionId: { type: DataTypes.UUID, allowNull: true },
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,

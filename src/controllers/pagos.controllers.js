@@ -1,3 +1,4 @@
+const couponService = require("../utils/benefitCoupon.service");
 const catchError = require("../utils/catchError");
 const sendEmail = require("../utils/sendEmail");
 const sequelizeM = require("../utils/connectionM");
@@ -559,6 +560,7 @@ const getAll = catchError(async (req, res) => {
         "id",
 
         "tipoPago",
+        "couponRedemptionId",
         "psychometricEvaluationId",
 
         "curso",
@@ -1640,6 +1642,7 @@ const getAll = catchError(async (req, res) => {
      RESPUESTA
   ========================================================= */
 
+  results = await Promise.all(results.map(async p => ({ ...p, coupon: await couponService.paymentSummary(p) })));
   return res.json(
     results
   );
@@ -1809,9 +1812,12 @@ const validatePago = catchError(async (req, res) => {
     order: [["createdAt", "DESC"]],
   });
 
+  const couponRows = await require("../models/BenefitCouponRedemption").findAll({where:{inscripcionId:inscripcion.id,servicio:"certificados"}});
+  const couponBenefits = couponRows.map(couponService.summary);
   if (pagos.length > 0) {
     return res.status(200).json({
       exists: true,
+      couponBenefits,
       pagos,
       inscripcion,
       user,
@@ -1821,6 +1827,7 @@ const validatePago = catchError(async (req, res) => {
 
   return res.status(200).json({
     exists: true,
+    couponBenefits,
     pagos: [],
     inscripcion,
     user,
@@ -2025,7 +2032,7 @@ const create = catchError(async (req, res) => {
      CREAR PAGO
   ========================================= */
 
-  const result = await Pagos.create({
+  const result = await couponService.createPayment({
     inscripcionId,
 
     psychometricEvaluationId:
@@ -2816,6 +2823,15 @@ const update = catchError(async (req, res) => {
      5. ACTUALIZAR PAGO
   ========================================================= */
 
+  delete updateData.couponRedemptionId;
+  if (pagoOriginal.couponRedemptionId) {
+    const summary = await couponService.paymentSummary(pagoOriginal);
+    for (const k of ["cert_emp","cert_mdt","cert_int","curso"]) {
+      if (updateData[k] !== undefined && String(updateData[k]) !== String(pagoOriginal[k])) return res.status(409).json({message:"No se puede cambiar el servicio asociado al cupón."});
+    }
+    const amount = updateData.valorDepositado ?? pagoOriginal.valorDepositado;
+    if (Math.round(Number(amount)*100) !== Math.round(summary.saldoPendiente*100)) return res.status(409).json({message:"El importe no corresponde al saldo del cupón. Revisa el descuento antes de validar."});
+  }
   let pagoActualizado;
 
   try {
@@ -2995,6 +3011,9 @@ const certificado = catchError(async (req, res) => {
     ? await Course.findByPk(inscripcion.courseId)
     : null;
 
+  try { await require("../utils/certificateEligibility")(user, curso); }
+  catch(e) { return res.status(e.status || 409).json({message:e.message}); }
+
   const siglaCurso = String(curso?.sigla || inscripcion.curso || pago.curso)
     .trim()
     .toLowerCase();
@@ -3003,6 +3022,8 @@ const certificado = catchError(async (req, res) => {
     .trim()
     .toLowerCase();
 
+  if (tipoCertificado !== "cert_emp") return res.status(400).json({message:"Los certificados Ministerio e Internacional se incorporan mediante importación."});
+  if (!require("../utils/couponPricing").selected(pago.cert_emp)) return res.status(403).json({message:"Este pago no incluye el certificado empresarial solicitado."});
   const certYaExiste = await Certificado.findOne({
     where: {
       inscripcionId: inscripcion.id,
@@ -3274,7 +3295,9 @@ const getPsychometricPaymentAccess =
         order: [["createdAt", "DESC"]],
       });
 
+    const appliedCoupon = await require("../models/BenefitCouponRedemption").findOne({where:{evaluationId:evaluation.id,servicio:"resultados"}});
     return res.json({
+      coupon: appliedCoupon ? couponService.summary(appliedCoupon) : null,
       evaluation: {
         id: evaluation.id,
         numeroEvaluacion:
@@ -3294,6 +3317,7 @@ const getPsychometricPaymentAccess =
           id: course.id,
           nombre: course.nombre,
           sigla: course.sigla,
+          precio_emp: course.precio_emp,
         }
         : null,
 
@@ -3595,7 +3619,7 @@ const createPsychometricPayment =
     ========================================= */
 
     const payment =
-      await Pagos.create({
+      await couponService.createPayment({
         inscripcionId:
           inscripcion.id,
 

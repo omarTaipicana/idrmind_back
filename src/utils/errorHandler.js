@@ -1,4 +1,5 @@
 const errorHandler = (error, _req, res, _next) => {
+    if (Number.isInteger(error.status) && error.status >= 400 && error.status < 500) return res.status(error.status).json({message:error.message});
     if(error.name === 'SequelizeValidationError') {
         const errObj = {};
         error.errors.map(er => {

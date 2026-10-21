@@ -15,7 +15,8 @@ module.exports = async function generarCertificado(pagoId) {
   console.log("🔥 generarCertificado llamado para pagoId:", pagoId);
 
   // 1) Traer pago + relaciones
-  const pago = await Pagos.findByPk(pagoId, {
+  const entitlement = typeof pagoId === "object" ? pagoId : null;
+  const pago = entitlement ? null : await Pagos.findByPk(pagoId, {
     include: [
       {
         model: Inscripcion,
@@ -24,31 +25,32 @@ module.exports = async function generarCertificado(pagoId) {
     ],
   });
 
-  if (!pago) throw new Error("Pago no encontrado en generarCertificado");
+  if (!pago && !entitlement) throw new Error("Pago no encontrado en generarCertificado");
 
-  const inscripcion = pago.inscripcion || pago.Inscripcion;
+  const inscripcion = entitlement ? await Inscripcion.findByPk(entitlement.inscripcionId, { include: [{ model: User }, { model: Course }] }) : pago.inscripcion || pago.Inscripcion;
   if (!inscripcion) throw new Error("Inscripción no encontrada para este pago");
 
   const user = inscripcion.user || inscripcion.User;
   if (!user) throw new Error("Usuario no encontrado para esta inscripción");
 
   const course = inscripcion.course || inscripcion.Course || null;
-  const cursoSigla = course?.sigla || inscripcion.curso || pago.curso;
+  const cursoSigla = course?.sigla || inscripcion.curso || pago?.curso;
 
   if (!cursoSigla) throw new Error("No se pudo determinar la sigla del curso");
 
   const dataCertificado = {
-    pagoId: pago.id,
+    pagoId: pago?.id || null,
+    authorizationId: entitlement?.authorizationId || null,
     inscripcionId: inscripcion.id,
     userId: user.id,
     nombresCompletos: `${user.firstName} ${user.lastName}`,
     cedula: user.cI,
     grado: user.grado,
-    cursoCodigo: inscripcion.curso || pago.curso || cursoSigla,
-    cursoNombre: course ? course.nombre : (inscripcion.curso || pago.curso || cursoSigla),
+    cursoCodigo: inscripcion.curso || pago?.curso || cursoSigla,
+    cursoNombre: course ? course.nombre : (inscripcion.curso || pago?.curso || cursoSigla),
     cursoSigla,
-    fechaPago: pago.createdAt,
-    valorDepositado: pago.valorDepositado,
+    fechaPago: pago?.createdAt || null,
+    valorDepositado: pago?.valorDepositado || null,
     grupo: null,
   };
 

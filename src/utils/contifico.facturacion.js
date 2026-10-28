@@ -37,6 +37,8 @@ async function contificoEmitirFacturaPorPagoId(pagoId) {
     throw new Error(`valorDepositado inválido: ${pago.valorDepositado}`);
   }
 
+  const affiliateSale=await require("../services/affiliateCore.service").one("SELECT gross_cents,base_cents FROM affiliate_sales WHERE payment_id=:id",{id:pagoId});
+
   // ✅ documento consecutivo según Contífico
   const { documento } = await contificoGetSiguienteDocumento();
 
@@ -53,6 +55,7 @@ async function contificoEmitirFacturaPorPagoId(pagoId) {
     descripcionItem: `Pago curso: ${course?.nombre || pago.curso || "Curso"
       }`,
     productoId: course?.contificoProductoId,
+    expectedIva: affiliateSale?(Number(affiliateSale.gross_cents)-Number(affiliateSale.base_cents))/100:undefined,
 
   });
 

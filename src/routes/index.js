@@ -70,6 +70,7 @@ const psychometricRouter = require(
 );
 
 const router = express.Router();
+router.use(require("./affiliates.router"));
 router.use(require("./benefitCoupon.router"));
 
 /* =========================================

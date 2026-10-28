@@ -111,7 +111,7 @@ pagosRouter
 pagosRouter
   .route("/pagos/:id")
   .get(getOne)
-  .delete(remove)
+  .delete(verifyJWT, requirePaymentAdmin, remove)
   .put(
     verifyJWT,
     requirePaymentAdmin,

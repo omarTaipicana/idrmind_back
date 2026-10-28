@@ -1124,6 +1124,7 @@ const registerPsychometric = catchError(
           transaction,
         });
 
+      if (inscriptionCreated) await require("../services/affiliateCore.service").bindReferral(inscripcion.id, req.body.referralToken, transaction);
       await transaction.commit();
 
       responseData = {

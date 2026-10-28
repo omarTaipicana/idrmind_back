@@ -157,6 +157,7 @@ async function contificoCrearFacturaIva0({
     total,
     descripcionItem,
     productoId,
+    expectedIva,
 }) {
     const totalNum = Number(total);
 
@@ -175,6 +176,10 @@ async function contificoCrearFacturaIva0({
     const factor = 1 + porcentajeIva / 100;
     const subtotal = Number((totalNum / factor).toFixed(2));
     const iva = Number((totalNum - subtotal).toFixed(2));
+
+    if(expectedIva!==undefined && expectedIva!==null && Math.round(Number(expectedIva)*100)!==Math.round(iva*100)) {
+        throw new Error("El IVA del producto Contífico no coincide con el registrado al validar el pago. Revisa la configuración tributaria; no se emitió la factura ni se recalcularon comisiones.");
+    }
 
     const payload = {
         pos: process.env.CONTIFICO_POS_TOKEN,

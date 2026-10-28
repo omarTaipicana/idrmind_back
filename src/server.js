@@ -46,6 +46,7 @@ const main = async () => {
     server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
       startContificoCron();
+      require("./jobs/affiliate.cron")();
 
     });
   } catch (error) {

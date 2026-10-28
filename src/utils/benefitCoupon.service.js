@@ -101,6 +101,7 @@ async function fullEvaluation(evaluationId) {
 async function createPayment(data) {
   return db.transaction(async transaction => {
     await Inscripcion.findByPk(data.inscripcionId, { transaction, lock: transaction.LOCK.UPDATE });
+    if(data.psychometricEvaluationId && await Pagos.findOne({where:{psychometricEvaluationId:data.psychometricEvaluationId},transaction})) fail('Ya existe un comprobante para esta evaluación.');
     const selection = types.filter(t => selected(data[t])).sort();
     const referencia = data.psychometricEvaluationId ? `evaluation:${data.psychometricEvaluationId}:individual` : `certificate:${data.inscripcionId}:${selection.join(',')}`;
     const rows = await Redemption.findAll({ where: { inscripcionId: data.inscripcionId, servicio: data.psychometricEvaluationId ? 'resultados' : 'certificados' }, transaction });

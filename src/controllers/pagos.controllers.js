@@ -1,3 +1,4 @@
+const affiliateFinance = require("../services/affiliateFinance.service");
 const couponService = require("../utils/benefitCoupon.service");
 const catchError = require("../utils/catchError");
 const sendEmail = require("../utils/sendEmail");
@@ -1642,7 +1643,7 @@ const getAll = catchError(async (req, res) => {
      RESPUESTA
   ========================================================= */
 
-  results = await Promise.all(results.map(async p => ({ ...p, coupon: await couponService.paymentSummary(p) })));
+  results = await Promise.all(results.map(async p => ({ ...p, coupon: await couponService.paymentSummary(p), refund: await affiliateFinance.paymentSummary(p.id) })));
   return res.json(
     results
   );
@@ -1759,7 +1760,11 @@ const getDashboardPagos = catchError(async (req, res) => {
     ([grado, cantidad]) => ({ grado, cantidad }),
   );
 
+  const refundTotals=pagos.length?await require("../services/affiliateCore.service").one(
+    "SELECT COALESCE(SUM(amount_cents) FILTER(WHERE status='realizada'),0) AS refunded, COALESCE(SUM(amount_cents) FILTER(WHERE status IN ('solicitada','aprobada')),0) AS reserved FROM payment_refunds WHERE payment_id IN (:ids)",
+    {ids:pagos.map(p=>p.id)}):{refunded:0,reserved:0};
   return res.json({
+    devoluciones:{devuelto:Number(refundTotals.refunded)/100,reservado:Number(refundTotals.reserved)/100,neto:totalPagos-Number(refundTotals.refunded)/100},
     totalPagos,
     totalPagosNum,
     totalPagosDinstint,
@@ -2423,35 +2428,18 @@ const getOne = catchError(async (req, res) => {
   return res.json(result);
 });
 
-const remove = catchError(async (req, res) => {
-  const { id } = req.params;
-  const Pago = await Pagos.findByPk(id);
-  if (!Pago) return res.status(400).json({ message: "No existe el ID" });
-
-  if (Pago.pagoUrl) {
-    const imagePath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "uploads",
-      "pagos",
-      path.basename(Pago.pagoUrl),
-    );
-
-    fs.unlink(imagePath, (err) => {
-      if (err) {
-        console.error("Error al eliminar el archivo:", err);
-        return res
-          .status(500)
-          .json({ message: "Error al eliminar el archivo" });
-      }
-    });
-  }
-  await Pago.destroy();
-
+const remove = catchError(async (req,res) => {
+  const {id}=req.params;
+  const deleted=await require("../services/affiliateCore.service").atomic(async transaction=>{
+    const payment=await Pagos.findByPk(id,{transaction,lock:transaction.LOCK.UPDATE});
+    if(!payment)throw Object.assign(new Error("Pago no encontrado"),{status:404});
+    const movements=await require("../services/affiliateCore.service").one("SELECT id FROM affiliate_sales WHERE payment_id=:id UNION ALL SELECT id FROM payment_refunds WHERE payment_id=:id LIMIT 1",{id},transaction);
+    if(payment.verificado||movements)throw Object.assign(new Error("El pago tiene validación o movimientos. Conserva su historial y registra una devolución."),{status:409});
+    const url=payment.pagoUrl;await payment.destroy({transaction});return url;
+  });
+  if(deleted)fs.promises.unlink(path.join(__dirname,"../../uploads/pagos",path.basename(deleted))).catch(()=>{});
   return res.sendStatus(204);
 });
-
 
 /* =========================================================
    GENERAR TOKEN DE RESULTADO
@@ -2823,6 +2811,7 @@ const update = catchError(async (req, res) => {
      5. ACTUALIZAR PAGO
   ========================================================= */
 
+  for (const key of ["affiliateId","affiliate_id","refunded_cents","referralToken"]) delete updateData[key];
   delete updateData.couponRedemptionId;
   if (pagoOriginal.couponRedemptionId) {
     const summary = await couponService.paymentSummary(pagoOriginal);
@@ -2832,49 +2821,7 @@ const update = catchError(async (req, res) => {
     const amount = updateData.valorDepositado ?? pagoOriginal.valorDepositado;
     if (Math.round(Number(amount)*100) !== Math.round(summary.saldoPendiente*100)) return res.status(409).json({message:"El importe no corresponde al saldo del cupón. Revisa el descuento antes de validar."});
   }
-  let pagoActualizado;
-
-  try {
-    const [
-      rowsUpdated,
-      updated,
-    ] = await Pagos.update(
-      updateData,
-      {
-        where: {
-          id,
-        },
-
-        returning: true,
-      }
-    );
-
-    if (rowsUpdated === 0) {
-      return res.status(404).json({
-        message:
-          "Pago no encontrado.",
-      });
-    }
-
-    pagoActualizado =
-      updated[0];
-  } catch (error) {
-    /*
-     * Protección adicional si existe un
-     * índice UNIQUE en PostgreSQL.
-     */
-    if (
-      error?.name ===
-      "SequelizeUniqueConstraintError"
-    ) {
-      return res.status(400).json({
-        message:
-          "Ya existe un pago registrado con ese ID de depósito para la entidad seleccionada.",
-      });
-    }
-
-    throw error;
-  }
+  const pagoActualizado = await affiliateFinance.updatePayment(id, updateData, req.user.id);
 
   /* =========================================================
      6. DETECTAR CAMBIO DE VERIFICACIÓN
@@ -3618,6 +3565,7 @@ const createPsychometricPayment =
        11. CREAR PAGO
     ========================================= */
 
+    await require("../services/affiliateCore.service").bindReferral(inscripcion.id, req.body.referralToken);
     const payment =
       await couponService.createPayment({
         inscripcionId:

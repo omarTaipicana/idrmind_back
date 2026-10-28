@@ -423,6 +423,7 @@ const create = catchError(async (req, res) => {
   if (!course) return res.status(404).json({ error: "Curso no encontrado" });
 
   let inscripcion = null;
+  let affiliateInscriptionCreated = false;
 
   try {
     // Intentamos crear y matricular usuario en Moodle
@@ -455,6 +456,7 @@ const create = catchError(async (req, res) => {
       });
 
       if (!inscripcion) {
+        affiliateInscriptionCreated = true;
         inscripcion = await Inscripcion.create({
           aceptacion,
           curso,
@@ -466,6 +468,8 @@ const create = catchError(async (req, res) => {
   } catch (error) {
     console.error("Error con Moodle:", error.message);
   }
+
+  if (inscripcion && affiliateInscriptionCreated) await require("../services/affiliateCore.service").bindReferral(inscripcion.id, req.body.referralToken);
 
   // URL curso Moodle
   const courseIdMoodle = getMoodleCourseId(course.sigla);

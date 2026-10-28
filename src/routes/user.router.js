@@ -30,6 +30,6 @@ userRouter.route('/users/verify/:code')
 userRouter.route('/users/:id')
     .get( getOne)
     .delete(verifyJWT, remove)
-    .put(verifyJWT, update);
+    .put(verifyJWT, require("../middlewares/authorizeUserUpdate"), update);
 
 module.exports = userRouter;

@@ -2,6 +2,7 @@ const fs=require('fs');
 const path=require('path');
 const C=require('../services/affiliateCore.service');
 const F=require('../services/affiliateFinance.service');
+const {prepareSettings}=require('../services/affiliateSettings.service');
 const User=require('../models/User');
 const wrap=fn=>async(req,res,next)=>{try{await fn(req,res);}catch(e){if(e.status)return res.status(e.status).json({message:e.message});if(e.name==='SequelizeUniqueConstraintError')return res.status(409).json({message:'La operación o documento ya está registrado.'});next(e);}};
 exports.wrap=wrap;
@@ -96,7 +97,14 @@ exports.review=wrap(async(req,res)=>res.json(await C.atomic(async t=>{
  await C.exec('UPDATE affiliate_profiles SET status=:status,reviewed_by=:actor,reviewed_at=now(),review_note=:note,updated_at=now() WHERE id=:id',{id:p.id,status:next,actor:req.user.id,note:String(req.body.note||'').slice(0,1500)},t);
  await C.audit(req.user.id,'affiliate_'+action,p.id,{},t);return {message:'Estado actualizado.'};
 })));
-exports.config=wrap(async(req,res)=>{const cfg=req.body;C.validateConfig(cfg);await C.atomic(async t=>{await C.exec('UPDATE affiliate_settings SET config=CAST(:cfg AS jsonb),updated_at=now() WHERE id=1',{cfg:JSON.stringify(cfg)},t);await C.audit(req.user.id,'settings_updated',null,cfg,t);});res.json({message:'Configuración guardada. Las comisiones y categorías ya fijadas no se recalculan.'});});
+exports.config=wrap(async(req,res)=>res.json(await C.atomic(async t=>{
+ const current=await C.settings(t);
+ const cfg=prepareSettings(current,req.body,C.validateConfig);
+ if(!cfg)return {message:'No hay cambios. La versión se mantiene.',config:current};
+ await C.exec('UPDATE affiliate_settings SET config=CAST(:cfg AS jsonb),updated_at=now() WHERE id=1',{cfg:JSON.stringify(cfg)},t);
+ await C.audit(req.user.id,'settings_updated',null,cfg,t);
+ return {message:'Configuración guardada · versión '+cfg.termsVersion+'. Las comisiones y categorías ya fijadas no se recalculan.',config:cfg};
+})));
 exports.close=wrap(async(req,res)=>{const created=await F.closeMonth(req.body.month,req.user.id);res.json({created,skipped:created.skipped||[]});});
 exports.invoice=wrap(async(req,res)=>res.json(await F.invoice(req.params.id,req.body,req.user.id)));
 exports.payout=wrap(async(req,res)=>res.json(await F.payoutAction(req.params.id,req.params.action,req.body,req.user.id)));

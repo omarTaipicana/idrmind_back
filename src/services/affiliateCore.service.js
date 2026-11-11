@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const {defaults}=require('./affiliateSettings.service');
 const jwt = require('jsonwebtoken');
 const { QueryTypes } = require('sequelize');
 const db = require('../utils/connection');
@@ -15,7 +16,7 @@ const one = async(sql,r={},t) => (await query(sql,r,t))[0]||null;
 const exec = (sql,r={},transaction) => db.query(sql,{replacements:r,transaction});
 const lock = t => exec("SELECT pg_advisory_xact_lock(hashtext('idrmind-affiliates-finance'))",{},t);
 const atomic = work => db.transaction(async t=>{await lock(t);return work(t);});
-const settings = async t => (await one('SELECT config FROM affiliate_settings WHERE id=1',{},t)).config;
+const settings = async t => ({...defaults,...(await one('SELECT config FROM affiliate_settings WHERE id=1',{},t)).config});
 const audit = (actor,action,id,details={},t) => exec('INSERT INTO affiliate_audit(actor_id,action,subject_id,details) VALUES (:actor,:action,:id,CAST(:details AS jsonb))',{actor:actor||null,action,id:id||null,details:JSON.stringify(details)},t);
 async function profile(userId,t){return one('SELECT * FROM affiliate_profiles WHERE user_id=:id',{id:userId},t);}
 async function metrics(id,t){

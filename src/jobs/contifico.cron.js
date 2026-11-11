@@ -1,3 +1,4 @@
+const {getPaymentTax,invoiceTaxFields}=require('../utils/contifico.paymentTax');
 // src/jobs/contifico.cron.js
 const cron = require("node-cron");
 const { Op } = require("sequelize");
@@ -56,6 +57,7 @@ const startContificoCron = () => {
       for (const pago of pendientesCursos) {
         try {
           const doc = await contificoGetDocumentoById(pago.contificoDocumentoId);
+          const tax=await getPaymentTax(pago.id);
 
           await Pagos.update(
             {
@@ -65,11 +67,7 @@ const startContificoCron = () => {
               contificoUrlXml: doc.url_xml,
 
               // ✅ Datos tributarios
-              subtotal: Number(doc.subtotal || 0),
-              porcentajeIva: Number(
-                doc.detalles?.[0]?.porcentaje_iva || 0
-              ),
-              iva: Number(doc.iva || 0),
+              ...invoiceTaxFields(doc,tax),
               contificoFirmado: doc.firmado,
             },
             { where: { id: pago.id } }

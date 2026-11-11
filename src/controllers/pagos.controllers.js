@@ -576,6 +576,7 @@ const getAll = catchError(async (req, res) => {
         "valorDepositado",
         "porcentajeIva",
         "iva",
+        "subtotal",
 
         "entidad",
         "idDeposito",

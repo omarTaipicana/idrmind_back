@@ -1,3 +1,4 @@
+const {splitVat}=require('../services/affiliateSettings.service');
 const axios = require("axios");
 
 
@@ -158,6 +159,7 @@ async function contificoCrearFacturaIva0({
     descripcionItem,
     productoId,
     expectedIva,
+    expectedVatRate,
 }) {
     const totalNum = Number(total);
 
@@ -173,9 +175,12 @@ async function contificoCrearFacturaIva0({
     const producto = await contificoGetProductoById(productoId);
     const porcentajeIva = Number(producto?.porcentaje_iva || 0);
 
-    const factor = 1 + porcentajeIva / 100;
-    const subtotal = Number((totalNum / factor).toFixed(2));
-    const iva = Number((totalNum - subtotal).toFixed(2));
+    if(expectedVatRate!=null && expectedVatRate!==porcentajeIva) {
+        throw new Error("El porcentaje de IVA del producto Contífico no coincide con el registrado al validar el pago. No se emitió la factura.");
+    }
+    const tax=expectedVatRate!=null ? splitVat(Math.round(totalNum*100),porcentajeIva) : null;
+    const subtotal = tax ? tax.base/100 : Number((totalNum / (1 + porcentajeIva / 100)).toFixed(2));
+    const iva = tax ? tax.vat/100 : Number((totalNum - subtotal).toFixed(2));
 
     if(expectedIva!==undefined && expectedIva!==null && Math.round(Number(expectedIva)*100)!==Math.round(iva*100)) {
         throw new Error("El IVA del producto Contífico no coincide con el registrado al validar el pago. Revisa la configuración tributaria; no se emitió la factura ni se recalcularon comisiones.");

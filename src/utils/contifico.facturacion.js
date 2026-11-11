@@ -1,3 +1,4 @@
+const {getPaymentTax,invoiceTaxFields}=require('./contifico.paymentTax');
 const Pagos = require("../models/Pagos"); // ajusta según tu estructura
 const Inscripcion = require("../models/Inscripcion");
 const User = require("../models/User");
@@ -37,7 +38,7 @@ async function contificoEmitirFacturaPorPagoId(pagoId) {
     throw new Error(`valorDepositado inválido: ${pago.valorDepositado}`);
   }
 
-  const affiliateSale=await require("../services/affiliateCore.service").one("SELECT gross_cents,base_cents FROM affiliate_sales WHERE payment_id=:id",{id:pagoId});
+  const tax=await getPaymentTax(pagoId);
 
   // ✅ documento consecutivo según Contífico
   const { documento } = await contificoGetSiguienteDocumento();
@@ -55,8 +56,7 @@ async function contificoEmitirFacturaPorPagoId(pagoId) {
     descripcionItem: `Pago curso: ${course?.nombre || pago.curso || "Curso"
       }`,
     productoId: course?.contificoProductoId,
-    expectedIva: affiliateSale?(Number(affiliateSale.gross_cents)-Number(affiliateSale.base_cents))/100:undefined,
-
+    ...tax,
   });
 
   // ✅ guardar vínculo en Pagos
@@ -71,11 +71,7 @@ async function contificoEmitirFacturaPorPagoId(pagoId) {
       contificoUrlXml: doc.url_xml,
 
       // ✅ Datos tributarios
-      subtotal: Number(doc.subtotal || 0),
-      porcentajeIva: Number(
-        doc.detalles?.[0]?.porcentaje_iva || 0
-      ),
-      iva: Number(doc.iva || 0),
+      ...invoiceTaxFields(doc,tax),
     },
     { where: { id: pagoId } }
   );

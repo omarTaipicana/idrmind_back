@@ -1,5 +1,6 @@
 const C=require('./affiliateCore.service');
 const Pagos=require('../models/Pagos');
+const {splitVat}=require('./affiliateSettings.service');
 const bool=v=>v===true||v==='true'||v===1||v==='1';
 async function rateFor(p,cfg,t){
  const current=C.month(),existing=await C.one('SELECT rate FROM affiliate_monthly_tiers WHERE affiliate_id=:id AND month=:month',{id:p.id,month:current},t);if(existing)return Number(existing.rate);
@@ -8,12 +9,10 @@ async function rateFor(p,cfg,t){
  const rate=cfg.directRates[revenue>=C.cents(cfg.revenueGoals[1])?2:revenue>=C.cents(cfg.revenueGoals[0])?1:0];
  await C.exec('INSERT INTO affiliate_monthly_tiers(affiliate_id,month,rate,source_revenue) VALUES (:id,:month,:rate,:revenue) ON CONFLICT DO NOTHING',{id:p.id,month:current,rate,revenue},t);return rate;
 }
-async function bookSale(p,actor,t){
+async function bookSale(p,actor,t,cfg,gross,base){
  if(await C.one('SELECT id FROM affiliate_sales WHERE payment_id=:id',{id:p.id},t))return;
- const gross=C.cents(p.valorDepositado),vat=C.cents(p.iva||0);if(vat>gross)C.fail('El IVA no puede superar el pago.',400);if(!gross)C.fail('El pago debe ser mayor a cero.',400);
  const ins=await C.one('SELECT "userId","courseId" FROM inscripcions WHERE id=:id',{id:p.inscripcionId},t);
  const a=await C.one('SELECT * FROM affiliate_attributions WHERE inscripcion_id=:id',{id:p.inscripcionId},t);
- const cfg=await C.settings(t),base=gross-vat;
  let list=a?.chain||[];
  if(list.some(item=>item.userId===ins.userId))list=[];
  const seller=list.length?await C.one("SELECT * FROM affiliate_profiles WHERE id=:id AND status='activo'",{id:list[0].id},t):null;
@@ -23,7 +22,7 @@ async function bookSale(p,actor,t){
  for(let level=0;level<list.length;level++){
   const recipient=await C.one("SELECT * FROM affiliate_profiles WHERE id=:id AND status='activo'",{id:list[level].id},t);if(!recipient)continue;
   const rate=level===0?await rateFor(recipient,cfg,t):cfg.uplineRates[level-1];
-  const amount=Math.floor(base*rate/100); // Centavos; nunca repartir por encima del fondo por redondeo.
+  const amount=Number(BigInt(base)*BigInt(Math.round(rate*1000))/100000n); // Centavos; nunca repartir por encima del fondo por redondeo.
   if(!amount)continue;
   const commission=await C.one('INSERT INTO affiliate_commissions(sale_id,affiliate_id,level,rate,original_cents) VALUES (:sale,:affiliate,:level,:rate,:amount) RETURNING id',{sale:sale.id,affiliate:recipient.id,level,rate,amount},t);
   await C.exec("INSERT INTO affiliate_entries(affiliate_id,sale_id,commission_id,amount_cents,entry_key) VALUES (:affiliate,:sale,:commission,:amount,:key)",{affiliate:recipient.id,sale:sale.id,commission:commission.id,amount,key:'sale:'+p.id+':'+level},t);
@@ -38,17 +37,25 @@ async function updatePayment(id,data,actor){return C.atomic(async t=>{
   for(const k of ['valorDepositado','iva','subtotal','porcentajeIva','cert_emp','cert_mdt','cert_int','curso'])if(data[k]!==undefined&&(['valorDepositado','iva','subtotal','porcentajeIva'].includes(k)?Number(data[k]||0)!==Number(p[k]||0):String(data[k]??'')!==String(p[k]??'')))C.fail('El pago tiene movimientos financieros. No se puede cambiar su importe o servicio; registra una devolución.');
   if(data.verificado!==undefined&&!bool(data.verificado))C.fail('Este pago tiene movimientos. Usa Registrar devolución; no retires la validación.');
  }
- if(!p.verificado&&bool(data.verificado)&&data.iva==null&&p.iva==null)C.fail('Indica el IVA incluido en el pago (0 si no aplica) antes de validar.',400);
  const bank=String(data.entidad??p.entidad??'').trim(),deposit=String(data.idDeposito??p.idDeposito??'').trim();
  if(!p.verificado&&bool(data.verificado)&&(!bank||!deposit))C.fail('Entidad e identificador de pago son obligatorios al validar.',400);
  if(bank&&deposit&&await C.one('SELECT id FROM pagos WHERE entidad=:bank AND "idDeposito"=:deposit AND id <> :id LIMIT 1',{bank,deposit,id},t))C.fail('Ese identificador de pago ya está registrado para la entidad.');
  if(data.entidad!==undefined)data.entidad=bank||null;
  if(data.idDeposito!==undefined)data.idDeposito=deposit||null;
  if(!p.verificado&&bool(data.verificado)&&p.psychometricEvaluationId&&await C.one('SELECT id FROM pagos WHERE "psychometricEvaluationId"=:evaluation AND verificado=true AND id <> :id LIMIT 1',{evaluation:p.psychometricEvaluationId,id},t))C.fail('La evaluación ya tiene otro pago validado.');
- const previous=p.verificado;
+ const validating=!p.verificado&&bool(data.verificado);
+ let cfg,gross,base;
+ if(validating){
+  cfg=await C.settings(t);
+  gross=C.cents(data.valorDepositado??p.valorDepositado);
+  const tax=splitVat(gross,cfg.vatRate);
+  base=tax.base;
+  Object.assign(data,{iva:tax.vat/100,subtotal:base/100,porcentajeIva:cfg.vatRate});
+ }
+
  if(data.verificado!==undefined)data.verificado=bool(data.verificado);
  await p.update(data,{transaction:t});
- if(!previous&&p.verificado)await bookSale(p,actor,t);
+ if(validating)await bookSale(p,actor,t,cfg,gross,base);
  return p;
 });}
 async function paymentSummary(id,t){

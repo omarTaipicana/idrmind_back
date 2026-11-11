@@ -1,5 +1,6 @@
 
 const express = require("express");
+const {getPaymentTax,invoiceTaxFields}=require("../utils/contifico.paymentTax");
 const Pagos = require("../models/Pagos");
 const Inscripcion = require("../models/Inscripcion");
 const User = require("../models/User");
@@ -21,6 +22,7 @@ const {
     contificoListarDocumentos,
     contificoFormatearDocumento,
     contificoGetDocumentoById,
+    contificoGetSiguienteDocumento,
 } = require("../utils/contifico.service");
 
 const contifico = axios.create({
@@ -215,26 +217,13 @@ contificoRouter.post("/contifico/factura/prueba", express.json(), async (req, re
 
 
 
-        console.log("DEBUG total:", pago.valorDepositado, "->", total);
-        console.log("DEBUG personaId:", user.contificoPersonaId);
+        if (pago.contificoDocumentoId) {
+            return res.status(400).json({ ok: false, error: "Este pago ya tiene factura contifico" });
+        }
 
-
-        const data = await contificoCrearFacturaIva0({
-            documento,
-            personaId: user.contificoPersonaId,
-            cedula: String(user.cI || "").trim(),
-            email: String(user.email || "").trim(),
-            razon_social: `${user.firstName} ${user.lastName}`.trim(),
-            direccion: `${user.city || ""} ${user.province || ""}`.trim(),
-            telefonos: user.cellular || "",
-            total: total,
-            descripcionItem: `Pago curso: ${course?.nombre || pago.curso || "Curso"}`,
-            productoId: course?.contificoProductoId,
-
-        });
-
-        // ...
+        const tax=await getPaymentTax(pago.id);
         const doc = await contificoCrearFacturaIva0({
+            ...tax,
             documento,
             personaId: user.contificoPersonaId,
             cedula: String(user.cI || "").trim(),
@@ -248,10 +237,6 @@ contificoRouter.post("/contifico/factura/prueba", express.json(), async (req, re
 
         });
 
-        if (pago.contificoDocumentoId) {
-            return res.status(400).json({ ok: false, error: "Este pago ya tiene factura contifico" });
-        }
-
         // ✅ guardar en Pagos
         await Pagos.update(
             {
@@ -264,18 +249,14 @@ contificoRouter.post("/contifico/factura/prueba", express.json(), async (req, re
                 contificoUrlXml: doc.url_xml,
 
                 // ✅ Datos tributarios
-                subtotal: Number(doc.subtotal || 0),
-                porcentajeIva: Number(
-                    doc.detalles?.[0]?.porcentaje_iva || 0
-                ),
-                iva: Number(doc.iva || 0),
+                ...invoiceTaxFields(doc,tax),
             },
             { where: { id: pagoId } }
         );
 
 
 
-        return res.json({ ok: true, data });
+        return res.json({ ok: true, data: doc });
     } catch (error) {
         console.error(error.response?.data || error.message);
         return res.status(500).json({ ok: false, error: error.response?.data || error.message });
@@ -335,6 +316,7 @@ contificoRouter.post("/contifico/factura/sync", express.json(), async (req, res)
         }
 
         const doc = await contificoGetDocumentoById(pago.contificoDocumentoId);
+        const tax=await getPaymentTax(pago.id);
 
         await Pagos.update(
             {
@@ -344,11 +326,7 @@ contificoRouter.post("/contifico/factura/sync", express.json(), async (req, res)
                 contificoUrlXml: doc.url_xml,
 
                 // ✅ Datos tributarios
-                subtotal: Number(doc.subtotal || 0),
-                porcentajeIva: Number(
-                    doc.detalles?.[0]?.porcentaje_iva || 0
-                ),
-                iva: Number(doc.iva || 0),
+                ...invoiceTaxFields(doc,tax),
                 contificoFirmado: doc.firmado,
             },
             { where: { id: pagoId } }
@@ -527,7 +505,9 @@ contificoRouter.post("/contifico/factura/emitir", express.json(), async (req, re
         // ✅ aquí usamos tu función nueva
         const { documento } = await contificoGetSiguienteDocumento();
 
+        const tax=await getPaymentTax(pago.id);
         const doc = await contificoCrearFacturaIva0({
+            ...tax,
             documento,
             personaId: user.contificoPersonaId,
             cedula: String(user.cI || "").trim(),
@@ -552,11 +532,7 @@ contificoRouter.post("/contifico/factura/emitir", express.json(), async (req, re
                 contificoUrlXml: doc.url_xml,
 
                 // ✅ Datos tributarios
-                subtotal: Number(doc.subtotal || 0),
-                porcentajeIva: Number(
-                    doc.detalles?.[0]?.porcentaje_iva || 0
-                ),
-                iva: Number(doc.iva || 0),
+                ...invoiceTaxFields(doc,tax),
             },
             { where: { id: pagoId } }
         );
@@ -665,7 +641,9 @@ contificoRouter.post("/contifico/factura/emitir-manual", async (req, res) => {
         const { documento } = await contificoGetSiguienteDocumento();
 
         // 3️⃣ Crear factura
+        const tax=await getPaymentTax(pago.id);
         const doc = await contificoCrearFacturaIva0({
+            ...tax,
             documento,
             personaId,
             cedula: String(user.cI || "").trim(),
@@ -689,11 +667,7 @@ contificoRouter.post("/contifico/factura/emitir-manual", async (req, res) => {
                 contificoUrlXml: doc.url_xml,
 
                 // ✅ Datos tributarios
-                subtotal: Number(doc.subtotal || 0),
-                porcentajeIva: Number(
-                    doc.detalles?.[0]?.porcentaje_iva || 0
-                ),
-                iva: Number(doc.iva || 0),
+                ...invoiceTaxFields(doc,tax),
                 contificoAutorizacion: doc.autorizacion || null,
             },
             { where: { id: pago.id } }

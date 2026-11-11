@@ -21,26 +21,39 @@ function profileData(body){
  if(value.bank.account&&!/^\d{6,30}$/.test(value.bank.account))C.fail('Cuenta bancaria inválida.',400);
  return value;
 }
+async function applicationPlacement(userId,body,p,t){
+ if(p&&['activo','suspendido'].includes(p.status))C.fail('Ya existe una afiliación. Usa Actualizar mis datos.');
+ const archived=p?.status==='archivado';
+ const code=String(body.sponsorCode||'').trim().toUpperCase();
+ if(archived&&!code)C.fail('Para presentar una nueva solicitud necesitas una invitación válida.');
+ let sponsor=null;
+ if(code){
+  if(!/^[A-Z0-9]{1,32}$/.test(code))C.fail('El código de invitación no es válido.',400);
+  sponsor=await C.one('SELECT id,user_id,depth,status,fiscal_name FROM affiliate_profiles WHERE code=:code',{code},t);
+  if(!sponsor)C.fail('El código de invitación no existe.',400);
+  if(sponsor.user_id===userId)C.fail('No puedes ser tu propio patrocinador.',400);
+  if(!await C.canRecruit(sponsor,t))C.fail('La persona que te invitó aún no puede incorporar afiliados.');
+ }
+ if(p&&!archived&&p.sponsor_id!==(sponsor?.id||null))C.fail('El patrocinador de la solicitud ya está fijado. Contacta con administración.');
+ return {sponsor,depth:sponsor?sponsor.depth+1:1,archived};
+}
+exports.applicationPreview=wrap(async(req,res)=>{
+ const {sponsor,depth}=await applicationPlacement(req.user.id,req.body,await C.profile(req.user.id));
+ res.json({position:C.names[depth-1],sponsorName:sponsor?.fiscal_name||null,sponsorPosition:sponsor?C.names[sponsor.depth-1]:null});
+});
 async function apply(userId,body,actor,adminCreated){return C.atomic(async t=>{
  const account=await User.findByPk(userId,{transaction:t});if(!account)C.fail('Usuario no encontrado.',404);
  const data=profileData(body);if(account.cI&&String(account.cI).replace(/[\s.-]/g,'').toUpperCase()!==data.document)C.fail('El documento debe coincidir con el de la cuenta del usuario.',400);
  const cfg=await C.settings(t),accepted=!adminCreated&&body.acceptTerms===true&&body.termsVersion===cfg.termsVersion;
  if(!adminCreated&&!accepted)C.fail('Debes aceptar las condiciones vigentes del programa.',400);
- let p=await C.profile(userId,t);if(p&&['activo','suspendido'].includes(p.status))C.fail('Ya existe una afiliación. Usa Actualizar mis datos.');
- let sponsor=null;
- const sponsorCode=String(body.sponsorCode||'').trim().toUpperCase();
- if(sponsorCode){
-  sponsor=await C.one('SELECT * FROM affiliate_profiles WHERE code=:code',{code:sponsorCode},t);
-  if(!sponsor)C.fail('El código de patrocinador no existe. Corrígelo o selecciona Afiliarme sin patrocinador.',400);
-  if(sponsor.user_id===userId)C.fail('No puedes ser tu propio patrocinador. Selecciona Afiliarme sin patrocinador.',400);
-  if(!await C.canRecruit(sponsor,t))C.fail('El patrocinador elegido todavía no puede incorporar afiliados: debe estar activo, cumplir su meta y tener un nivel disponible. Puedes solicitar tu afiliación sin patrocinador; tú no necesitas ventas previas.',409);
- }
- if(p&&p.sponsor_id!==(sponsor?.id||null))C.fail('El patrocinador de la solicitud ya está fijado. Contacta con administración.');
- const r={user:userId,name:data.name,document:data.document,phone:data.phone,ruc:data.ruc||null,address:data.address,bank:JSON.stringify(data.bank),terms:accepted?cfg.termsVersion:null,accepted:accepted?new Date():null};
+ let p=await C.profile(userId,t);
+ const {sponsor,depth,archived}=await applicationPlacement(userId,body,p,t);
+ if(adminCreated&&archived)C.fail('La persona debe enviar su nueva solicitud desde Mi negocio con una invitación válida.');
+ const r={user:userId,sponsor:sponsor?.id||null,depth,name:data.name,document:data.document,phone:data.phone,ruc:data.ruc||null,address:data.address,bank:JSON.stringify(data.bank),terms:accepted?cfg.termsVersion:null,accepted:accepted?new Date():null};
  if(!p){p=await C.one(`INSERT INTO affiliate_profiles(user_id,sponsor_id,depth,code,fiscal_name,document,phone,ruc,fiscal_address,bank,terms_version,accepted_at)
- VALUES (:user,:sponsor,:depth,:code,:name,:document,:phone,:ruc,:address,CAST(:bank AS jsonb),:terms,:accepted) RETURNING *`,{...r,sponsor:sponsor?.id||null,depth:sponsor?sponsor.depth+1:1,code:C.randomCode()},t);}
- else{await C.exec("UPDATE affiliate_profiles SET status='pendiente',fiscal_name=:name,document=:document,phone=:phone,ruc=:ruc,fiscal_address=:address,bank=CAST(:bank AS jsonb),terms_version=:terms,accepted_at=:accepted,updated_at=now() WHERE user_id=:user",r,t);p=await C.profile(userId,t);}
- await C.audit(actor,'affiliate_requested',p.id,{adminCreated},t);return p;
+ VALUES (:user,:sponsor,:depth,:code,:name,:document,:phone,:ruc,:address,CAST(:bank AS jsonb),:terms,:accepted) RETURNING *`,{...r,code:C.randomCode()},t);}
+ else{await C.exec("UPDATE affiliate_profiles SET status='pendiente',sponsor_id=:sponsor,depth=:depth,review_note=NULL,reviewed_by=NULL,reviewed_at=NULL,fiscal_name=:name,document=:document,phone=:phone,ruc=:ruc,fiscal_address=:address,bank=CAST(:bank AS jsonb),terms_version=:terms,accepted_at=:accepted,updated_at=now() WHERE user_id=:user",r,t);p=await C.profile(userId,t);}
+ await C.audit(actor,archived?'affiliate_reapplied':'affiliate_requested',p.id,{adminCreated,depth,sponsorId:sponsor?.id||null},t);return p;
 });}
 exports.apply=wrap(async(req,res)=>res.status(201).json(await apply(req.user.id,req.body,req.user.id,false)));
 exports.adminAdd=wrap(async(req,res)=>{if(!C.uuid(req.body.userId))C.fail('Selecciona un usuario existente.',400);res.status(201).json(await apply(req.body.userId,req.body,req.user.id,true));});
@@ -66,12 +79,12 @@ exports.me=wrap(async(req,res)=>{
  const prev=C.month(new Date(C.month()+'-01T00:00:00-05:00').getTime()-86400000);
  const prior=C.int((await C.one('SELECT COALESCE(SUM(net_base_cents),0) AS revenue FROM affiliate_sales WHERE affiliate_id=:id AND month=:month',{id:p.id,month:prev})).revenue);
  const rate=tier?Number(tier.rate):cfg.directRates[prior>=C.cents(cfg.revenueGoals[1])?2:prior>=C.cents(cfg.revenueGoals[0])?1:0];
- const sponsor=p.sponsor_id?await C.one('SELECT code FROM affiliate_profiles WHERE id=:id',{id:p.sponsor_id}):null;
- res.json({profile:{...p,position:C.names[p.depth-1],sponsorCode:sponsor?.code||''},config:cfg,terms,metrics:{...m,recruitGoal:cfg.recruitGoals[p.depth-1],canRecruit:eligible,directRate:rate,balanceCents:C.int(balance.unassigned),earnedCents:C.int(balance.lifetime)},entries,sales,team,payouts,courses});
+ const sponsor=p.sponsor_id?await C.one('SELECT code,fiscal_name,depth FROM affiliate_profiles WHERE id=:id',{id:p.sponsor_id}):null;
+ res.json({profile:{...p,position:C.names[p.depth-1],sponsorCode:sponsor?.code||'',sponsorName:sponsor?.fiscal_name||null},config:cfg,terms,metrics:{...m,recruitGoal:cfg.recruitGoals[p.depth-1],canRecruit:eligible,directRate:rate,balanceCents:C.int(balance.unassigned),earnedCents:C.int(balance.lifetime)},entries,sales,team,payouts,courses});
 });
 exports.users=wrap(async(req,res)=>{const q=String(req.query.q||'').trim();if(!q)return res.json([]);res.json(await C.query('SELECT id,"firstName","lastName",email,"cI",cellular FROM users WHERE email ILIKE :q OR "cI" ILIKE :q OR "firstName" ILIKE :q OR "lastName" ILIKE :q ORDER BY "firstName" LIMIT 25',{q:'%'+q.slice(0,100)+'%'}));});
 exports.adminList=wrap(async(req,res)=>{
- const profiles=await C.query(`SELECT a.*,u.email,s.fiscal_name AS sponsor_name FROM affiliate_profiles a JOIN users u ON u.id=a.user_id LEFT JOIN affiliate_profiles s ON s.id=a.sponsor_id ORDER BY a.created_at DESC LIMIT 1000`);
+ const profiles=await C.query(`SELECT a.*,u.email,s.fiscal_name AS sponsor_name,s.depth AS sponsor_depth FROM affiliate_profiles a JOIN users u ON u.id=a.user_id LEFT JOIN affiliate_profiles s ON s.id=a.sponsor_id WHERE a.status<>'archivado' ORDER BY (a.status='pendiente') DESC,a.updated_at DESC LIMIT 1000`);
  const payouts=await C.query('SELECT p.*,a.fiscal_name FROM affiliate_payouts p JOIN affiliate_profiles a ON a.id=p.affiliate_id ORDER BY p.created_at DESC LIMIT 1000');
  const totals=await C.query(`SELECT affiliate_id,COALESCE(SUM(amount_cents) FILTER(WHERE payout_id IS NULL),0) AS balance FROM affiliate_entries GROUP BY affiliate_id`);
  const stats=await C.query(`SELECT affiliate_id,COUNT(*) FILTER(WHERE payment_type='test_psicometrico' AND net_base_cents>0) AS tests,COALESCE(SUM(net_base_cents) FILTER(WHERE month=:month),0) AS revenue FROM affiliate_sales GROUP BY affiliate_id`,{month:C.month()});
@@ -85,17 +98,39 @@ exports.adminList=wrap(async(req,res)=>{
  ORDER BY s.validated_at DESC LIMIT 200`);
  res.json({profiles:profiles.map(p=>({...p,position:C.names[p.depth-1],balanceCents:C.int(totals.find(x=>x.affiliate_id===p.id)?.balance),tests:C.int(stats.find(x=>x.affiliate_id===p.id)?.tests)})),payouts,sales,testMode:process.env.AFFILIATE_TEST_MODE==='true',canConfigure:require("../utils/sessionSecurity").isSuperAdmin(req.user),config:await C.settings()});
 });
+exports.archivedApplications=wrap(async(req,res)=>{
+ const q=String(req.query.q||'').trim().slice(0,120);
+ const archives=await C.query(`SELECT h.id,h.created_at,h.details,p.status AS current_status,
+ NOT EXISTS (SELECT 1 FROM affiliate_audit newer WHERE newer.subject_id=h.subject_id
+ AND newer.action IN ('affiliate_archive','affiliate_reapplied') AND newer.created_at>h.created_at)
+ AND p.status='archivado' AS still_archived
+ FROM affiliate_audit h JOIN affiliate_profiles p ON p.id=h.subject_id
+ WHERE h.action='affiliate_archive' AND CONCAT_WS(' ',h.details->>'applicantName',h.details->>'email',h.details->>'document',h.details->>'sponsorName') ILIKE :pattern
+ ORDER BY h.created_at DESC LIMIT 1000`,{pattern:'%'+q+'%'});
+ res.json({archives});
+});
 exports.review=wrap(async(req,res)=>res.json(await C.atomic(async t=>{
  const p=await C.one('SELECT * FROM affiliate_profiles WHERE id=:id FOR UPDATE',{id:req.params.id},t);if(!p)C.fail('Afiliado no encontrado.',404);
- const action=req.body.action,next={approve:'activo',reject:'rechazado',suspend:'suspendido',reactivate:'activo'}[action];if(!next)C.fail('Acción inválida.',400);
+ const action=req.body.action,next={approve:'activo',archive:'archivado',reject:'rechazado',suspend:'suspendido',reactivate:'activo'}[action];if(!next)C.fail('Acción inválida.',400);
+ if(['approve','archive','reject'].includes(action)){
+  if(p.status!=='pendiente')C.fail('Solo se pueden revisar solicitudes pendientes.');
+  if(!req.body.expectedUpdatedAt||new Date(req.body.expectedUpdatedAt).getTime()!==new Date(p.updated_at).getTime())C.fail('La solicitud cambió. Actualiza la lista y vuelve a revisarla.');
+ }
+ const note=String(req.body.note||'').trim().slice(0,1500);
+ if(action==='archive'){
+  if(!note)C.fail('Indica un motivo interno para archivar.',400);
+  const sponsor=p.sponsor_id?await C.one('SELECT fiscal_name,depth FROM affiliate_profiles WHERE id=:id',{id:p.sponsor_id},t):null;
+  const applicant=await User.findByPk(p.user_id,{transaction:t});
+  await C.audit(req.user.id,'affiliate_archive',p.id,{note,depth:p.depth,position:C.names[p.depth-1],applicantName:p.fiscal_name,document:p.document,email:applicant?.email||null,sponsorId:p.sponsor_id,sponsorName:sponsor?.fiscal_name||null,sponsorPosition:sponsor?C.names[sponsor.depth-1]:null},t);
+ }
  if(action==='approve'){
-  if(p.status!=='pendiente')C.fail('Solo se aprueban solicitudes pendientes.');
   const cfg=await C.settings(t);if(!p.accepted_at||p.terms_version!==cfg.termsVersion)C.fail('El usuario debe completar la solicitud y aceptar las condiciones vigentes.');
   if(p.sponsor_id){const sponsor=await C.one('SELECT * FROM affiliate_profiles WHERE id=:id',{id:p.sponsor_id},t);if(!await C.canRecruit(sponsor,t)||p.depth!==sponsor.depth+1)C.fail('El patrocinador ya no cumple los requisitos.');}
  }
- if(action==='reject'&&p.status!=='pendiente'||action==='suspend'&&p.status!=='activo'||action==='reactivate'&&p.status!=='suspendido')C.fail('Estado no compatible con la acción.');
- await C.exec('UPDATE affiliate_profiles SET status=:status,reviewed_by=:actor,reviewed_at=now(),review_note=:note,updated_at=now() WHERE id=:id',{id:p.id,status:next,actor:req.user.id,note:String(req.body.note||'').slice(0,1500)},t);
- await C.audit(req.user.id,'affiliate_'+action,p.id,{},t);return {message:'Estado actualizado.'};
+ if(action==='suspend'&&p.status!=='activo'||action==='reactivate'&&p.status!=='suspendido')C.fail('Estado no compatible con la acción.');
+ await C.exec('UPDATE affiliate_profiles SET status=:status,reviewed_by=:actor,reviewed_at=now(),review_note=:note,updated_at=now() WHERE id=:id',{id:p.id,status:next,actor:req.user.id,note:action==='archive'?null:note},t);
+ if(action!=='archive')await C.audit(req.user.id,'affiliate_'+action,p.id,{depth:p.depth,sponsorId:p.sponsor_id},t);
+ return {message:action==='archive'?'Solicitud archivada.':action==='approve'?'Solicitud aprobada como '+C.names[p.depth-1]+'.':'Estado actualizado.'};
 })));
 exports.config=wrap(async(req,res)=>res.json(await C.atomic(async t=>{
  const current=await C.settings(t);
